@@ -391,8 +391,29 @@ struct CombatFlowController {
             object: nil,
             userInfo: ["tileX": tileX, "tileY": tileY, "characterId": id.uuidString]
         )
+        checkDataTerminalPickup(gameState: gameState, atX: tileX, y: tileY, by: char)
         // Movement is a FREE action — does NOT consume the turn.
         // Do NOT set hasActedThisRound or call endTurn() here.
+    }
+
+    /// If the tile under the moving character is a data terminal, hack it.
+    /// Converts the tile to floor in-memory, marks the objective complete, and
+    /// posts .dataTerminalHacked so the scene can update its visual.
+    static func checkDataTerminalPickup(gameState: GameState, atX x: Int, y: Int, by char: Character) {
+        guard y >= 0, y < gameState.currentMissionTiles.count else { return }
+        guard x >= 0, x < gameState.currentMissionTiles[y].count else { return }
+        guard gameState.currentMissionTiles[y][x] == TileType.dataTerminal.rawValue else { return }
+        // Convert in-memory tile to floor so it isn't picked up again and
+        // pathfinding sees a normal walkable floor.
+        gameState.currentMissionTiles[y][x] = TileType.floor.rawValue
+        gameState.dataAcquired = true
+        gameState.addLog("📡 \(char.name) jacks into the terminal — DATA ACQUIRED.")
+        gameState.addLog("Now reach extraction at (\(gameState.extractionX), \(gameState.extractionY)).")
+        NotificationCenter.default.post(
+            name: .dataTerminalHacked,
+            object: nil,
+            userInfo: ["x": x, "y": y]
+        )
     }
 
     static func showItemMenu(gameState: GameState) {
@@ -661,6 +682,7 @@ struct CombatFlowController {
                     object: nil,
                     userInfo: ["tileX": tileX, "tileY": tileY, "characterId": char.id.uuidString]
                 )
+                checkDataTerminalPickup(gameState: gameState, atX: tileX, y: tileY, by: char)
                 // Movement is a free action — does NOT consume the turn.
             } else {
                 gameState.addLog("Too far. Choose an adjacent hex.")
@@ -704,6 +726,12 @@ struct CombatFlowController {
             return false
         }
 
+        if gameState.missionRequiresData && !gameState.dataAcquired {
+            CombatFlowController.setCombatPhase(gameState: gameState, .playerInput)
+            gameState.addLog("Hack the data terminal first — extraction is locked.")
+            return false
+        }
+
         adjudicateExtractionIfEligible(gameState: gameState)
         return true
     }
@@ -712,6 +740,7 @@ struct CombatFlowController {
     static func adjudicateExtractionIfEligible(gameState: GameState) {
         guard gameState.currentMissionType == .extraction else { return }
         guard gameState.livingEnemies.isEmpty && gameState.pendingSpawns.isEmpty else { return }
+        guard !gameState.missionRequiresData || gameState.dataAcquired else { return }
 
         let onExtraction = gameState.livingPlayers.contains {
             $0.positionX == gameState.extractionX && $0.positionY == gameState.extractionY

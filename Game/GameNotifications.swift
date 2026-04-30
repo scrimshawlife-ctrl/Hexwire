@@ -23,6 +23,7 @@ extension Notification.Name {
     static let roomTransitionCompleted = Notification.Name("roomTransitionCompleted")
     static let roomNavigationRequested = Notification.Name("roomNavigationRequested")
     static let enemyPhaseCompleted = Notification.Name("enemyPhaseCompleted")
+    static let dataTerminalHacked  = Notification.Name("dataTerminalHacked")
 }
 
 // MARK: - Character Events

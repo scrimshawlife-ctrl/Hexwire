@@ -30,4 +30,10 @@ final class GameSessionState {
     var missionTargetTurns: Int = 6
     var currentTurnCount: Int = 0
     var isItemMenuVisible: Bool = false
+
+    /// Mission-objective: data acquisition (e.g. M2's "hack the core terminal").
+    /// Set to true at mission load when any TileType.dataTerminal exists on the map.
+    /// While true and `dataAcquired` is false, extraction is blocked.
+    var missionRequiresData: Bool = false
+    var dataAcquired: Bool = false
 }

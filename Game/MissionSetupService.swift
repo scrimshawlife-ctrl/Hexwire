@@ -50,6 +50,12 @@ struct MissionSetupService {
         )
         gameState.currentMissionTiles = adjustedMissionMap.0
 
+        gameState.missionRequiresData = mapContainsDataTerminal(gameState.currentMissionTiles)
+        gameState.dataAcquired = false
+        if gameState.missionRequiresData {
+            gameState.addLog("OBJECTIVE — Hack data terminal (cyan tile) before extracting.")
+        }
+
         gameState.currentTurnIndex = 0
         gameState.roundNumber = 1
         gameState.enemyPhaseCount = 0
@@ -128,6 +134,12 @@ struct MissionSetupService {
             protectedTiles: protectedTiles
         )
         gameState.currentMissionTiles = adjustedFirstRoomMap.0
+
+        gameState.missionRequiresData = anyRoomHasDataTerminal(rooms: mission.rooms)
+        gameState.dataAcquired = false
+        if gameState.missionRequiresData {
+            gameState.addLog("OBJECTIVE — Hack data terminal (cyan tile) before extracting.")
+        }
 
         gameState.currentRoomId = firstRoom.id
 
@@ -225,7 +237,7 @@ struct MissionSetupService {
             guard y >= 0, y < height, x >= 0, x < map[y].count else { return false }
             if isProtected(x, y) { return false }
             let tile = map[y][x]
-            return tile != TileType.door.rawValue && tile != TileType.extraction.rawValue
+            return tile != TileType.door.rawValue && tile != TileType.extraction.rawValue && tile != TileType.dataTerminal.rawValue
         }
 
         switch gameState.currentMapSituation {
@@ -295,6 +307,22 @@ struct MissionSetupService {
 
     static func tileKey(gameState: GameState, x: Int, y: Int) -> String {
         "\(x),\(y)"
+    }
+
+    /// True if the tile grid contains at least one data terminal (TileType 5).
+    static func mapContainsDataTerminal(_ tiles: [[Int]]) -> Bool {
+        for row in tiles {
+            if row.contains(TileType.dataTerminal.rawValue) { return true }
+        }
+        return false
+    }
+
+    /// True if any room in a multi-room mission contains a data terminal.
+    static func anyRoomHasDataTerminal(rooms: [Room]) -> Bool {
+        for room in rooms {
+            if mapContainsDataTerminal(room.map) { return true }
+        }
+        return false
     }
 
     static func archetypeForSpawnIndex(gameState: GameState, spawnIndex: Int) -> EnemyArchetype {

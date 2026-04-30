@@ -447,6 +447,18 @@ final class GameState: ObservableObject {
         set { sessionState.currentMissionTiles = newValue }
     }
 
+    /// True when the active mission/room has a data-terminal objective that must
+    /// be hacked before extraction is allowed.
+    var missionRequiresData: Bool {
+        get { sessionState.missionRequiresData }
+        set { sessionState.missionRequiresData = newValue }
+    }
+
+    var dataAcquired: Bool {
+        get { sessionState.dataAcquired }
+        set { sessionState.dataAcquired = newValue }
+    }
+
     // MARK: - Pending Enemy Spawns
 
     /// Enemies not yet on the map (waiting for their delay timer)
@@ -1270,6 +1282,30 @@ final class GameState: ObservableObject {
             }!
             let dist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
             if dist >= 2 && dist <= 5 {
+                // Reposition before firing so drones don't sit motionless on
+                // identical tiles round after round. Pick a neighbor that
+                // keeps the player in the optimal 2-5 band, preferring tiles
+                // that move toward range 3 (centre of band) and have cover.
+                if Double.random(in: 0...1) < 0.55 {
+                    let candidates = PathingAndAIHelpers.hexNeighbors(gameState: self, x: enemy.positionX, y: enemy.positionY)
+                        .filter { (nx, ny) in
+                            PathingAndAIHelpers.tileWalkable(gameState: self, x: nx, y: ny, excluding: enemy.id)
+                        }
+                        .map { (nx, ny) -> (Int, Int, Int) in
+                            let nd = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: nx, y2: ny)
+                            // Score: prefer distance closer to 3, penalise leaving the band
+                            let bandPenalty = (nd >= 2 && nd <= 5) ? 0 : 100
+                            let centerDist = abs(nd - 3)
+                            return (nx, ny, bandPenalty + centerDist)
+                        }
+                        .sorted { $0.2 < $1.2 }
+                    if let pick = candidates.first, pick.2 < 100 {
+                        enemy.positionX = pick.0
+                        enemy.positionY = pick.1
+                        addLog("→ \(enemy.name) repositions")
+                        NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": pick.0, "y": pick.1])
+                    }
+                }
                 // Drones attack at optimal range 2–5 (extended from 2–3 to prevent stall states)
                 let weaponAccuracy = enemy.equippedWeapon?.accuracy ?? 3
                 let enemyAttackPool = enemy.attributes.agi + (weaponAccuracy / 2 + 1)
