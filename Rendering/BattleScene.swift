@@ -355,6 +355,12 @@ final class BattleScene: SKScene {
             print("[BattleScene] .enemyMoved received — enemyId=\(idStr), to=(\(newX),\(newY))")
             self?.animateEnemyMove(id: id, toX: newX, toY: newY)
         }
+        NotificationCenter.default.addObserver(forName: .dataTerminalHacked, object: nil, queue: .main) { [weak self] notification in
+            guard let userInfo = notification.userInfo,
+                  let x = userInfo["x"] as? Int,
+                  let y = userInfo["y"] as? Int else { return }
+            self?.tileMap?.markTerminalHacked(x: x, y: y)
+        }
         NotificationCenter.default.addObserver(forName: .enemySpawned, object: nil, queue: .main) { [weak self] notification in
             guard let self = self else { return }
             guard let userInfo = notification.userInfo,

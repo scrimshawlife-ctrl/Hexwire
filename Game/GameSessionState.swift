@@ -34,4 +34,10 @@ final class GameSessionState {
     // Mission narrative text (loaded from JSON or set during mission setup)
     var missionBriefingText: String? = nil
     var missionCompleteSummaryText: String? = nil
+
+    /// Mission-objective: data acquisition (e.g. M2's "hack the core terminal").
+    /// Set to true at mission load when any TileType.dataTerminal exists on the map.
+    /// While true and `dataAcquired` is false, extraction is blocked.
+    var missionRequiresData: Bool = false
+    var dataAcquired: Bool = false
 }

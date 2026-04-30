@@ -8,6 +8,7 @@ enum TileType: Int {
     case cover = 2
     case door = 3
     case extraction = 4
+    case dataTerminal = 5
 }
 
 /// 2D tile grid renderer using SpriteKit.
@@ -381,6 +382,72 @@ final class TileMap {
             exPulse.run(SKAction.repeatForever(SKAction.sequence([
                 SKAction.fadeAlpha(to: 0.10, duration: 0.9),
                 SKAction.fadeAlpha(to: 0.55, duration: 0.9)
+            ])))
+
+        // ─────────────────────────────────────────── DATA TERMINAL (mission objective)
+        case .dataTerminal:
+            // Floor underneath so the tile is walkable-looking; terminal prop on top.
+            let bg = SKShapeNode(path: hPath)
+            bg.fillColor = UIColor(hex: "#020812")
+            bg.strokeColor = .clear
+            bg.zPosition = 0
+            tileNode.addChild(bg)
+            // Server rack body (from cover variant 2)
+            let rack = SKShapeNode(rectOf: CGSize(width: R * 0.72, height: R * 0.92), cornerRadius: 3)
+            rack.fillColor = UIColor(hex: "#06122A")
+            rack.strokeColor = UIColor(hex: "#00CCFF")
+            rack.lineWidth = 1.8
+            rack.glowWidth = 4.0
+            rack.position = CGPoint(x: 0, y: R * 0.04)
+            rack.zPosition = 2
+            tileNode.addChild(rack)
+            // Screen
+            let screen = SKShapeNode(rectOf: CGSize(width: R * 0.50, height: R * 0.30), cornerRadius: 1)
+            screen.fillColor = UIColor(hex: "#001A2C")
+            screen.strokeColor = UIColor(hex: "#00FFCC")
+            screen.lineWidth = 0.8
+            screen.position = CGPoint(x: 0, y: R * 0.18)
+            screen.zPosition = 3
+            tileNode.addChild(screen)
+            // Scrolling code lines on screen
+            for i in 0..<3 {
+                let codeLine = SKShapeNode(rectOf: CGSize(width: R * 0.36, height: 1.2))
+                codeLine.fillColor = UIColor(hex: "#00FFCC").withAlphaComponent(0.7)
+                codeLine.strokeColor = .clear
+                codeLine.position = CGPoint(x: 0, y: R * 0.10 + CGFloat(i) * 4.5)
+                codeLine.zPosition = 3.2
+                tileNode.addChild(codeLine)
+                codeLine.run(SKAction.repeatForever(SKAction.sequence([
+                    SKAction.fadeAlpha(to: 0.2, duration: 0.4 + Double(i) * 0.1),
+                    SKAction.fadeAlpha(to: 0.9, duration: 0.4 + Double(i) * 0.1)
+                ])))
+            }
+            // Status LEDs
+            for i in 0..<2 {
+                let led = SKShapeNode(circleOfRadius: 1.8)
+                led.fillColor = UIColor(hex: i == 0 ? "#00FFCC" : "#FF0044")
+                led.strokeColor = .clear
+                led.glowWidth = 3.0
+                led.position = CGPoint(x: -R * 0.22 + CGFloat(i) * R * 0.44, y: -R * 0.12)
+                led.zPosition = 3.5
+                tileNode.addChild(led)
+                led.run(SKAction.repeatForever(SKAction.sequence([
+                    SKAction.fadeOut(withDuration: 0.35),
+                    SKAction.fadeIn(withDuration: 0.15),
+                    SKAction.wait(forDuration: 0.5 + Double(i) * 0.3)
+                ])))
+            }
+            // Pulsing cyan border to mark interactivity
+            addThinBorder(to: tileNode, R: R, borderColor: UIColor(hex: "#00CCFF").withAlphaComponent(0.85))
+            let dtPulse = SKShapeNode(path: TileMap.hexPath(radius: R))
+            dtPulse.fillColor = .clear
+            dtPulse.strokeColor = UIColor(hex: "#00FFCC").withAlphaComponent(0.55)
+            dtPulse.lineWidth = 2.0
+            dtPulse.zPosition = 1.5
+            tileNode.addChild(dtPulse)
+            dtPulse.run(SKAction.repeatForever(SKAction.sequence([
+                SKAction.fadeAlpha(to: 0.10, duration: 0.7),
+                SKAction.fadeAlpha(to: 0.65, duration: 0.7)
             ])))
         }
 
@@ -1001,6 +1068,33 @@ final class TileMap {
     func isWalkable(x: Int, y: Int) -> Bool {
         guard let t = tile(at: x, y: y) else { return false }
         return t != .wall
+    }
+
+    /// Mark a data terminal tile as "hacked" — fades the prop and overlays a
+    /// green checkmark to show it's been collected. The tile remains walkable.
+    func markTerminalHacked(x: Int, y: Int) {
+        guard x >= 0, x < TileMap.mapWidth, y >= 0, y < self.mapHeight else { return }
+        guard let node = tileNodes[y][x] else { return }
+        // Fade out animated children (LEDs, pulse, code lines) so the tile reads "done".
+        for child in node.children {
+            if child.name == "highlight" { continue }
+            child.removeAllActions()
+        }
+        node.run(SKAction.fadeAlpha(to: 0.55, duration: 0.25))
+        // Add a green check overlay
+        let R = TileMap.hexRadius
+        let check = SKShapeNode()
+        let cp = CGMutablePath()
+        cp.move(to: CGPoint(x: -R * 0.20, y: 0))
+        cp.addLine(to: CGPoint(x: -R * 0.05, y: -R * 0.16))
+        cp.addLine(to: CGPoint(x: R * 0.24, y: R * 0.18))
+        check.path = cp
+        check.strokeColor = UIColor(hex: "#00FF88")
+        check.lineWidth = 3.0
+        check.glowWidth = 4.0
+        check.zPosition = 5.0
+        check.name = "terminalCheck"
+        node.addChild(check)
     }
 
     // MARK: - Highlights
