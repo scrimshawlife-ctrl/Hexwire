@@ -380,4 +380,16 @@ final class Enemy: ObservableObject, Identifiable, Codable {
         return Enemy(name: "Street Medic", archetype: "healer",
                      attributes: attrs, weapon: weapon, armor: armor, maxHP: 20)
     }
+
+    static func combatMech() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 7; attrs.agi = 3; attrs.rea = 2; attrs.str = 6
+        attrs.cha = 0; attrs.int = 2; attrs.log = 2; attrs.wil = 3
+
+        let weapon = Weapon(name: "Autocannon", type: .rifle, damage: 8, accuracy: 3, armorPiercing: 3)
+        let armor = Armor(name: "Mech Plating", armorValue: 5, spellPenalty: -2)
+
+        return Enemy(name: "Combat Mech", archetype: "mech",
+                     attributes: attrs, weapon: weapon, armor: armor, maxHP: 34)
+    }
 }

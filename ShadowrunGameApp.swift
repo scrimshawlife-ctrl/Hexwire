@@ -811,6 +811,7 @@ struct CombatView: View {
                     diagnosticsVisible: showDiagnostics,
                     onToggleDiagnostics: { showDiagnostics.toggle() },
                     onAttack: { gameState.performAttack() },
+                    onShoot: { gameState.performShoot() },
                     onDefend: { gameState.performDefend() },
                     onSpell: { /* handled by SpellPickerSheet inside CombatUI */ },
                     onBlitz: { gameState.performBlitz() },

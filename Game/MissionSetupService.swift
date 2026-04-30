@@ -230,7 +230,15 @@ struct MissionSetupService {
     }
 
     static func updateTilesForCurrentRoom(gameState: GameState, tiles: [[Int]]) {
-        gameState.currentMissionTiles = tiles
+        gameState.currentMissionTiles = gameState.dataAcquired ? tilesWithoutDataTerminals(tiles) : tiles
+    }
+
+    private static func tilesWithoutDataTerminals(_ tiles: [[Int]]) -> [[Int]] {
+        tiles.map { row in
+            row.map { tile in
+                tile == TileType.dataTerminal.rawValue ? TileType.floor.rawValue : tile
+            }
+        }
     }
 
     static func assignMissionTypeForCurrentLoad(gameState: GameState) {
@@ -406,6 +414,7 @@ struct MissionSetupService {
         case "elite": enemy = Enemy.eliteGuard()
         case "mage": enemy = Enemy.corpMage()
         case "healer": enemy = Enemy.medic()
+        case "mech": enemy = Enemy.combatMech()
         default: enemy = Enemy.corpGuard()
         }
         applyEnemyArchetype(gameState: gameState, archetype: archetype, to: enemy)

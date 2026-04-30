@@ -127,6 +127,20 @@ struct CombatFlowController {
             gameState.addLog("Invalid target."); return
         }
 
+        let weapon = a.equippedWeapon ?? Weapon(name: "Fists", type: .unarmed, damage: 3, accuracy: 3, armorPiercing: 0)
+
+        if weapon.name.caseInsensitiveCompare("Katana") == .orderedSame {
+            let distance = gameState.hexDistance(
+                x1: a.positionX, y1: a.positionY,
+                x2: targetEnemy.positionX, y2: targetEnemy.positionY
+            )
+            guard distance == 1 else {
+                gameState.addLog("Too far — katana requires adjacent target.")
+                HapticsManager.shared.buttonTap()
+                return
+            }
+        }
+
         if gameState.isLineBlockedByWall(
             fromX: a.positionX, fromY: a.positionY,
             toX: targetEnemy.positionX, toY: targetEnemy.positionY
@@ -135,8 +149,6 @@ struct CombatFlowController {
             HapticsManager.shared.buttonTap()
             return
         }
-
-        let weapon = a.equippedWeapon ?? Weapon(name: "Fists", type: .unarmed, damage: 3, accuracy: 3, armorPiercing: 0)
 
         // Determine attack skill from weapon type
         let skill: SkillKey = (weapon.type == .blade || weapon.type == .unarmed) ? .blades : .firearms
@@ -232,6 +244,22 @@ struct CombatFlowController {
         }
 
         CombatFlowController.completeAction(gameState: gameState, for: a)
+    }
+
+    static func performShoot(gameState: GameState) {
+        let attacker: Character?
+        if let selected = gameState.selectedCharacterId, let char = gameState.playerTeam.first(where: { $0.id == selected && $0.isAlive }) {
+            attacker = char
+        } else {
+            attacker = gameState.currentCharacter
+        }
+        guard let a = attacker else { gameState.addLog("No character available."); return }
+
+        let originalWeapon = a.equippedWeapon
+        a.equippedWeapon = Weapon(name: "Sidearm", type: .pistol, damage: 4, accuracy: 4, armorPiercing: 1)
+        defer { a.equippedWeapon = originalWeapon }
+
+        CombatFlowController.performAttack(gameState: gameState)
     }
 
     static func performLayLow(gameState: GameState) {
@@ -691,7 +719,7 @@ struct CombatFlowController {
     }
 
     static func selectCharacter(gameState: GameState, id: UUID) {
-        if let char = gameState.playerTeam.first(where: { $0.id == id }) {
+        if let char = gameState.playerTeam.first(where: { $0.id == id && $0.isAlive }) {
             gameState.selectedCharacterId = char.id
             gameState.activeCharacterId = char.id
             gameState.targetCharacterId = nil
@@ -712,6 +740,7 @@ struct CombatFlowController {
 
     /// Request path for scene-driven selection updates; selection intent only.
     static func requestCharacterSelectionFromScene(gameState: GameState, id: UUID) {
+        guard gameState.playerTeam.contains(where: { $0.id == id && $0.isAlive }) else { return }
         gameState.selectedCharacterId = id
         gameState.activeCharacterId = id
         gameState.targetCharacterId = nil
@@ -749,7 +778,7 @@ struct CombatFlowController {
         }
 
         if let selectedId = gameState.selectedCharacterId,
-           let char = gameState.playerTeam.first(where: { $0.id == selectedId }) {
+           let char = gameState.playerTeam.first(where: { $0.id == selectedId && $0.isAlive }) {
             let isHexAdj = gameState.hexAdjacent(x1: tileX, y1: tileY, x2: char.positionX, y2: char.positionY)
             if isHexAdj {
                 char.positionX = tileX

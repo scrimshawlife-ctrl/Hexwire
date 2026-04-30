@@ -523,6 +523,7 @@ struct ActionButton: View {
 
 struct ActionBar: View {
     let onAttack: () -> Void
+    let onShoot: () -> Void
     let onDefend: () -> Void
     let onItems: () -> Void
     let onSpecial: (() -> Void)?
@@ -535,6 +536,7 @@ struct ActionBar: View {
     var body: some View {
         HStack(spacing: 5) {
             ActionButton(title: "ATK", icon: "flame.fill", color: CombatTheme.damage, width: 46, height: 34, action: onAttack, disabled: disabled)
+            ActionButton(title: "SHT", icon: "scope", color: Color(hex: "00D4FF"), width: 46, height: 34, action: onShoot, disabled: disabled)
             ActionButton(title: "DEF", icon: "shield.fill", color: CombatTheme.secondary, width: 46, height: 34, action: onDefend, disabled: disabled)
             if let onSpecial {
                 ActionButton(title: specialTitle, icon: specialIcon, color: specialColor, width: 46, height: 34, action: onSpecial, disabled: disabled)
@@ -783,6 +785,13 @@ struct MissionIntelCard: View {
             HStack(spacing: 6) {
                 IntelMetricBadge(label: "ROUND", value: "R\(gameState.roundNumber)", tint: CombatTheme.secondary)
                 IntelMetricBadge(label: "ENEMIES", value: "\(gameState.livingEnemies.count)/\(gameState.enemies.count)", tint: CombatTheme.enemyColor)
+                if gameState.missionRequiresData {
+                    IntelMetricBadge(
+                        label: "DATA CORE",
+                        value: gameState.dataAcquired ? "ACQUIRED" : "PENDING",
+                        tint: gameState.dataAcquired ? CombatTheme.accent : Color(hex: "00D4FF")
+                    )
+                }
                 IntelMetricBadge(label: "TRACE", value: "\(gameState.traceLevel)/\(gameState.traceThreshold)", tint: gameState.traceTier >= 2 ? CombatTheme.enemyColor : CombatTheme.accent)
             }
 
@@ -1376,6 +1385,7 @@ struct CombatUI: View {
     let diagnosticsVisible: Bool
     let onToggleDiagnostics: () -> Void
     let onAttack: () -> Void
+    let onShoot: () -> Void
     let onDefend: () -> Void
     let onSpell: () -> Void
     let onBlitz: () -> Void
@@ -1548,6 +1558,13 @@ struct CombatUI: View {
                         HStack(spacing: 6) {
                             IntelMetricBadge(label: "ROUND", value: "R\(gameState.roundNumber)", tint: CombatTheme.secondary)
                             IntelMetricBadge(label: "ENEMY", value: "\(gameState.livingEnemies.count)", tint: CombatTheme.enemyColor)
+                            if gameState.missionRequiresData {
+                                IntelMetricBadge(
+                                    label: "DATA CORE",
+                                    value: gameState.dataAcquired ? "ACQUIRED" : "PENDING",
+                                    tint: gameState.dataAcquired ? CombatTheme.accent : Color(hex: "00D4FF")
+                                )
+                            }
                             IntelMetricBadge(
                                 label: "TRACE",
                                 value: "\(gameState.traceLevel)/\(gameState.traceThreshold)",
@@ -1642,6 +1659,7 @@ struct CombatUI: View {
                 // Action buttons
                 ActionBar(
                     onAttack: onAttack,
+                    onShoot: onShoot,
                     onDefend: onDefend,
                     onItems: { showingItemPicker = true },
                     onSpecial: specialAbilityAction,
@@ -1730,6 +1748,7 @@ struct CombatUI_Previews: PreviewProvider {
                 diagnosticsVisible: false,
                 onToggleDiagnostics: {},
                 onAttack: {},
+                onShoot: {},
                 onDefend: {},
                 onSpell: {},
                 onBlitz: {},

@@ -926,6 +926,10 @@ final class GameState: ObservableObject {
         CombatFlowController.performAttack(gameState: self)
     }
 
+    func performShoot() {
+        CombatFlowController.performShoot(gameState: self)
+    }
+
     func performLayLow() {
         CombatFlowController.performLayLow(gameState: self)
     }

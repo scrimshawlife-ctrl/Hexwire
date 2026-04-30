@@ -219,17 +219,20 @@ final class BattleScene: SKScene {
             spawnY = targetRoom.playerSpawn.y
         }
 
-        // Set character positions for this room entry.
-        // Each character is placed at the base spawn offset by index, then individually
-        // validated so no runner ends up inside a wall or off-map.
+        // Set living character positions for this room entry. playerTeam keeps the
+        // whole squad roster, including downed runners, but only living runners are
+        // projected into the active room.
         if spawnX >= 0 {
+            var livingSpawnOffset = 0
             for i in GameState.shared.playerTeam.indices {
+                guard GameState.shared.playerTeam[i].isAlive else { continue }
                 let candidate = validatedSpawnX(in: targetRoom,
-                                                proposedX: spawnX + i,
+                                                proposedX: spawnX + livingSpawnOffset,
                                                 proposedY: spawnY)
                 GameState.shared.playerTeam[i].positionX = candidate.x
                 GameState.shared.playerTeam[i].positionY = candidate.y
                 print("Room transition: char=\(GameState.shared.playerTeam[i].name) x=\(candidate.x) y=\(candidate.y)")
+                livingSpawnOffset += 1
             }
         }
 
@@ -302,10 +305,12 @@ final class BattleScene: SKScene {
         openedDoorKeys.removeAll()
 
         // Reset combat state for the new room
+        CombatFlowController.resetTurnTracking(gameState: GameState.shared)
         CombatFlowController.restorePlayerControlAfterEnemyPhase(gameState: GameState.shared)
 
-        // Reload the room with the new map, characters, and enemies
-        loadRoom(targetRoom, characters: GameState.shared.playerTeam, enemies: newEnemies)
+        // Reload the room with living characters only; downed runners remain in
+        // playerTeam for roster/history but are not active room participants.
+        loadRoom(targetRoom, characters: GameState.shared.livingPlayers, enemies: newEnemies)
 
         // Start a fresh round in the new room
         GameState.shared.beginRound()
@@ -838,6 +843,13 @@ final class BattleScene: SKScene {
 
     private func presentationTileMap(for room: Room) -> TileMap {
         var visibleMap = room.map
+        if GameState.shared.dataAcquired {
+            for y in visibleMap.indices {
+                for x in visibleMap[y].indices where visibleMap[y][x] == TileType.dataTerminal.rawValue {
+                    visibleMap[y][x] = TileType.floor.rawValue
+                }
+            }
+        }
         if !RoomManager.shared.isExtractionActive(in: room) {
             for y in visibleMap.indices {
                 for x in visibleMap[y].indices where visibleMap[y][x] == TileType.extraction.rawValue {
@@ -1124,6 +1136,8 @@ final class BattleScene: SKScene {
 
     /// Place a character sprite on the map, accounting for map centering offset.
     func placeCharacter(_ character: Character) {
+        guard character.isAlive else { return }
+
         let node = SpriteManager.shared.createCharacter(
             type: character.archetype.rawValue,
             team: "player",
@@ -1382,7 +1396,8 @@ final class BattleScene: SKScene {
         // first load) that land on walls, out-of-bounds tiles, or enemy spawn points here.
         // validatedSpawnX() checks room.map directly, so it's always correct for this room.
         let spawn = room.playerSpawn
-        for (i, character) in characters.enumerated() {
+        let livingCharacters = characters.filter { $0.isAlive }
+        for (i, character) in livingCharacters.enumerated() {
             // Check 1: uninitialized position
             let isUnset = character.positionX == 0 && character.positionY == 0
             // Check 2: position out of bounds for this room
@@ -1420,7 +1435,7 @@ final class BattleScene: SKScene {
         clearHighlights()
 
         // Select first character
-        if let first = characters.first(where: { $0.isAlive }) {
+        if let first = livingCharacters.first {
             selectCharacter(id: first.id)
 
             // After room load, focus camera on the first character so they're
@@ -1448,13 +1463,18 @@ final class BattleScene: SKScene {
         return tileX == GameState.shared.extractionX && tileY == GameState.shared.extractionY
     }
 
-    /// Check if a given tile is walkable (floor, door, extraction, or cover — NOT wall).
+    /// Check if a given tile is walkable (floor, door, extraction, cover, or data terminal — NOT wall).
     func isWalkableTile(_ tileX: Int, _ tileY: Int) -> Bool {
         guard let tm = tileMap else { return false }
         guard tileX >= 0, tileX < TileMap.mapWidth, tileY >= 0, tileY < tm.mapHeight else { return false }
         let t = tm.tiles[tileY][tileX]
-        if t == .door && !RoomManager.shared.isRoomCleared(currentRoomId) { return false }
-        return t == .floor || t == .door || t == .extraction || t == .cover
+        return t == .floor || t == .door || t == .extraction || t == .cover || t == .dataTerminal
+    }
+
+    private func isUnhackedDataTerminal(_ tileX: Int, _ tileY: Int) -> Bool {
+        let tiles = GameState.shared.currentMissionTiles
+        guard tileY >= 0, tileY < tiles.count, tileX >= 0, tileX < tiles[tileY].count else { return false }
+        return tiles[tileY][tileX] == TileType.dataTerminal.rawValue
     }
 
     private func validatedSpawnX(in room: Room, proposedX: Int, proposedY: Int) -> (x: Int, y: Int) {
@@ -1539,7 +1559,8 @@ final class BattleScene: SKScene {
         if isExtractionTile(tileX, tileY) {
             // Extraction resolution is GameState-authoritative.
             if let sprite = selectedCharacterNode as? SpriteNode,
-               let charEntry = characterNodes.first(where: { $0.value === sprite }) {
+               let charEntry = characterNodes.first(where: { $0.value === sprite }),
+               GameState.shared.playerTeam.contains(where: { $0.id == charEntry.key && $0.isAlive }) {
                 let reachable = bfsReachable(fromX: sprite.tileX, fromY: sprite.tileY, maxSteps: movementRange)
                 let alreadyOnExtraction = sprite.tileX == tileX && sprite.tileY == tileY
                 guard alreadyOnExtraction || reachable.contains(where: { $0.x == tileX && $0.y == tileY }) else {
@@ -1563,9 +1584,11 @@ final class BattleScene: SKScene {
         for (id, node) in characterNodes {
             guard let sprite = node as? SpriteNode else { continue }
             if sprite.tileX == tileX && sprite.tileY == tileY {
-                if sprite.team == "player" {
+                if sprite.team == "player",
+                   GameState.shared.playerTeam.contains(where: { $0.id == id && $0.isAlive }) {
                     characterOnTile = (id, sprite)
-                } else {
+                } else if sprite.team == "enemy",
+                          GameState.shared.enemies.contains(where: { $0.id == id && $0.isAlive }) {
                     enemyOnTile = (id, sprite)
                 }
             }
@@ -1625,6 +1648,24 @@ final class BattleScene: SKScene {
 
         guard let charEntry = characterNodes.first(where: { $0.value === sprite }) else { return }
         let charId = charEntry.key
+        guard GameState.shared.playerTeam.contains(where: { $0.id == charId && $0.isAlive }) else {
+            deselectCurrent()
+            GameState.shared.selectedCharacterId = nil
+            GameState.shared.activeCharacterId = nil
+            return
+        }
+
+        if (tileMap?.tiles[tileY][tileX] ?? .floor) == .dataTerminal,
+           isUnhackedDataTerminal(tileX, tileY) {
+            let isAdjacent = hexNeighbors(x: sprite.tileX, y: sprite.tileY).contains(where: { neighbor in
+                neighbor.0 == tileX && neighbor.1 == tileY
+            })
+            if isAdjacent,
+               let char = GameState.shared.playerTeam.first(where: { $0.id == charId && $0.isAlive }) {
+                CombatFlowController.checkDataTerminalPickup(gameState: GameState.shared, atX: tileX, y: tileY, by: char)
+                return
+            }
+        }
 
         let reachable = bfsReachable(fromX: sprite.tileX, fromY: sprite.tileY, maxSteps: movementRange)
         let isInRange = reachable.contains(where: { $0.x == tileX && $0.y == tileY })
@@ -2092,9 +2133,9 @@ final class BattleScene: SKScene {
                 guard nx >= 0, nx < TileMap.mapWidth, ny >= 0, ny < mapH else { continue }
                 let key = "\(nx),\(ny)"
                 guard !visited.contains(key) else { continue }
-                // Allow door tiles in BFS even if locked — player must be adjacent to tap them.
-                // Actual movement onto the door tile is blocked by isWalkableTile in handleDoorTileTap.
-                guard isWalkableTile(nx, ny) || ((tileMap?.tiles[ny][nx] ?? .floor) == .door) else { continue }
+                // Allow door tiles in BFS so stepping onto connection triggers remains possible.
+                let tile = tileMap?.tiles[ny][nx] ?? .floor
+                guard isWalkableTile(nx, ny) || tile == .door || tile == .dataTerminal else { continue }
                 // Enemies block movement
                 guard !enemyPositions.contains(key) else { continue }
                 visited.insert(key)
