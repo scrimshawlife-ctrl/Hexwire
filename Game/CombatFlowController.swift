@@ -524,6 +524,27 @@ struct CombatFlowController {
         }
     }
 
+    /// Centralised player-death handling. Call any time a player's HP just hit 0.
+    /// Posts .playerDied so BattleScene can remove the sprite, plays the killed
+    /// haptic, and runs checkCombatEnd so a TPK ends the run immediately rather
+    /// than waiting for the next phase boundary.
+    static func handlePlayerKilled(gameState: GameState, char: Character) {
+        guard !char.isAlive else { return }
+        HapticsManager.shared.playerKilled()
+        gameState.addLog("💀 \(char.name) is DOWN!")
+        // If the dead character had any active selection/turn, clear it so input
+        // can't be routed to a corpse.
+        if gameState.selectedCharacterId == char.id { gameState.selectedCharacterId = nil }
+        if gameState.activeCharacterId == char.id { gameState.activeCharacterId = nil }
+        gameState.playersWhoHaveNotActed.remove(char.id)
+        NotificationCenter.default.post(
+            name: .playerDied,
+            object: nil,
+            userInfo: ["playerId": char.id.uuidString]
+        )
+        CombatFlowController.checkCombatEnd(gameState: gameState)
+    }
+
     static func checkCombatEnd(gameState: GameState) {
         // ASSAULT ENDING: only finalize if we're in a single-room mission or the LAST room of a multi-room mission.
         // Multi-room missions rely on extraction flow for victory (player reaches extraction tile after all rooms cleared).

@@ -955,6 +955,7 @@ final class GameState: ObservableObject {
             addLog("💥 CRIT GLITCH! FIREBALL backfires! \(mage.name) takes \(drain) drain!")
             HapticsManager.shared.playerDamaged()
             NotificationCenter.default.post(name: .characterHit, object: nil, userInfo: ["characterId": mage.id.uuidString, "damage": drain])
+            if !mage.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: mage) }
             completeAction(for: mage)
             return
         }
@@ -962,6 +963,7 @@ final class GameState: ObservableObject {
             let drain = mage.attributes.wil
             mage.takeDamage(amount: drain)
             addLog("⚠️ GLITCH! FIREBALL fizzles. \(mage.name) takes \(drain) drain!")
+            if !mage.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: mage) }
             completeAction(for: mage)
             return
         }
@@ -1008,6 +1010,7 @@ final class GameState: ObservableObject {
             addLog("💥 CRIT GLITCH! \(type.displayName) backfires! \(mage.name) takes \(drain) drain!")
             HapticsManager.shared.playerDamaged()
             NotificationCenter.default.post(name: .characterHit, object: nil, userInfo: ["characterId": mage.id.uuidString, "damage": drain])
+            if !mage.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: mage) }
             completeAction(for: mage)
             return
         }
@@ -1015,6 +1018,7 @@ final class GameState: ObservableObject {
             let drain = mage.attributes.wil
             mage.takeDamage(amount: drain)
             addLog("⚠️ GLITCH! \(type.displayName) fizzles. \(mage.name) takes \(drain) drain!")
+            if !mage.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: mage) }
             completeAction(for: mage)
             return
         }
@@ -1373,7 +1377,7 @@ final class GameState: ObservableObject {
                         HapticsManager.shared.playerDamaged()
                         addLog("⚠️ \(enemy.name) hits \(closestPlayer.name)! \(netHits) net hits → \(dmg)\(dmgType) dmg. (HP \(closestPlayer.currentHP)/\(closestPlayer.maxHP) | Stun \(closestPlayer.currentStun)/\(closestPlayer.maxStun))")
                         NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: ["playerId": closestPlayer.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString])
-                        if !closestPlayer.isAlive { HapticsManager.shared.playerKilled(); addLog("💀 \(closestPlayer.name) is DOWN!") }
+                        if !closestPlayer.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: closestPlayer) }
                     } else {
                         addLog("→ \(enemy.name) attacks — \(closestPlayer.name) soaks all damage!")
                     }
@@ -1432,7 +1436,7 @@ final class GameState: ObservableObject {
                             HapticsManager.shared.playerDamaged()
                             addLog("⚠️ \(enemy.name) hits \(closestPlayer.name)! \(netHits) net hits → \(dmg)\(dmgType) dmg. (HP \(closestPlayer.currentHP)/\(closestPlayer.maxHP) | Stun \(closestPlayer.currentStun)/\(closestPlayer.maxStun))")
                             NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: ["playerId": closestPlayer.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString])
-                            if !closestPlayer.isAlive { HapticsManager.shared.playerKilled(); addLog("💀 \(closestPlayer.name) is DOWN!") }
+                            if !closestPlayer.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: closestPlayer) }
                         } else {
                             addLog("→ \(enemy.name) attacks — \(closestPlayer.name) soaks all damage!")
                         }
@@ -1573,7 +1577,7 @@ final class GameState: ObservableObject {
                     HapticsManager.shared.playerDamaged()
                     addLog("⚠️ \(enemy.name) hits \(closestPlayer.name)! \(netHits) net hits → \(dmg)\(dmgType) dmg. (HP \(closestPlayer.currentHP)/\(closestPlayer.maxHP) | Stun \(closestPlayer.currentStun)/\(closestPlayer.maxStun))")
                     NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: ["playerId": closestPlayer.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString])
-                    if !closestPlayer.isAlive { HapticsManager.shared.playerKilled(); addLog("💀 \(closestPlayer.name) is DOWN!") }
+                    if !closestPlayer.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: closestPlayer) }
                 } else {
                     addLog("→ \(enemy.name) attacks — \(closestPlayer.name) soaks all damage!")
                 }
@@ -1619,7 +1623,7 @@ final class GameState: ObservableObject {
                         HapticsManager.shared.playerDamaged()
                         addLog("✨ \(enemy.name) casts! [\(spellPool)d6→\(spellRoll.hits) hits] \(baseDamage)P - \(soakRoll.hits)soak = \(dmg) dmg. (HP \(target.currentHP)/\(target.maxHP))")
                         NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: ["playerId": target.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString])
-                        if !target.isAlive { HapticsManager.shared.playerKilled(); addLog("💀 \(target.name) is DOWN!") }
+                        if !target.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: target) }
                     } else {
                         addLog("✨ \(enemy.name) casts but \(target.name) resists!")
                     }
@@ -1659,7 +1663,7 @@ final class GameState: ObservableObject {
                         HapticsManager.shared.playerDamaged()
                         addLog("⚠️ \(enemy.name) hits \(target.name)! \(netHits) net hits → \(dmg)\(dmgType) dmg. (HP \(target.currentHP)/\(target.maxHP) | Stun \(target.currentStun)/\(target.maxStun))")
                         NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: ["playerId": target.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString])
-                        if !target.isAlive { HapticsManager.shared.playerKilled(); addLog("💀 \(target.name) is DOWN!") }
+                        if !target.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: target) }
                     } else {
                         addLog("→ \(enemy.name) attacks — \(target.name) soaks all damage!")
                     }

@@ -355,6 +355,12 @@ final class BattleScene: SKScene {
             print("[BattleScene] .enemyMoved received — enemyId=\(idStr), to=(\(newX),\(newY))")
             self?.animateEnemyMove(id: id, toX: newX, toY: newY)
         }
+        NotificationCenter.default.addObserver(forName: .playerDied, object: nil, queue: .main) { [weak self] notification in
+            guard let userInfo = notification.userInfo,
+                  let idStr = userInfo["playerId"] as? String,
+                  let id = UUID(uuidString: idStr) else { return }
+            self?.playDeathEffect(on: id)
+        }
         NotificationCenter.default.addObserver(forName: .dataTerminalHacked, object: nil, queue: .main) { [weak self] notification in
             guard let userInfo = notification.userInfo,
                   let x = userInfo["x"] as? Int,

@@ -24,6 +24,7 @@ extension Notification.Name {
     static let roomNavigationRequested = Notification.Name("roomNavigationRequested")
     static let enemyPhaseCompleted = Notification.Name("enemyPhaseCompleted")
     static let dataTerminalHacked  = Notification.Name("dataTerminalHacked")
+    static let playerDied          = Notification.Name("playerDied")
 }
 
 // MARK: - Character Events

@@ -504,13 +504,28 @@ struct BriefingView: View {
     @ObservedObject var manager: PhaseManager
 
     @State private var loadedMission: Mission?
+    // Some missions ship a multi-room JSON (Mission001_multi.json, etc.) that
+    // MissionSetupService prefers over the single-room file. The briefing has
+    // to load the same way or it shows mismatched HOSTILES counts (e.g. 4 from
+    // the single-room JSON when the multi-room actually has 6 across rooms).
+    @State private var loadedMultiRoom: MultiRoomMission?
 
     private var missionTitle: String {
-        loadedMission?.title ?? manager.selectedMissionId ?? "Unknown"
+        loadedMultiRoom?.title ?? loadedMission?.title ?? manager.selectedMissionId ?? "Unknown"
     }
 
     private var missionDesc: String {
-        loadedMission?.description ?? "No description available."
+        loadedMultiRoom?.description ?? loadedMission?.description ?? "No description available."
+    }
+
+    /// Total hostiles across the whole mission. For multi-room missions this is
+    /// the sum across every room (matches what the player will fight end-to-end);
+    /// for single-room missions it's just `mission.enemies.count`.
+    private var totalEnemyCount: Int {
+        if let multi = loadedMultiRoom {
+            return multi.rooms.reduce(0) { $0 + $1.enemies.count }
+        }
+        return loadedMission?.enemies.count ?? 0
     }
 
     private var teamRoster: [Character] {
@@ -529,13 +544,17 @@ struct BriefingView: View {
         }
     }
 
+    // Keep these aligned with MissionSelectView.missions risk strings — the player
+    // sees the risk on the select screen and again on the briefing, and the two
+    // were drifting (Mission003 said HARD on select, EXTREME on briefing; Mission005
+    // said EXTREME on select, HIGH on briefing).
     private var riskLevel: String {
         switch manager.selectedMissionId ?? "" {
         case "Mission001": return "MODERATE"
         case "Mission002": return "HIGH"
-        case "Mission003": return "EXTREME"
+        case "Mission003": return "HARD"
         case "Mission004": return "EXTREME"
-        case "Mission005": return "HIGH"
+        case "Mission005": return "EXTREME"
         default:            return "UNKNOWN"
         }
     }
@@ -614,8 +633,15 @@ struct BriefingView: View {
             .padding(24)
             .onAppear { loadMission() }
 
-            // Full-screen mission briefing overlay — tap to dismiss
-            MissionBriefingOverlay(mission: loadedMission)
+            // Full-screen mission briefing overlay — tap to dismiss.
+            // Pass `enemyCountOverride` so the HOSTILES badge reflects the multi-room
+            // total when the mission ships one; falls back to the single-room count.
+            MissionBriefingOverlay(
+                mission: loadedMission,
+                enemyCountOverride: loadedMultiRoom == nil ? nil : totalEnemyCount,
+                titleOverride: loadedMultiRoom?.title,
+                descriptionOverride: loadedMultiRoom?.briefing ?? loadedMultiRoom?.description
+            )
         }
     }
 
@@ -632,6 +658,10 @@ struct BriefingView: View {
 
     private func loadMission() {
         guard let id = manager.selectedMissionId else { return }
+        // Match MissionSetupService: try multi-room first, fall back to single-room.
+        // Loading both lets us prefer multi-room data for hostile counts while still
+        // having the single-room Mission available as a fallback for description, etc.
+        loadedMultiRoom = MissionLoader.shared.loadMultiRoomMission(named: id)
         loadedMission = MissionLoader.shared.loadMission(named: id)
     }
 
@@ -1271,21 +1301,27 @@ final class PhaseManager: ObservableObject {
 
 struct MissionBriefingOverlay: View {
     let mission: Mission?
+    /// When the briefing is for a multi-room mission, the caller passes the total
+    /// hostiles across all rooms so the badge isn't capped at the single-room count.
+    var enemyCountOverride: Int? = nil
+    var titleOverride: String? = nil
+    var descriptionOverride: String? = nil
 
     @State private var opacity: Double = 0
     @State private var showContent = false
     @State private var contentOffset: CGFloat = 40
 
     private var missionTitle: String {
-        mission?.title ?? "THE EXTRACTION"
+        titleOverride ?? mission?.title ?? "THE EXTRACTION"
     }
 
     private var missionDesc: String {
-        mission?.description ?? "Infiltrate the corporate facility. Neutralize all hostiles. Extract at the marked point."
+        descriptionOverride ?? mission?.description ?? "Infiltrate the corporate facility. Neutralize all hostiles. Extract at the marked point."
     }
 
     private var enemyCount: Int {
-        mission?.enemies.count ?? 4
+        if let override = enemyCountOverride { return override }
+        return mission?.enemies.count ?? 4
     }
 
     private var dangerColor: Color {
@@ -1356,9 +1392,14 @@ struct MissionBriefingOverlay: View {
                         )
 
                         // Intel grid
+                        // OBJECTIVE was hardcoded to "NEUTRALIZE ALL", but the in-game
+                        // objective banner and the actual mission win condition are
+                        // "Reach the extraction point". Showing three different
+                        // objectives (briefing says NEUTRALIZE, banner says REACH EXIT,
+                        // operational summary says EXTRACT + GET OUT) confused playtest.
                         HStack(spacing: 12) {
                             IntelBadge(label: "HOSTILES", value: "\(enemyCount)")
-                            IntelBadge(label: "OBJECTIVE", value: "NEUTRALIZE ALL")
+                            IntelBadge(label: "OBJECTIVE", value: "REACH EXIT")
                             IntelBadge(label: "EXFIL", value: "EXTRACTION PT.")
                         }
                     }
