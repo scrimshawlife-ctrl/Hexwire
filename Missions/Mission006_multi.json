@@ -1,0 +1,111 @@
+{
+  "id": "run006_multi",
+  "title": "Ghost Signal",
+  "description": "A corporate vault is leaking an impossible signal. Cut through the server room, pull the classified AI research from the core, and reach the extraction bay before the trace completes.",
+  "rooms": [
+    {
+      "id": "room_0",
+      "title": "Server Room",
+      "map": [
+        [1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 0, 2, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 1, 1, 1, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 3, 2, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 2, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1]
+      ],
+      "playerSpawn": { "x": 1, "y": 10 },
+      "extractionPoint": null,
+      "enemies": [
+        { "type": "drone", "x": 4, "y": 5, "delay": 2 },
+        { "type": "guard", "x": 2, "y": 3, "delay": 3 }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 6,
+          "targetSpawnX": 3,
+          "targetSpawnY": 10
+        }
+      ]
+    },
+    {
+      "id": "room_1",
+      "title": "AI Core",
+      "map": [
+        [1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 2, 0, 2, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
+        [1, 0, 0, 1, 0, 5, 1],
+        [1, 0, 2, 0, 2, 0, 1],
+        [1, 0, 0, 3, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 3, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1]
+      ],
+      "playerSpawn": { "x": 3, "y": 10 },
+      "extractionPoint": null,
+      "enemies": [
+        { "type": "elite",  "x": 3, "y": 3, "delay": 3 },
+        { "type": "healer", "x": 1, "y": 5, "delay": 4 },
+        { "type": "mage",   "x": 5, "y": 2, "delay": 5 }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_0",
+          "triggerTileX": 3,
+          "triggerTileY": 8,
+          "targetSpawnX": 3,
+          "targetSpawnY": 6
+        },
+        {
+          "targetRoomId": "room_2",
+          "triggerTileX": 3,
+          "triggerTileY": 6,
+          "targetSpawnX": 3,
+          "targetSpawnY": 10
+        }
+      ]
+    },
+    {
+      "id": "room_2",
+      "title": "Extraction Bay",
+      "map": [
+        [1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 4, 0, 0, 1],
+        [1, 0, 0, 0, 0, 2, 1],
+        [1, 0, 2, 0, 0, 0, 1],
+        [1, 0, 0, 0, 2, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 3, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1]
+      ],
+      "playerSpawn": { "x": 3, "y": 10 },
+      "extractionPoint": { "x": 3, "y": 1 },
+      "enemies": [],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 8,
+          "targetSpawnX": 3,
+          "targetSpawnY": 6
+        }
+      ]
+    }
+  ]
+}

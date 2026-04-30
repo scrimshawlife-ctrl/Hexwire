@@ -1,0 +1,30 @@
+{
+  "id": "run006",
+  "title": "Ghost Signal",
+  "description": "A corporate data vault is broadcasting traces of classified AI research. Slip through the server lanes, breach the terminal, and extract before the security team pins you in place.",
+  "difficulty": "Very Hard",
+  "width": 7,
+  "height": 12,
+  "playerSpawn": { "x": 1, "y": 10 },
+  "extractionPoint": { "x": 3, "y": 1 },
+  "map": [
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 4, 0, 0, 1],
+    [1, 0, 2, 0, 2, 0, 1],
+    [1, 0, 0, 1, 0, 0, 1],
+    [1, 2, 0, 1, 0, 5, 1],
+    [1, 0, 0, 0, 0, 0, 1],
+    [1, 0, 2, 0, 2, 0, 1],
+    [1, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 1, 0, 0, 1],
+    [1, 0, 0, 0, 0, 2, 1],
+    [1, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1]
+  ],
+  "enemies": [
+    { "type": "drone",  "x": 4, "y": 8, "delay": 2 },
+    { "type": "healer", "x": 1, "y": 6, "delay": 3 },
+    { "type": "elite",  "x": 4, "y": 3, "delay": 4 },
+    { "type": "mage",   "x": 5, "y": 2, "delay": 5 }
+  ]
+}
