@@ -448,8 +448,8 @@ struct CombatFlowController {
             userInfo: ["tileX": tileX, "tileY": tileY, "characterId": id.uuidString]
         )
         checkDataTerminalPickup(gameState: gameState, atX: tileX, y: tileY, by: char)
-        // Movement consumes the character's player turn. A turn is move OR action.
-        CombatFlowController.completeAction(gameState: gameState, for: char)
+        // Movement consumes the character's action choice, but does not auto-advance.
+        // Keep player input open so the player can explicitly end early via END.
     }
 
     /// If the tile under the moving character is a data terminal, hack it.

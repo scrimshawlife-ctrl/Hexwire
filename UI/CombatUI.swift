@@ -531,18 +531,19 @@ struct ActionBar: View {
     let specialIcon: String
     let specialColor: Color
     let onEndTurn: () -> Void
-    var disabled: Bool = false
+    var actionDisabled: Bool = false
+    var endTurnDisabled: Bool = false
 
     var body: some View {
         HStack(spacing: 5) {
-            ActionButton(title: "ATK", icon: "flame.fill", color: CombatTheme.damage, width: 46, height: 34, action: onAttack, disabled: disabled)
-            ActionButton(title: "SHT", icon: "scope", color: Color(hex: "00D4FF"), width: 46, height: 34, action: onShoot, disabled: disabled)
-            ActionButton(title: "DEF", icon: "shield.fill", color: CombatTheme.secondary, width: 46, height: 34, action: onDefend, disabled: disabled)
+            ActionButton(title: "ATK", icon: "flame.fill", color: CombatTheme.damage, width: 46, height: 34, action: onAttack, disabled: actionDisabled)
+            ActionButton(title: "SHT", icon: "scope", color: Color(hex: "00D4FF"), width: 46, height: 34, action: onShoot, disabled: actionDisabled)
+            ActionButton(title: "DEF", icon: "shield.fill", color: CombatTheme.secondary, width: 46, height: 34, action: onDefend, disabled: actionDisabled)
             if let onSpecial {
-                ActionButton(title: specialTitle, icon: specialIcon, color: specialColor, width: 46, height: 34, action: onSpecial, disabled: disabled)
+                ActionButton(title: specialTitle, icon: specialIcon, color: specialColor, width: 46, height: 34, action: onSpecial, disabled: actionDisabled)
             }
-            ActionButton(title: "ITM", icon: "cross.case.fill", color: Color(hex: "8866FF"), width: 46, height: 34, action: onItems, disabled: disabled)
-            ActionButton(title: "END", icon: "arrow.right.circle.fill", color: CombatTheme.accent, width: 46, height: 34, action: onEndTurn, disabled: disabled)
+            ActionButton(title: "ITM", icon: "cross.case.fill", color: Color(hex: "8866FF"), width: 46, height: 34, action: onItems, disabled: actionDisabled)
+            ActionButton(title: "END", icon: "arrow.right.circle.fill", color: CombatTheme.accent, width: 46, height: 34, action: onEndTurn, disabled: endTurnDisabled)
         }
     }
 }
@@ -1440,6 +1441,10 @@ struct CombatUI: View {
     }
 
     private var isEnemyTurn: Bool {
+        gameState.combatPhase == .enemyResolving || gameState.isEnemyPhaseRunning
+    }
+
+    private var arePlayerControlsDisabled: Bool {
         !gameState.isPlayerInputPhase || gameState.isInputBlockedByPhase
     }
 
@@ -1511,7 +1516,7 @@ struct CombatUI: View {
                                     )
                             )
                         }
-                        .disabled(currentRoomIndex <= 0 || isEnemyTurn)
+                        .disabled(currentRoomIndex <= 0 || arePlayerControlsDisabled)
                         .opacity(currentRoomIndex <= 0 ? 0.4 : 1.0)
 
                         Spacer()
@@ -1548,7 +1553,7 @@ struct CombatUI: View {
                                     )
                             )
                         }
-                        .disabled(isEnemyTurn || currentRoomIndex >= (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1)
+                        .disabled(arePlayerControlsDisabled || currentRoomIndex >= (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1)
                         .opacity(currentRoomIndex >= (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1 ? 0.4 : 1.0)
                     }
                     .padding(.horizontal, 6)
@@ -1638,7 +1643,7 @@ struct CombatUI: View {
                             value: hasActedThisRound ? "USED" : "READY",
                             tint: Color(hex: "B8BCC8"),
                             action: onRecover,
-                            disabled: gameState.isCombatResolvedOrBeyond || isEnemyTurn || isEnemyTurnDisplay || hasActedThisRound
+                            disabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled || hasActedThisRound || hasMovedThisTurn
                         )
                         .accessibilityIdentifier("trace_recover_button")
 
@@ -1672,7 +1677,8 @@ struct CombatUI: View {
                     specialIcon: specialAbilityIcon,
                     specialColor: specialAbilityColor,
                     onEndTurn: onEndTurn,
-                    disabled: gameState.isCombatResolvedOrBeyond || isEnemyTurn || isEnemyTurnDisplay || hasActedThisRound || hasMovedThisTurn
+                    actionDisabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled || hasActedThisRound || hasMovedThisTurn,
+                    endTurnDisabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled
                 )
 
                 // Hit preview — shown when a target is selected
@@ -1738,6 +1744,9 @@ struct CombatUI: View {
             withAnimation { isEnemyTurnDisplay = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: .playerTurnResumed)) { _ in
+            withAnimation { isEnemyTurnDisplay = false }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .enemyPhaseCompleted)) { _ in
             withAnimation { isEnemyTurnDisplay = false }
         }
     }
