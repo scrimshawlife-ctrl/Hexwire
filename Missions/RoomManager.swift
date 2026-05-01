@@ -109,6 +109,8 @@ final class RoomManager: ObservableObject {
     /// Called by BattleScene when player steps on a door tile.
     /// Returns the target Room if a transition should occur.
     func attemptTransition(from roomId: String, atTileX x: Int, y: Int) -> Room? {
+        // FIX 3: block room transitions when player is dead
+        guard !GameState.shared.playerIsDead else { return nil }
         guard !isTransitioning else { return nil }
         guard let room = currentMission?.rooms.first(where: { $0.id == roomId }) else { return nil }
 
@@ -138,6 +140,8 @@ final class RoomManager: ObservableObject {
     /// Begin the transition to a new room.
     /// The scene should call this, then perform the fade, then call completeTransition.
     func beginTransition(to targetRoom: Room) {
+        // FIX 3: block transitions when player is dead
+        guard !GameState.shared.playerIsDead else { return }
         isTransitioning = true
         pendingRoomTransition = targetRoom
     }

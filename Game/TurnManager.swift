@@ -245,6 +245,10 @@ final class Enemy: ObservableObject, Identifiable, Codable {
 
     var initiativeRoll: Int = 0
 
+    /// Maximum tiles this enemy can reposition before attempting to attack.
+    /// Used by non-drone enemy AI to enforce a move-then-attack economy.
+    var moveRange: Int { 2 }
+
     enum CodingKeys: String, CodingKey {
         case id, name, archetype, attributes
         case equippedWeapon, equippedArmor

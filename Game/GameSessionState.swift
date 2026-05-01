@@ -6,6 +6,15 @@ final class GameSessionState {
     var hasLoggedTraceTriggerForCurrentRun: Bool = false
     var playersWhoHaveNotActed: Set<UUID> = []
 
+    /// Per-character movement tracking: if true, character has already moved this turn
+    /// and cannot take a major action (attack/defend/cast/item) in the same turn.
+    /// Reset at start of each round.
+    var characterHasMovedThisTurn: [UUID: Bool] = [:]
+
+    /// True when any living player has HP <= 0 (player death occurred).
+    /// Used to block room transitions after player death.
+    var playerIsDead: Bool = false
+
     var currentMissionTiles: [[Int]] = []
     var pendingSpawns: [GameState.PendingSpawn] = []
 

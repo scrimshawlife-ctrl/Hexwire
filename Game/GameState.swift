@@ -251,6 +251,21 @@ final class GameState: ObservableObject {
         set { sessionState.playersWhoHaveNotActed = newValue }
     }
 
+    /// Per-character movement tracking: if true, character has already moved this turn
+    /// and cannot take a major action (attack/defend/cast/item) in the same turn.
+    /// Reset at start of each round alongside hasActedThisRound.
+    var characterHasMovedThisTurn: [UUID: Bool] {
+        get { sessionState.characterHasMovedThisTurn }
+        set { sessionState.characterHasMovedThisTurn = newValue }
+    }
+
+    /// True when any living player has HP <= 0 (player death occurred).
+    /// Used to block room transitions after player death.
+    var playerIsDead: Bool {
+        get { sessionState.playerIsDead }
+        set { sessionState.playerIsDead = newValue }
+    }
+
     /// Reset turn-tracking state at the start of each round.
     func resetTurnTracking() {
         CombatFlowController.resetTurnTracking(gameState: self)
@@ -1594,20 +1609,40 @@ final class GameState: ObservableObject {
                 return distA < distB
             }!
             let dist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
-            if dist > 1 {
-                for _ in 0..<2 {
+            let target = closestPlayer
+
+            // FIX 2: reposition non-drone enemies before attacking if out of weapon range
+            // Melee: range 1. Ranged guards/pistols: range 4. Rifles: range 6. Mages: range 5.
+            let maxWeaponRange: Int
+            if enemy.archetype == "mage" {
+                maxWeaponRange = 5
+            } else {
+                // Guard / default: pistol/rifle
+                switch enemy.equippedWeapon?.type {
+                case .rifle: maxWeaponRange = 6
+                case .pistol, .smg: maxWeaponRange = 4
+                case .blade, .unarmed: maxWeaponRange = 1
+                default: maxWeaponRange = 3
+                }
+            }
+
+            if dist > maxWeaponRange {
+                // Move up to moveRange tiles toward player, then attack
+                for _ in 0..<enemy.moveRange {
                     if let (newX, newY) = bfsPathfind(from: enemy, toward: closestPlayer) {
                         enemy.positionX = newX; enemy.positionY = newY
                         addLog("→ \(enemy.name) advances")
                         NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": newX, "y": newY])
                         let newDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
-                        if newDist <= 1 { break }
+                        if newDist <= maxWeaponRange { break }
                     } else { break }
                 }
-                let afterMoveDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
-                if afterMoveDist > 1 { return }
             }
-            let target = closestPlayer
+
+            let afterMoveDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
+            // Only attack if in range after repositioning; mage spells are range 5
+            let effectiveRange = enemy.archetype == "mage" ? 5 : (enemy.equippedWeapon?.type == .rifle ? 6 : (enemy.equippedWeapon?.type == .pistol || enemy.equippedWeapon?.type == .smg) ? 4 : 1)
+            if afterMoveDist > effectiveRange { return }
 
             // Handle mage enemy with spellcasting
             if enemy.archetype == "mage" {
