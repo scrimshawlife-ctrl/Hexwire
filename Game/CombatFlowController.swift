@@ -83,15 +83,27 @@ struct CombatFlowController {
         gameState.playersWhoHaveNotActed = Set(
             gameState.playerTeam.filter { $0.isAlive && $0.status != .stunned }.map { $0.id }
         )
+        gameState.playerTurnsCompleted = 0
+        gameState.characterHasMovedThisTurn = [:]
         // Reset per-character action flags at start of new round
         for char in gameState.playerTeam {
             char.hasActedThisRound = false
+            gameState.characterHasMovedThisTurn[char.id] = false
             // Log stunned characters being skipped
             if char.isAlive && char.status == .stunned {
                 gameState.addLog("💤 \(char.name) is STUNNED — skipping turn. (Stun \(char.currentStun)/\(char.maxStun))")
                 char.hasActedThisRound = true
             }
         }
+    }
+
+    static func characterHasAlreadyMoved(gameState: GameState, _ character: Character) -> Bool {
+        if gameState.characterHasMovedThisTurn[character.id] == true {
+            gameState.addLog("\(character.name) already moved this turn — choose move OR action.")
+            HapticsManager.shared.buttonTap()
+            return true
+        }
+        return false
     }
 
     static func recoverStunAtRoundStart(gameState: GameState) {
@@ -122,6 +134,7 @@ struct CombatFlowController {
             attacker = gameState.currentCharacter
         }
         guard let a = attacker else { gameState.addLog("No character available."); return }
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, a) else { return }
         guard let targetId = gameState.targetCharacterId else { gameState.addLog("No target selected — tap an enemy first."); return }
         guard let targetEnemy = gameState.enemies.first(where: { $0.id == targetId }) else {
             gameState.addLog("Invalid target."); return
@@ -273,6 +286,7 @@ struct CombatFlowController {
             gameState.addLog("No character available.")
             return
         }
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, character) else { return }
         gameState.applyTraceRecovery()
         CombatFlowController.completeAction(gameState: gameState, for: character) // Cost: consumes full turn
     }
@@ -289,6 +303,7 @@ struct CombatFlowController {
             gameState.addLog("Only mages can cast spells.")
             return
         }
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, mage) else { return }
         guard mage.currentMana >= type.manaCost else {
             gameState.addLog("Not enough mana for \(type.displayName)! Need \(type.manaCost), have \(mage.currentMana).")
             HapticsManager.shared.buttonTap()
@@ -315,6 +330,7 @@ struct CombatFlowController {
         } else if let current = gameState.currentCharacter {
             char = current
         } else { return }
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, char) else { return }
         HapticsManager.shared.buttonTap()
         gameState.isDefending = true
         gameState.defendingCharacterId = char.id
@@ -338,6 +354,7 @@ struct CombatFlowController {
             gameState.addLog("Only Deckers can hack.")
             return
         }
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, decker) else { return }
         guard decker.currentMana >= 2 else {
             gameState.addLog("Not enough matrix energy! Need 2, have \(decker.currentMana).")
             HapticsManager.shared.buttonTap()
@@ -366,6 +383,7 @@ struct CombatFlowController {
             gameState.addLog("Only the Face can intimidate.")
             return
         }
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, face) else { return }
         // Social pool: CHA + (LOG / 2)
         let socialPool = face.attributes.cha + face.attributes.log / 2
         let socialRoll = DiceEngine.roll(pool: socialPool)
@@ -397,6 +415,7 @@ struct CombatFlowController {
             gameState.addLog("Only the Street Samurai can Blitz.")
             return
         }
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, sam) else { return }
         guard let targetId = gameState.targetCharacterId,
               let target = gameState.enemies.first(where: { $0.id == targetId && $0.isAlive }) else {
             guard let nearest = gameState.livingEnemies.first else {
@@ -411,8 +430,17 @@ struct CombatFlowController {
 
     static func moveCharacter(gameState: GameState, id: UUID, toTileX tileX: Int, toTileY tileY: Int) {
         guard let char = gameState.playerTeam.first(where: { $0.id == id && $0.isAlive }) else { return }
+        guard !char.hasActedThisRound else {
+            gameState.addLog("\(char.name) has already acted this round.")
+            return
+        }
+        guard gameState.characterHasMovedThisTurn[id] != true else {
+            gameState.addLog("\(char.name) already moved this turn.")
+            return
+        }
         char.positionX = tileX
         char.positionY = tileY
+        gameState.characterHasMovedThisTurn[id] = true
         gameState.addLog("\(char.name) moves to (\(tileX),\(tileY))")
         NotificationCenter.default.post(
             name: .tileTapped,
@@ -420,8 +448,8 @@ struct CombatFlowController {
             userInfo: ["tileX": tileX, "tileY": tileY, "characterId": id.uuidString]
         )
         checkDataTerminalPickup(gameState: gameState, atX: tileX, y: tileY, by: char)
-        // Movement is a FREE action — does NOT consume the turn.
-        // Do NOT set hasActedThisRound or call endTurn() here.
+        // Movement consumes the character's player turn. A turn is move OR action.
+        CombatFlowController.completeAction(gameState: gameState, for: char)
     }
 
     /// If the tile under the moving character is a data terminal, hack it.
@@ -475,6 +503,7 @@ struct CombatFlowController {
         }
 
         gameState.currentTurnCount += 1
+        gameState.playerTurnsCompleted += 1
         // Single-room stealth: end when turn window closes
         if RoomManager.shared.currentMission == nil
             && gameState.currentMissionType == .stealth
@@ -514,7 +543,7 @@ struct CombatFlowController {
         }
         let nextChar = nextCharId.flatMap { id in living.first { $0.id == id } }
 
-        if let char = nextChar {
+        if let char = nextChar, gameState.playerTurnsCompleted < 4 {
             // More players still need to act — advance to next player without blocking input.
             gameState.activeCharacterId = char.id
             gameState.selectedCharacterId = char.id
@@ -540,7 +569,7 @@ struct CombatFlowController {
                 return
             }
 
-            // All living players have acted — NOW lock input and start enemy phase.
+            // Four player turns completed, or all living players have acted — NOW lock input and start enemy phase.
             CombatFlowController.setCombatPhase(gameState: gameState, .enemyResolving)
             gameState.currentTurnIndex = 0
             gameState.enemyPhaseCount += 1
@@ -704,6 +733,8 @@ struct CombatFlowController {
         } else { gameState.addLog("No character to heal."); return }
 
         // Find a consumable item
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: gameState, char) else { return }
+
         guard let idx = gameState.loot.firstIndex(where: { $0.type == .consumable }) else {
             gameState.addLog("No medkits available.")
             HapticsManager.shared.buttonTap()
@@ -779,20 +810,11 @@ struct CombatFlowController {
 
         if let selectedId = gameState.selectedCharacterId,
            let char = gameState.playerTeam.first(where: { $0.id == selectedId && $0.isAlive }) {
-            let isHexAdj = gameState.hexAdjacent(x1: tileX, y1: tileY, x2: char.positionX, y2: char.positionY)
-            if isHexAdj {
-                char.positionX = tileX
-                char.positionY = tileY
-                gameState.addLog("\(char.name) moves to (\(tileX),\(tileY))")
-                NotificationCenter.default.post(
-                    name: .tileTapped,
-                    object: nil,
-                    userInfo: ["tileX": tileX, "tileY": tileY, "characterId": char.id.uuidString]
-                )
-                checkDataTerminalPickup(gameState: gameState, atX: tileX, y: tileY, by: char)
-                // Movement is a free action — does NOT consume the turn.
+            let moveDistance = gameState.hexDistance(x1: tileX, y1: tileY, x2: char.positionX, y2: char.positionY)
+            if moveDistance >= 1 && moveDistance <= 2 {
+                CombatFlowController.moveCharacter(gameState: gameState, id: char.id, toTileX: tileX, toTileY: tileY)
             } else {
-                gameState.addLog("Too far. Choose an adjacent hex.")
+                gameState.addLog("Too far. Move up to 2 hexes.")
             }
             return
         }

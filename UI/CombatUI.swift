@@ -1448,6 +1448,11 @@ struct CombatUI: View {
         return char.hasActedThisRound
     }
 
+    private var hasMovedThisTurn: Bool {
+        guard let char = gameState.activeCharacter ?? gameState.currentCharacter else { return false }
+        return gameState.characterHasMovedThisTurn[char.id] == true
+    }
+
     private var hasMultipleRooms: Bool {
         (RoomManager.shared.currentMission?.rooms.count ?? 0) > 1
     }
@@ -1667,7 +1672,7 @@ struct CombatUI: View {
                     specialIcon: specialAbilityIcon,
                     specialColor: specialAbilityColor,
                     onEndTurn: onEndTurn,
-                    disabled: gameState.isCombatResolvedOrBeyond || isEnemyTurn || isEnemyTurnDisplay || hasActedThisRound
+                    disabled: gameState.isCombatResolvedOrBeyond || isEnemyTurn || isEnemyTurnDisplay || hasActedThisRound || hasMovedThisTurn
                 )
 
                 // Hit preview — shown when a target is selected

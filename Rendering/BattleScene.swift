@@ -30,7 +30,7 @@ final class BattleScene: SKScene {
     private var lastRenderedTraceTier: Int = -1
 
     /// Movement range for BFS pathfinding — 4 hexes per turn (SR5 sprint range for tactical mobility)
-    private var movementRange: Int { return 4 }
+    private var movementRange: Int { return 2 }
 
     /// Current room ID — synced with RoomManager.currentRoomId during transitions.
     var currentRoomId: String = "room_0"
@@ -1671,11 +1671,17 @@ final class BattleScene: SKScene {
         let isInRange = reachable.contains(where: { $0.x == tileX && $0.y == tileY })
 
         if isInRange {
+            guard let char = GameState.shared.playerTeam.first(where: { $0.id == charId && $0.isAlive }),
+                  !char.hasActedThisRound,
+                  GameState.shared.characterHasMovedThisTurn[charId] != true else {
+                GameState.shared.addLog("This character has already used their turn.")
+                return
+            }
             guard isWalkableTile(tileX, tileY) else {
                 GameState.shared.addLog("Cannot move to wall tile (\(tileX),\(tileY))")
                 return
             }
-            // Movement is a FREE action — no turn cost
+            // Movement consumes the character's player turn. A turn is move OR action.
             animateCharacterMove(characterId: charId, toTileX: tileX, toTileY: tileY)
             GameState.shared.moveCharacter(id: charId, toTileX: tileX, toTileY: tileY)
             sprite.tileX = tileX

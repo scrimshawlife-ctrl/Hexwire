@@ -259,6 +259,13 @@ final class GameState: ObservableObject {
         set { sessionState.characterHasMovedThisTurn = newValue }
     }
 
+    /// Number of player turns completed in the current player cycle.
+    /// Enemy phase begins after 4 player turns or once all living players have acted.
+    var playerTurnsCompleted: Int {
+        get { sessionState.playerTurnsCompleted }
+        set { sessionState.playerTurnsCompleted = newValue }
+    }
+
     /// True when any living player has HP <= 0 (player death occurred).
     /// Used to block room transitions after player death.
     var playerIsDead: Bool {
@@ -1319,6 +1326,11 @@ final class GameState: ObservableObject {
     func runEnemyAI(enemy: Enemy, livingEnemies: [Enemy]) {
         let livingPlayers = playerTeam.filter { $0.isAlive }
         guard !livingPlayers.isEmpty else { return }
+        let enemyTurnStartX = enemy.positionX
+        let enemyTurnStartY = enemy.positionY
+        func enemyMovedThisTurn() -> Bool {
+            enemy.positionX != enemyTurnStartX || enemy.positionY != enemyTurnStartY
+        }
 
         // Stunned enemies skip their turn (Decker hack effect)
         if enemy.status == .stunned {
@@ -1361,6 +1373,7 @@ final class GameState: ObservableObject {
                         NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": pick.0, "y": pick.1])
                     }
                 }
+                if enemyMovedThisTurn() { return }
                 // Drones attack at optimal range 2–5 (extended from 2–3 to prevent stall states)
                 let weaponAccuracy = enemy.equippedWeapon?.accuracy ?? 3
                 let enemyAttackPool = enemy.attributes.agi + (weaponAccuracy / 2 + 1)
@@ -1418,6 +1431,7 @@ final class GameState: ObservableObject {
                         if newDist >= 2 { break }
                     } else { break }
                 }
+                if enemyMovedThisTurn() { return }
                 let afterDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
                 if afterDist >= 2 && afterDist <= 5 {
                     // Drones attack at range 2–5 after advancing
@@ -1478,6 +1492,7 @@ final class GameState: ObservableObject {
                     }
                     let afterDist = hexDistance(x1: woundedAlly.positionX, y1: woundedAlly.positionY, x2: enemy.positionX, y2: enemy.positionY)
                     if afterDist > 1 { return }
+                    if enemyMovedThisTurn() { return }
                 }
                 let healAmount = 8 + Int.random(in: 0...4)
                 let actualHeal = min(healAmount, woundedAlly.maxHP - woundedAlly.currentHP)
@@ -1519,6 +1534,7 @@ final class GameState: ObservableObject {
                         NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": nx, "y": ny])
                     }
                 }
+                if enemyMovedThisTurn() { return }
                 // Ranged attack
                 let weaponAccuracy = enemy.equippedWeapon?.accuracy ?? 3
                 let attackPool = max(1, enemy.attributes.agi + (weaponAccuracy / 2))
@@ -1560,6 +1576,7 @@ final class GameState: ObservableObject {
                 }
                 let afterMoveDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
                 if afterMoveDist > 1 { return }
+                if enemyMovedThisTurn() { return }
             }
             // Enemy attack pool: AGI + weapon accuracy/2 (approx skill)
             let weaponAccuracy = enemy.equippedWeapon?.accuracy ?? 3
@@ -1639,6 +1656,7 @@ final class GameState: ObservableObject {
                 }
             }
 
+            if enemyMovedThisTurn() { return }
             let afterMoveDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
             // Only attack if in range after repositioning; mage spells are range 5
             let effectiveRange = enemy.archetype == "mage" ? 5 : (enemy.equippedWeapon?.type == .rifle ? 6 : (enemy.equippedWeapon?.type == .pistol || enemy.equippedWeapon?.type == .smg) ? 4 : 1)

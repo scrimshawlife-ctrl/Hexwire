@@ -6,6 +6,10 @@ final class GameSessionState {
     var hasLoggedTraceTriggerForCurrentRun: Bool = false
     var playersWhoHaveNotActed: Set<UUID> = []
 
+    /// Number of player turns completed in the current player cycle.
+    /// Enemy phase begins once this reaches 4 or all living players have acted.
+    var playerTurnsCompleted: Int = 0
+
     /// Per-character movement tracking: if true, character has already moved this turn
     /// and cannot take a major action (attack/defend/cast/item) in the same turn.
     /// Reset at start of each round.
