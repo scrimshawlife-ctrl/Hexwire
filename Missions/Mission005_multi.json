@@ -1,113 +1,120 @@
 {
   "id": "run005_multi",
   "title": "Mekton Blues",
-  "description": "Rival corps are fighting over a stolen Mekton prototype. Infiltrate the warehouse complex, navigate the factory floor, and extract with the prototype before the opposition does.",
+  "description": "Saeder-Krupp industrial complex. Stolen military mech prototype telemetry is locked in the factory's data core. Get the data, clear resistance, and extract from the mech bay before reinforcements arrive.",
+  "briefing": "Saeder-Krupp lifted a Mitsuhama prototype mech and trucked it to one of their black-flag factories outside the Sprawl. Mitsuhama is paying TOP dollar for the telemetry — schematics, weapon specs, neural-link config. Hit the warehouse entry, push through the assembly floor to the data core, pull the files. Then exfil from the mech bay before SK gets a Spider squad on-site. Heavy industrial security: drones, mech techs cross-trained in combat, and a corp mage running ICE on the data core. Watch for the mech itself in the bay — it's not active, but if SK techs power it up mid-extraction, you're done.",
+  "missionCompleteSummary": "Mech telemetry delivered to Mitsuhama. SK is going to spend a year auditing how a Mitsuhama prototype ended up on their factory floor in the first place — that's their problem now. Big payday, lay low, the SK Spider squad will be looking for SOMEBODY to hang for this run.",
+  "extractionType": "door",
   "rooms": [
     {
       "id": "room_0",
       "title": "Warehouse Entry",
+      "_obstacleNote": "Forklift, pallets, container, crates = WALLS (cannot walk through). Player paths down the central corridor between them.",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
-        [1, 0, 0, 2, 0, 0, 1],
-        [1, 2, 0, 0, 0, 2, 1],
-        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 1, "y": 10 },
+      "playerSpawn": { "x": 3, "y": 10 },
       "extractionPoint": null,
       "enemies": [
-        { "type": "drone", "x": 4, "y": 4, "delay": 0 },
-        { "type": "elite", "x": 2, "y": 3, "delay": 1 }
+        { "type": "drone", "x": 4, "y": 9, "delay": 0 },
+        { "type": "elite", "x": 2, "y": 5, "delay": 1 }
       ],
       "connections": [
         {
           "targetRoomId": "room_1",
           "triggerTileX": 3,
-          "triggerTileY": 6,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 10
+          "targetSpawnY": 9
         }
       ]
     },
     {
       "id": "room_1",
       "title": "Factory Floor",
+      "_obstacleNote": "Welding arms + press stations = WALLS. Data terminal at center is interactive (hex 5).",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 0, 1, 0, 1, 1],
-        [1, 0, 0, 0, 0, 5, 1],
-        [1, 0, 2, 3, 2, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
         [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 5, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 3, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 3, "y": 10 },
+      "playerSpawn": { "x": 3, "y": 9 },
       "extractionPoint": null,
       "enemies": [
-        { "type": "elite",  "x": 3, "y": 3, "delay": 1 },
-        { "type": "drone",  "x": 2, "y": 5, "delay": 2 },
-        { "type": "healer", "x": 4, "y": 5, "delay": 4 }
+        { "type": "elite",  "x": 3, "y": 4, "delay": 0 },
+        { "type": "drone",  "x": 2, "y": 8, "delay": 2 },
+        { "type": "healer", "x": 4, "y": 6, "delay": 4 }
       ],
       "connections": [
         {
           "targetRoomId": "room_0",
           "triggerTileX": 3,
-          "triggerTileY": 8,
+          "triggerTileY": 10,
           "targetSpawnX": 3,
-          "targetSpawnY": 6
+          "targetSpawnY": 2
         },
         {
           "targetRoomId": "room_2",
           "triggerTileX": 3,
-          "triggerTileY": 6,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 10
+          "targetSpawnY": 2
         }
       ]
     },
     {
       "id": "room_2",
       "title": "Mech Bay",
+      "_obstacleNote": "Mech occupies central columns y=6..9 (WALLS — impassable). Diagnostic stations at sides = COVER. Player must route around the mech via x=1 or x=5 corridor to reach the extraction at top.",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 4, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
-        [1, 0, 0, 2, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 2, 0, 0, 0, 2, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 2, 0, 0, 0, 2, 1],
+        [1, 0, 1, 1, 1, 0, 1],
+        [1, 0, 1, 1, 1, 0, 1],
+        [1, 0, 0, 1, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 4, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 3, "y": 10 },
-      "extractionPoint": { "x": 3, "y": 1 },
+      "playerSpawn": { "x": 3, "y": 2 },
+      "extractionPoint": { "x": 3, "y": 10 },
       "enemies": [
-        { "type": "mech",  "x": 3, "y": 3, "delay": 1 },
-        { "type": "drone", "x": 2, "y": 4, "delay": 3 },
-        { "type": "mage",  "x": 4, "y": 2, "delay": 5 }
+        { "type": "elite", "x": 1, "y": 9, "delay": 0 },
+        { "type": "drone", "x": 2, "y": 5, "delay": 2 },
+        { "type": "mage",  "x": 5, "y": 9, "delay": 4 }
       ],
+      "bossSpawn": { "type": "mech", "x": 3, "y": 9 },
       "connections": [
         {
           "targetRoomId": "room_1",
           "triggerTileX": 3,
-          "triggerTileY": 8,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 6
+          "targetSpawnY": 2
         }
       ]
     }

@@ -137,13 +137,19 @@ enum StatusEffect: Codable, Equatable {
     case stunned
     case wounded
     case dead
+    case burning(roundsLeft: Int)
+    case marked(roundsLeft: Int)
+    case confused(roundsLeft: Int)
 
     var displayName: String {
         switch self {
-        case .prone:  return "Prone"
-        case .stunned: return "Stunned"
-        case .wounded: return "Wounded"
-        case .dead:    return "Dead"
+        case .prone:              return "Prone"
+        case .stunned:            return "Stunned"
+        case .wounded:            return "Wounded"
+        case .dead:               return "Dead"
+        case .burning(let r):     return "Burning·\(r)"
+        case .marked(let r):      return "Marked·\(r)"
+        case .confused(let r):    return "Confused·\(r)"
         }
     }
 }
@@ -180,9 +186,21 @@ final class Character: ObservableObject, Identifiable, Codable {
 
     // Status
     @Published var status: StatusEffect = .wounded
+    /// Active timed status effects — burning, marked, confused, etc.
+    /// These are checked/ticked at the start of each round alongside the legacy single `status`.
+    @Published var statusEffects: [StatusEffect] = []
 
     // Per-round action tracking — set true after ANY combat action; reset at round start.
     @Published var hasActedThisRound: Bool = false
+
+    /// How many BLITZ charges the runner has burned this mission. Capped by
+    /// `blitzChargesPerMission` (currently `4 + level`, so level 1 = 5, lvl 2
+    /// = 6, etc.). Reset to 0 in MissionSetupService.setupMission.
+    /// Only meaningful for Street Samurai but stored on every Character to
+    /// keep the model uniform.
+    @Published var blitzChargesUsed: Int = 0
+    var blitzChargesPerMission: Int { max(1, 4 + level) }
+    var blitzChargesRemaining: Int { max(0, blitzChargesPerMission - blitzChargesUsed) }
 
     // Cyberware / spells
     var cyberware: [String] = []
@@ -234,7 +252,8 @@ final class Character: ObservableObject, Identifiable, Codable {
         case id, name, archetype, attributes, skills
         case equippedWeapon, equippedArmor, inventory
         case currentHP, maxHP, currentStun, currentMana, maxMana
-        case positionX, positionY, status, cyberware, spells, level, xp
+        case positionX, positionY, status, statusEffects
+        case cyberware, spells, level, xp
         case hasActedThisRound
     }
 
@@ -275,6 +294,7 @@ final class Character: ObservableObject, Identifiable, Codable {
         positionX = try container.decode(Int.self, forKey: .positionX)
         positionY = try container.decode(Int.self, forKey: .positionY)
         status = try container.decode(StatusEffect.self, forKey: .status)
+        statusEffects = try container.decodeIfPresent([StatusEffect].self, forKey: .statusEffects) ?? []
         cyberware = try container.decodeIfPresent([String].self, forKey: .cyberware) ?? []
         spells = try container.decodeIfPresent([String].self, forKey: .spells) ?? []
         level = try container.decodeIfPresent(Int.self, forKey: .level) ?? 1
@@ -300,6 +320,7 @@ final class Character: ObservableObject, Identifiable, Codable {
         try container.encode(positionX, forKey: .positionX)
         try container.encode(positionY, forKey: .positionY)
         try container.encode(status, forKey: .status)
+        try container.encode(statusEffects, forKey: .statusEffects)
         try container.encode(cyberware, forKey: .cyberware)
         try container.encode(spells, forKey: .spells)
         try container.encode(level, forKey: .level)
@@ -445,7 +466,17 @@ extension Character {
         skills.spellcasting = 5
         skills.conjuring = 4
         skills.perception = 2
-        skills.firearms = 1
+        // Bumped 2026-05 (was 1) — at 1 Sable's sidearm rolled a 5-die
+        // pool that glitched (1 in 5) more than it landed solid hits. At 3
+        // her sidearm pool reaches 7 dice, putting it on the same usable
+        // tier as a backup weapon should be (still clearly secondary to
+        // her spells).
+        skills.firearms = 3
+        // Bumped 2026-05 (was 0) — Stunball uses the .unarmed skill in the
+        // attack-pool lookup, so leaving this at 0 gave Sable a 3-die pool
+        // that essentially never landed against any enemy. With 4 the Mage
+        // can actually land her ranged spell-equivalent.
+        skills.unarmed = 4
 
         let weapon = Weapon(name: "Stunball", type: .unarmed, damage: 6, accuracy: 4, armorPiercing: 0)
         let armor = Armor(name: "Light Armor", armorValue: 2, spellPenalty: 0)
@@ -464,7 +495,11 @@ extension Character {
         return character
     }
 
-    /// Decker: high LOG/INT, social engineering
+    /// Decker: high LOG/INT, social engineering. 2026-05-14 weapon swap —
+    /// monoblade primary so the party has two melee threats instead of
+    /// one (Raze + Cipher) and the hacker reads as a Molly-Millions-style
+    /// cyber-blade specialist instead of a generic shooter. His pistol is
+    /// exposed through SHT; ATK stays monoblade-only and requires adjacency.
     static func decker() -> Character {
         var attrs = AttributeSet.zero
         attrs.bod = 3
@@ -477,13 +512,24 @@ extension Character {
         attrs.wil = 3
 
         var skills = SkillSet.zero
+        // Blades 4 — primary now, matches Raze's level so the monoblade
+        // lands consistently against guard-tier defense pools.
+        skills.blades = 4
+        // Firearms 3 — secondary, drops the smartgun pistol to a useful
+        // ~6-die backup pool for when targets are out of melee range.
+        // Was 4 when this was his primary weapon.
         skills.firearms = 3
         skills.perception = 5
         skills.sneaking = 4
         skills.conjuring = 0
         skills.spellcasting = 0
 
-        let weapon = Weapon(name: "Smartgun Pistol", type: .pistol, damage: 5, accuracy: 5, armorPiercing: 1)
+        // Monoblade — high-tech molecular edge. Same blade class as Raze's
+        // katana so the existing melee VFX (slash arc, wet-thunk impact SFX)
+        // and the sidearm-fallback branch all apply unmodified. Slightly
+        // less damage / AP than Raze's katana — Cipher's a hacker, not a
+        // trained swordsman.
+        let weapon = Weapon(name: "Monoblade", type: .blade, damage: 6, accuracy: 5, armorPiercing: 2)
         let armor = Armor(name: "Light Armor", armorValue: 2, spellPenalty: 0)
 
         let character = Character(

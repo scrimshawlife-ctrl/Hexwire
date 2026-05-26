@@ -84,11 +84,15 @@ struct DiceEngine {
         // For simple hit-counting, netHits = hits when tn is the threshold
         let netHits = hits // Will be adjusted if we implement opposed rolls
 
-        // Glitch detection: half or more dice show 1s
-        let glitch = ones >= pool / 2
+        // Glitch detection: MORE than half the dice show 1s (Shadowrun 5e
+        // rule). Was `>= pool/2` which fired on EXACTLY half — that made
+        // small pools (4–6 dice) glitch 15–20% of the time, which felt
+        // broken for chars like Sable using a sidearm with a 5-die pool.
+        let glitch = ones * 2 > pool
 
-        // Critical glitch: all dice show 1s
-        let criticalGlitch = ones == pool && pool > 0
+        // Critical glitch: ALL dice show 1s AND no hits — even one hit
+        // converts a critical glitch into a regular glitch per the rules.
+        let criticalGlitch = ones == pool && pool > 0 && hits == 0
 
         return RollResult(
             hits: hits,
@@ -198,18 +202,25 @@ struct CombatMechanics {
         return count
     }
 
-    /// 1 cover tile → +2 dice; 2+ → +4 dice (cap).
+    /// Cover defense bonus.
+    /// Tuned 2026-05 (was 0/+2/+4): the +4 from 2 cover tiles single-handedly
+    /// flipped a competent attacker's expected net hits negative — even Lyra's
+    /// 10-dice SMG pool was missing through cover. Halved to 0/+1/+2 so cover
+    /// matters but isn't an instant attack-shutdown.
     static func coverDefenseBonus(count: Int) -> Int {
         switch count {
         case 0:  return 0
-        case 1:  return 2
-        default: return 4
+        case 1:  return 1
+        default: return 2
         }
     }
 
     // MARK: - Hit Preview
 
     struct HitPreview {
+        let actionLabel: String
+        let weaponName: String
+        let targetName: String
         let attackPool: Int
         let defensePool: Int
         let coverBonus: Int
@@ -225,22 +236,31 @@ struct CombatMechanics {
         attacker: Character,
         target: Enemy,
         tiles: [[Int]],
+        weapon overrideWeapon: Weapon? = nil,
+        actionLabel: String = "ATK",
         isBlocked: (Int, Int, Int, Int) -> Bool
     ) -> HitPreview {
+        let weapon = overrideWeapon ?? attacker.equippedWeapon ?? Weapon(name: "Fists", type: .unarmed, damage: 3, accuracy: 3, armorPiercing: 0)
         if isBlocked(attacker.positionX, attacker.positionY,
                      target.positionX, target.positionY) {
-            return HitPreview(attackPool: 0, defensePool: 0, coverBonus: 0,
+            return HitPreview(actionLabel: actionLabel, weaponName: weapon.name,
+                              targetName: target.name, attackPool: 0, defensePool: 0, coverBonus: 0,
                               estimatedHitChance: 0, weaponDamage: 0, estimatedDamage: 0,
                               blocked: true, reason: "Wall blocks LOS")
         }
-        let weapon = attacker.equippedWeapon
-        let skill: SkillKey = (weapon?.type == .blade || weapon?.type == .unarmed) ? .blades : .firearms
-        let attackPool = attacker.attackPool(skill: skill)
+        let skill: SkillKey = (weapon.type == .blade || weapon.type == .unarmed) ? .blades : .firearms
+        // Match performAttack: include weapon-accuracy smartlink bonus.
+        let weaponBonus = max(0, weapon.accuracy / 3)
+        let attackPool = attacker.attackPool(skill: skill) + weaponBonus
         let coverCount = coverBetween(tiles: tiles,
                                       fromX: attacker.positionX, fromY: attacker.positionY,
                                       toX: target.positionX, toY: target.positionY)
         let coverBonus  = coverDefenseBonus(count: coverCount)
-        let defensePool = target.attributes.rea + target.attributes.agi + coverBonus
+        // Match performAttack: stunned enemies take a flat -2 defense penalty.
+        let baseDefense = target.attributes.rea + target.attributes.agi + coverBonus
+        let defensePool = (target.status == .stunned)
+            ? max(1, baseDefense - 2)
+            : baseDefense
         let hitsPerDie  = 1.0 / 3.0
         let atkExp      = Double(attackPool)  * hitsPerDie
         let defExp      = Double(defensePool) * hitsPerDie
@@ -248,9 +268,10 @@ struct CombatMechanics {
         let hitChance   = attackPool > 0
             ? min(1.0, max(0.0, 0.5 + (atkExp - defExp) / Double(max(1, attackPool))))
             : 0.0
-        let weaponDamage    = weapon?.damage ?? 3
+        let weaponDamage    = weapon.damage
         let estimatedDamage = Double(weaponDamage) + netExp
-        return HitPreview(attackPool: attackPool, defensePool: defensePool, coverBonus: coverBonus,
+        return HitPreview(actionLabel: actionLabel, weaponName: weapon.name,
+                          targetName: target.name, attackPool: attackPool, defensePool: defensePool, coverBonus: coverBonus,
                           estimatedHitChance: hitChance, weaponDamage: weaponDamage,
                           estimatedDamage: estimatedDamage, blocked: false, reason: nil)
     }

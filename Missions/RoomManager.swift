@@ -31,6 +31,19 @@ final class RoomManager: ObservableObject {
     /// First entry uses spawn; back-navigation preserves the player's last position in that room.
     private var enteredRoomIds: Set<String> = []
     private var clearedRoomIds: Set<String> = []
+    /// Rooms where a reinforcement wave has already been deployed. Limits each
+    /// room to one wave so kills don't trigger an infinite spawn loop.
+    private var roomsWithDeployedReinforcements: Set<String> = []
+    /// Rooms whose `bossSpawn` boss has been spawned. Used by `onRoomCleared`
+    /// to differentiate "regulars cleared, boss should drop in" from "boss
+    /// is dead, room is truly clear".
+    var bossDeployedRoomIds: Set<String> = []
+    /// Rooms whose boss spawn is scheduled but not yet executed (used for
+    /// the M6 AGI suspense delay — between "regulars dead" and "boss
+    /// appears" the room is in limbo). `onRoomCleared` checks this so the
+    /// intercept doesn't re-fire during the delay window and queue a
+    /// duplicate spawn.
+    var bossPendingRoomIds: Set<String> = []
 
     /// Mark a room as entered (call before beginTransition so the flag is set
     /// before handleRoomTransitionCompleted checks it).
@@ -56,6 +69,9 @@ final class RoomManager: ObservableObject {
             currentRoomIndex = 0
             enteredRoomIds.removeAll()
             clearedRoomIds.removeAll()
+            roomsWithDeployedReinforcements.removeAll()
+            bossDeployedRoomIds.removeAll()
+            bossPendingRoomIds.removeAll()
             return mission
         }
         return nil
@@ -71,19 +87,46 @@ final class RoomManager: ObservableObject {
         pendingConnectionTargetY = nil
         enteredRoomIds.removeAll()
         clearedRoomIds.removeAll()
+        roomsWithDeployedReinforcements.removeAll()
+        bossDeployedRoomIds.removeAll()
+        bossPendingRoomIds.removeAll()
+    }
+
+    /// Mark a room as having received its reinforcement wave so future
+    /// kill-clears in the same room do not trigger another wave.
+    /// Returns true if this is the first wave for this room.
+    @discardableResult
+    func markReinforcementsDeployed(in roomId: String) -> Bool {
+        roomsWithDeployedReinforcements.insert(roomId).inserted
+    }
+
+    func haveReinforcementsBeenDeployed(in roomId: String) -> Bool {
+        roomsWithDeployedReinforcements.contains(roomId)
     }
 
     @discardableResult
     func markCurrentRoomCleared() -> Bool {
         guard let roomId = currentRoom?.id else { return false }
         let inserted = clearedRoomIds.insert(roomId).inserted
-        print("[RoomManager] markCurrentRoomCleared() room=\(roomId) newlyInserted=\(inserted) clearedRoomIds now = \(Array(clearedRoomIds))")
+        dlog("[RoomManager] markCurrentRoomCleared() room=\(roomId) newlyInserted=\(inserted) clearedRoomIds now = \(Array(clearedRoomIds))")
         return inserted
+    }
+
+    /// Reverse the cleared-state flag — used when reinforcements spawn into
+    /// a previously-cleared room. The door re-locks until the new wave dies.
+    @discardableResult
+    func unmarkCurrentRoomCleared() -> Bool {
+        guard let roomId = currentRoom?.id else { return false }
+        let removed = clearedRoomIds.remove(roomId) != nil
+        if removed {
+            dlog("[RoomManager] unmarkCurrentRoomCleared() room=\(roomId) — door re-locks for reinforcement wave")
+        }
+        return removed
     }
 
     func isRoomCleared(_ roomId: String) -> Bool {
         let cleared = clearedRoomIds.contains(roomId)
-        print("[RoomManager] isRoomCleared(\(roomId)) = \(cleared) clearedRoomIds = \(Array(clearedRoomIds))")
+        dlog("[RoomManager] isRoomCleared(\(roomId)) = \(cleared) clearedRoomIds = \(Array(clearedRoomIds))")
         return cleared
     }
 
@@ -121,6 +164,24 @@ final class RoomManager: ObservableObject {
 
         guard isRoomCleared(room.id) else {
             GameState.shared.addLog("Door locked: clear this room first.")
+            return nil
+        }
+
+        // BOSS DOOR-LOCK (per playtest 2026-05-23):
+        // Even when the cleared-flag is set, a still-living boss locks ALL
+        // doors in the current room. This prevents the race where the
+        // regular-enemy death path marks the room cleared before the boss
+        // spawn fires (e.g. M3R2 mageBossPhase2 deferred spawn). Without
+        // this guard, players could flee the boss room mid-fight, come
+        // back to find the boss wiped (enemies array rebuilt from JSON on
+        // re-entry, boss never re-spawns) AND the grimoire un-pickup-able
+        // because the actual boss death never registered.
+        let bossPresent = GameState.shared.enemies.contains { e in
+            let arch = e.archetype.lowercased()
+            return e.isAlive && (arch == "bossmage" || arch == "bossmech" || arch == "bossagi")
+        }
+        if bossPresent {
+            GameState.shared.addLog("Door sealed — the boss won't let you leave.")
             return nil
         }
 

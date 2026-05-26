@@ -39,6 +39,14 @@ final class SpriteManager {
     /// Pre-loaded walk textures for each player archetype.
     private var playerWalkTextures: [String: [SKTexture]] = [:]
 
+    /// Pre-loaded attack textures for each player archetype.
+    /// These were always present on disk (samurai_attack_*, mage_attack_*,
+    /// etc.) but the original loader never pulled them in — `animateAttack`
+    /// would silently fall back to using `playerWalkTextures` as the attack
+    /// cycle, which is why the dedicated attack poses never appeared on
+    /// screen. Wired 2026-05.
+    private var playerAttackTextures: [String: [SKTexture]] = [:]
+
     // MARK: - Enemy Texture Cache
 
     /// Idle frames for each enemy type (guard, elite, drone, corpmage, medic, boss, mech).
@@ -55,9 +63,23 @@ final class SpriteManager {
         case "drone":                    return "drone"
         case "elite":                    return "elite"
         case "mage", "corpmage":         return "corpmage"
+        // Boss mage (M3 phase-2). Prefer dedicated bossmage_*.png frames
+        // when shipped; fall back to the corpmage set at boss scale until
+        // the new art is dropped in.
+        case "bossmage":
+            return (enemyIdleTextures["bossmage"]?.isEmpty == false) ? "bossmage" : "corpmage"
         case "medic", "healer":          return "medic"
         case "boss":                     return "boss"
         case "mech":                     return "mech"
+        case "bossmech":                 return "bossmech"   // M5 boss — uses bossmech_*.png frames
+        case "bossagi":                  return "bossagi"    // M6 boss — uses bossagi_*.png frames
+        // 2026-05 specialist sprites: dedicated PNG sets shipped to
+        // Sprites/frames/. Falls back to fallbackKey below if frames are
+        // missing (e.g. older builds before art ships).
+        case "sniper":                   return "sniper"
+        case "bruiser":                  return "bruiser"
+        case "spider":                   return "spider"
+        case "riot":                     return "riot"
         default:                         return "guard"
         }
     }
@@ -72,6 +94,15 @@ final class SpriteManager {
         case "medic":    return UIColor(hex: "#FF44AA")
         case "boss":     return UIColor(hex: "#FF6600")
         case "mech":     return UIColor(hex: "#FFCC00")
+        case "bossmech": return UIColor(hex: "#FF7700")   // hazard orange — boss-class mech
+        case "bossagi":  return UIColor(hex: "#00E5FF")   // electric cyan — projected AGI
+        // New archetypes — sprite key still maps to elite/drone/mech above,
+        // but the accent here keys off raw archetype string (looked up via the
+        // enemy's `archetype` property in callers passing it directly).
+        case "sniper":   return UIColor(hex: "#22FF66")
+        case "bruiser":  return UIColor(hex: "#FF3333")
+        case "spider":   return UIColor(hex: "#00FFCC")
+        case "riot":     return UIColor(hex: "#3366FF")
         default:         return UIColor(hex: "#FF2222")
         }
     }
@@ -97,7 +128,9 @@ final class SpriteManager {
     /// Files follow the naming convention: {type}_{anim}_{frame}.png
     /// e.g. guard_idle_0.png, boss_attack_1.png
     private func loadEnemySpriteFrames() {
-        let enemyTypes = ["guard", "elite", "drone", "corpmage", "medic", "boss", "mech"]
+        let enemyTypes = ["guard", "elite", "drone", "corpmage", "medic", "boss", "mech",
+                          "sniper", "bruiser", "spider", "riot",
+                          "bossmech", "bossagi", "bossmage"]
         for eType in enemyTypes {
             var idle:   [SKTexture] = []
             var walk:   [SKTexture] = []
@@ -109,12 +142,69 @@ final class SpriteManager {
             for i in 0..<2 {
                 if let t = loadTexture(named: "\(eType)_attack_\(i).png") { attack.append(t) }
             }
+            // Per-archetype frame filtering — some sprites have poses that at
+            // our small render size + fast frame cycle read as a visual
+            // glitch (split body, missing limbs, etc). Trim them down to the
+            // tight-pose frames only so the loops stay clean.
+            //
+            // CORPMAGE — programmatic frame-content analysis (center-of-mass
+            // and split-region detection) found TWO bad idle frames:
+            //   • idle_2: SPLIT body — content in cols 3-17 + 50-76 with
+            //             empty space between (cape parted, back-view)
+            //   • idle_3: OFFSET LEFT by ~22px — character drawn at canvas
+            //             center=18 instead of ~40, so cycling to this frame
+            //             made the character appear to "jump left" then snap
+            //             back, reading as a teleport glitch
+            // Walk frames 0-3 are all centered (COM ≈ 40), so they're fine
+            // to use — but the wide-cape pose in walk_2 still reads visually
+            // glitchy at small render size. Filter conservatively:
+            //   idle  → only idle_0 + idle_1 (both centered, single body)
+            //   walk  → only walk_0 + walk_1 (both centered, tight pose)
+            if eType == "corpmage" {
+                if idle.count >= 2 {
+                    idle = [idle[0], idle[1]]
+                }
+                if walk.count >= 2 {
+                    walk = [walk[0], walk[1]]
+                }
+            }
+
+            // BRUISER — visual inspection of all generated frames found a
+            // similar duplicate-figure bug:
+            //   • idle_2 / idle_3: TWO bruisers in frame (a SMALLER ghost
+            //                      on the left + the normal one on the right).
+            //                      Cycling to these frames made the player see
+            //                      a second small bruiser flicker in/out and
+            //                      the main figure appear to shift left.
+            //   • walk_0 / walk_1 / walk_2: same double-figure bug
+            //   • walk_3: clean single figure, but a totally different palette
+            //             (blue-armor variant) and overhead-bat pose — would
+            //             look like the sprite morphs mid-walk
+            // Filter idle to the two clean frames. For walk, every frame is
+            // broken (or wrong-palette), so re-use the clean idle frames as
+            // the walk cycle — the bruiser will still animate while moving,
+            // just using its idle breath, which is far better than the
+            // glitched walk frames.
+            if eType == "bruiser" {
+                if idle.count >= 2 {
+                    idle = [idle[0], idle[1]]
+                }
+                // Override walk entirely — every bruiser_walk_*.png is bad.
+                walk = idle
+                // Attack frames are also broken:
+                //   • attack_0: double-figure ghost on the left
+                //   • attack_1: cropped torso-and-weapon close-up only
+                // Empty out — the animateAttack() fallback flashes the
+                // sprite colour instead, which reads fine on a melee unit.
+                attack = []
+            }
+
             if !idle.isEmpty   { enemyIdleTextures[eType]   = idle   }
             if !walk.isEmpty   { enemyWalkTextures[eType]   = walk   }
             if !attack.isEmpty { enemyAttackTextures[eType] = attack }
         }
         let summary = enemyTypes.map { "\($0): \(enemyIdleTextures[$0]?.count ?? 0)i" }.joined(separator: ", ")
-        print("[SpriteManager] Enemy frames loaded — \(summary)")
+        dlog("[SpriteManager] Enemy frames loaded — \(summary)")
     }
 
     /// Load the character spritesheet JPEG from the Sprites/ directory.
@@ -172,14 +262,14 @@ final class SpriteManager {
             playerIdleTextures[$0] != nil && playerWalkTextures[$0] != nil
         }
         if allLoaded {
-            print("[SpriteManager] Using pre-cropped frame PNGs (preferred path)")
+            dlog("[SpriteManager] Using pre-cropped frame PNGs (preferred path)")
             return
         }
 
         // Fall back to slicing the spritesheet when individual PNGs aren't available
         // (production builds where #file-relative path doesn't work).
         guard let sheet = loadSpritesheetTexture() else {
-            print("[SpriteManager] ERROR: neither frame PNGs nor spritesheet found")
+            dlog("[SpriteManager] ERROR: neither frame PNGs nor spritesheet found")
             return
         }
 
@@ -233,26 +323,33 @@ final class SpriteManager {
         }
 
         let loaded = playerIdleTextures.map { "\($0.key): \($0.value.count)i/\(playerWalkTextures[$0.key]?.count ?? 0)w" }.joined(separator: ", ")
-        print("[SpriteManager] Spritesheet loaded (bleed-corrected) — \(loaded)")
+        dlog("[SpriteManager] Spritesheet loaded (bleed-corrected) — \(loaded)")
     }
 
     /// Fallback: load individual PNG files from Sprites/frames/ bundle directory.
     private func loadPlayerSpriteSheetFromFiles() {
         let archetypes = ["samurai", "mage", "decker", "face"]
         for archetype in archetypes {
-            var idleTextures: [SKTexture] = []
-            var walkTextures: [SKTexture] = []
+            var idleTextures:   [SKTexture] = []
+            var walkTextures:   [SKTexture] = []
+            var attackTextures: [SKTexture] = []
             for frame in 0..<2 {
-                if let t = loadTexture(named: "\(archetype)_idle_\(frame).png") { idleTextures.append(t) }
+                if let t = loadTexture(named: "\(archetype)_idle_\(frame).png")   { idleTextures.append(t)   }
+                // Attack pose PNGs ship at frames 0-1 for every player archetype.
+                // (Face's frames are a back-view pose — clean single figure
+                // but different camera angle from idle; acceptable for a
+                // brief one-shot attack flash.)
+                if let t = loadTexture(named: "\(archetype)_attack_\(frame).png") { attackTextures.append(t) }
             }
             for frame in 0..<4 {
-                if let t = loadTexture(named: "\(archetype)_walk_\(frame).png") { walkTextures.append(t) }
+                if let t = loadTexture(named: "\(archetype)_walk_\(frame).png")   { walkTextures.append(t)   }
             }
-            if !idleTextures.isEmpty { playerIdleTextures[archetype] = idleTextures }
-            if !walkTextures.isEmpty { playerWalkTextures[archetype] = walkTextures }
+            if !idleTextures.isEmpty   { playerIdleTextures[archetype]   = idleTextures   }
+            if !walkTextures.isEmpty   { playerWalkTextures[archetype]   = walkTextures   }
+            if !attackTextures.isEmpty { playerAttackTextures[archetype] = attackTextures }
         }
-        let loaded = playerIdleTextures.map { "\($0.key): \($0.value.count)" }.joined(separator: ", ")
-        print("[SpriteManager] File fallback loaded: \(loaded.isEmpty ? "NONE" : loaded)")
+        let loaded = playerIdleTextures.map { "\($0.key): \($0.value.count)i/\(playerWalkTextures[$0.key]?.count ?? 0)w/\(playerAttackTextures[$0.key]?.count ?? 0)a" }.joined(separator: ", ")
+        dlog("[SpriteManager] File fallback loaded: \(loaded.isEmpty ? "NONE" : loaded)")
     }
 
     private func loadTexture(named: String) -> SKTexture? {
@@ -303,12 +400,97 @@ final class SpriteManager {
             return tex
         }
 
-        print("[SpriteManager] WARNING: Could not load texture '\(named)' from any path")
+        dlog("[SpriteManager] WARNING: Could not load texture '\(named)' from any path")
         return nil
     }
 
     /// Load a tile sprite texture from Sprites/tiles/ directory.
     /// Tries bundle paths first, then project directory via #file.
+    /// Load a per-room background image. Same lookup paths as tile textures
+    /// but searches `Sprites/backgrounds/`.
+    func loadBackgroundTexture(named: String) -> SKTexture? {
+        return loadFromSpritesSubdir("backgrounds", filename: named)
+    }
+
+    /// Generic Sprites/<subdir>/<file> texture loader (bundle → resource path → #file fallback).
+    private func loadFromSpritesSubdir(_ subdir: String, filename: String) -> SKTexture? {
+        let baseName = filename.replacingOccurrences(of: ".png", with: "")
+            .replacingOccurrences(of: ".jpg", with: "")
+            .replacingOccurrences(of: ".jpeg", with: "")
+        let ext = filename.contains(".jpg") ? "jpg" : (filename.contains(".jpeg") ? "jpeg" : "png")
+
+        // === Path attempt #0: UIImage(named:) — iOS-canonical, works on
+        // device for folder references and asset catalogs. This is the
+        // most reliable path for sideloaded iOS apps.
+        if let image = UIImage(named: baseName) {
+            let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
+        }
+        // Also try the bare filename (some folder references end up with it
+        // registered as the leafname).
+        if let image = UIImage(named: filename) {
+            let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
+        }
+        // === Path attempt #1: Bundle.url with subdirectory ===
+        if let url = Bundle.main.url(forResource: baseName, withExtension: ext, subdirectory: "Sprites/\(subdir)") {
+            if let image = UIImage(contentsOfFile: url.path) {
+                let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
+            }
+            dlog("[SpriteManager] BG.1 found URL but UIImage failed: \(url.path)")
+        }
+        // === Path attempt #2: Bundle.url FLAT (files at bundle root) ===
+        if let url = Bundle.main.url(forResource: baseName, withExtension: ext) {
+            if let image = UIImage(contentsOfFile: url.path) {
+                let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
+            }
+            dlog("[SpriteManager] BG.2 found URL (flat) but UIImage failed: \(url.path)")
+        }
+        // === Path attempt #3: resourceURL + appended path ===
+        if let resourceURL = Bundle.main.resourceURL {
+            let url = resourceURL.appendingPathComponent("Sprites").appendingPathComponent(subdir).appendingPathComponent(filename)
+            if let image = UIImage(contentsOfFile: url.path) {
+                let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
+            }
+        }
+        // === Path attempt #4: resourcePath + string concat ===
+        if let resourcePath = Bundle.main.resourcePath {
+            let path = resourcePath + "/Sprites/\(subdir)/" + filename
+            if let image = UIImage(contentsOfFile: path) {
+                let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
+            }
+        }
+        // === Path attempt #5: source-relative (dev only) ===
+        let sourceURL = URL(fileURLWithPath: #file)
+        let projectURL = sourceURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sprites")
+            .appendingPathComponent(subdir)
+            .appendingPathComponent(filename)
+        if let image = UIImage(contentsOfFile: projectURL.path) {
+            let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
+        }
+
+        // VERBOSE DIAGNOSTIC — dump what we know about the bundle so we can
+        // see exactly what's wrong on device.
+        let rp = Bundle.main.resourcePath ?? "<nil>"
+        let ru = Bundle.main.resourceURL?.path ?? "<nil>"
+        let triedSubdir = ru + "/Sprites/\(subdir)/\(filename)"
+        let subdirFiles = (try? FileManager.default.contentsOfDirectory(atPath: ru + "/Sprites/\(subdir)")) ?? []
+        let rootFiles = (try? FileManager.default.contentsOfDirectory(atPath: ru)) ?? []
+        let spritesFiles = (try? FileManager.default.contentsOfDirectory(atPath: ru + "/Sprites")) ?? []
+        dlog("""
+        [SpriteManager] ⚠️ FAILED to load Sprites/\(subdir)/\(filename)
+          resourcePath: \(rp)
+          resourceURL:  \(ru)
+          triedFullPath: \(triedSubdir)
+          file exists at triedFullPath: \(FileManager.default.fileExists(atPath: triedSubdir))
+          Sprites/\(subdir)/ listing (\(subdirFiles.count) items): \(subdirFiles.prefix(8))
+          Sprites/ listing (\(spritesFiles.count) items): \(spritesFiles.prefix(8))
+          bundle root listing first 10 of \(rootFiles.count): \(rootFiles.prefix(10))
+        """)
+        return nil
+    }
+
     func loadTileTexture(named: String) -> SKTexture? {
         let subdir = "tiles"
         // ── Bundle paths ─────────────────────────────────────────────────────────────
@@ -356,21 +538,29 @@ final class SpriteManager {
         position: CGPoint,
         anchorPoint: CGPoint,
         color: UIColor,
-        flippedX: Bool = false
+        flippedX: Bool = false,
+        enabled: Bool = false
     ) {
-        let outline = SKSpriteNode(texture: texture)
-        outline.anchorPoint = anchorPoint
-        outline.setScale(scale * 1.14)
-        if flippedX {
-            outline.xScale = -abs(outline.xScale)
+        guard enabled else { return }
+
+        let offsets: [CGPoint] = [
+            CGPoint(x: -1.4, y: 0), CGPoint(x: 1.4, y: 0),
+            CGPoint(x: 0, y: -1.4), CGPoint(x: 0, y: 1.4)
+        ]
+
+        for offset in offsets {
+            let outline = SKSpriteNode(texture: texture)
+            outline.setScale(scale)
+            if flippedX { outline.xScale = -scale }
+            outline.anchorPoint = anchorPoint
+            outline.position = CGPoint(x: position.x + offset.x, y: position.y + offset.y)
+            outline.color = color
+            outline.colorBlendFactor = 1.0
+            outline.alpha = 0.62
+            outline.zPosition = 9.2
+            outline.name = "spriteOutline"
+            container.addChild(outline)
         }
-        outline.position = position
-        outline.zPosition = 9
-        outline.name = "characterSpriteOutline"
-        outline.color = color
-        outline.colorBlendFactor = 1.0
-        outline.alpha = 0.62
-        container.addChild(outline)
     }
 
     // MARK: - Tile Sprites
@@ -516,7 +706,16 @@ final class SpriteManager {
 
     /// Create a character sprite. type: archetype string; team: "player" or "enemy"
     /// level: pass for player sprites to display correctly; defaults to 1 for enemies
-    func createCharacter(type: String, team: String, x: Int, y: Int, name: String = "", level: Int = 1) -> SpriteNode {
+    /// Creates a character sprite container. `ownerId` (when supplied) is
+    /// used to UUID-suffix every HP-bar / stun-bar / level-badge child node
+    /// name (e.g. `"hpBarFill_<uuid>"`). This is defense-in-depth against
+    /// the DFS-collision bug pattern where `childNode(withName: "hpBarFill")`
+    /// returns the FIRST matching descendant — if any future code path adds
+    /// a stale HP bar to the same container, updates would silently land on
+    /// the wrong node. Suffixing ensures lookups are unique per character.
+    /// Backward compatible: `updateHP` falls back to the unsuffixed name if
+    /// no suffixed match is found.
+    func createCharacter(type: String, team: String, x: Int, y: Int, name: String = "", level: Int = 1, ownerId: String = "", labelStaggerIndex: Int = 0) -> SpriteNode {
         let container = SpriteNode()
         container.tileX = x
         container.tileY = y
@@ -540,26 +739,17 @@ final class SpriteManager {
         container.alpha = 1.0
         container.isHidden = false
 
-        // ── Guaranteed-visible colored base hex ───────────────────────────────
-        // A FILLED, OPAQUE hex under the character ensures SOMETHING is always
-        // visible on this tile, even if texture loading silently fails. Player
-        // hexes are cyan/archetype-tinted; enemy hexes are red-tinted. zPosition
-        // places this just above the floor (0.1) but below sprite art (z=10).
-        // Uses hexRadius*0.7 so the base overlaps clearly with the tile outline
-        // while leaving the tile's neon border visible at the edge.
-        let teamHex = SKShapeNode(path: TileMap.hexPath(radius: TileMap.hexRadius * 0.82))
-        teamHex.fillColor = team == "player"
-            ? UIColor(hex: "#00FF9D").withAlphaComponent(0.30)
-            : UIColor(hex: "#FF4A4A").withAlphaComponent(0.92)
-        teamHex.strokeColor = team == "player"
-            ? UIColor(hex: "#D7FFF0").withAlphaComponent(0.50)
-            : UIColor(hex: "#FFE0E0")
-        teamHex.lineWidth = 2.6
-        teamHex.glowWidth = 6.0
-        teamHex.position = .zero
-        teamHex.zPosition = 0.25
-        teamHex.name = "characterTeamHex"
-        container.addChild(teamHex)
+        if team == "player" {
+            let teamHex = SKShapeNode(path: TileMap.hexPath(radius: TileMap.hexRadius * 0.82))
+            teamHex.fillColor = UIColor(hex: "#00FF9D").withAlphaComponent(0.30)
+            teamHex.strokeColor = UIColor(hex: "#D7FFF0").withAlphaComponent(0.50)
+            teamHex.lineWidth = 2.6
+            teamHex.glowWidth = 6.0
+            teamHex.position = .zero
+            teamHex.zPosition = 0.25
+            teamHex.name = "characterTeamHex"
+            container.addChild(teamHex)
+        }
 
         // Player = cyan/green, enemy color varies by archetype
         let baseColor: UIColor
@@ -571,38 +761,18 @@ final class SpriteManager {
             case "drone":   baseColor = UIColor(hex: "#FF8800")
             case "elite":   baseColor = UIColor(hex: "#CC00FF")
             case "mage":    baseColor = UIColor(hex: "#00CCFF")
+            case "healer":  baseColor = UIColor(hex: "#FF44AA")
+            case "mech":    baseColor = UIColor(hex: "#FFCC00")
+            case "sniper":  baseColor = UIColor(hex: "#22FF66")
+            case "bruiser": baseColor = UIColor(hex: "#FF3333")
+            case "spider":  baseColor = UIColor(hex: "#00FFCC")
+            case "riot":    baseColor = UIColor(hex: "#3366FF")
             default:        baseColor = UIColor(hex: "#FF3333")
             }
         }
 
-        // ── Low-profile identity label ─────────────────────────────────────
-        // Keep this below runner art. The previous presence badge sat above the
-        // sprite and made the combatants read as colored glyphs instead of runners.
-        let initial: String = {
-            if team == "enemy" { return String(type.prefix(1).uppercased()) }
-            let archKey = archetypeKey(for: type)
-            switch archKey {
-            case "samurai": return "S"
-            case "mage":    return "M"
-            case "decker":  return "D"
-            case "face":    return "F"
-            default:
-                if let first = name.first { return String(first).uppercased() }
-                return String(type.prefix(1).uppercased())
-            }
-        }()
-        let idLabel = SKLabelNode(text: initial)
-        idLabel.fontName = "Helvetica-Bold"
-        idLabel.fontSize = 13
-        idLabel.fontColor = team == "player"
-            ? UIColor(hex: "#001A0D")
-            : UIColor(hex: "#330000")
-        idLabel.verticalAlignmentMode = .center
-        idLabel.horizontalAlignmentMode = .center
-        idLabel.position = .zero
-        idLabel.zPosition = 0.3
-        idLabel.name = "characterInitial"
-        container.addChild(idLabel)
+        // (Identity letter labels removed 2026-05 — runners are identified by
+        // their sprite art now, not by an "S/M/D/F" overlay.)
 
         if team == "player" {
             let playerColor: UIColor
@@ -641,13 +811,19 @@ final class SpriteManager {
                 // torso/head sits comfortably inside the hex tile (hex height ≈ 56pt).
                 // Slightly taller so the full sprite spans from tile-bottom up past
                 // tile-top (heroic scale), but not so tall it clips into adjacent tiles.
+                // Reduced again 2026-05 (76/80 → 68/72) — playtest showed
+                // players slightly oversized vs enemies on the resized map.
+                // 2026-05: per playtest, Sable's mage sprite was reading as
+                // oversized vs the team and her HUD/HP bar was blocking part
+                // of the map. Normalized mage down to 68 to match the rest of
+                // the roster. Face left at 72 (Lyra is intentionally taller).
                 let targetH: CGFloat
                 switch archKey {
-                case "samurai": targetH = 84
-                case "mage":    targetH = 90
-                case "decker":  targetH = 84
-                case "face":    targetH = 90
-                default:        targetH = 84
+                case "samurai": targetH = 68
+                case "mage":    targetH = 68
+                case "decker":  targetH = 68
+                case "face":    targetH = 72
+                default:        targetH = 68
                 }
                 let spriteNode = SKSpriteNode(texture: tex)
                 let scale = targetH / spriteNode.size.height
@@ -676,9 +852,14 @@ final class SpriteManager {
                 container.addChild(spriteNode)
 
                 // Animate idle: swap between the 2 idle frames.
+                // resize:false — keeps spriteNode.size locked to the size we set at
+                // creation, so the displayed sprite doesn't pulse/jitter between
+                // frames even if SK reports the texture's intrinsic size differently
+                // (the visual "splitting in half" the player saw was caused by
+                // resize:true reapplying texture dims every tick).
                 if idleFrames.count >= 2 {
                     let idleAnim = SKAction.animate(with: idleFrames, timePerFrame: 0.5,
-                                                    resize: true, restore: false)
+                                                    resize: false, restore: false)
                     spriteNode.run(SKAction.repeatForever(idleAnim), withKey: "idle")
                 }
             } else {
@@ -1165,53 +1346,74 @@ final class SpriteManager {
             }
             } // end spritesheet else-fallback
 
-            // HP bar background + fill (wider: 32 points)
-            let hpBg = SKShapeNode(rectOf: CGSize(width: 32, height: 4), cornerRadius: 2)
+            // HP / stun bar nodes — UUID-suffixed when an ownerId was supplied
+            // so DFS lookups in updateHP can never alias to a stale duplicate
+            // child. See `createCharacter` doc comment.
+            let nameSuffix = ownerId.isEmpty ? "" : "_\(ownerId)"
+
+            // Per-character vertical stagger: at spawn, 4 runners cluster in
+            // adjacent hexes on the same row, and their HP labels would all
+            // render at the same Y → completely overlap → unreadable. Stagger
+            // each owner's label group by `labelStaggerIndex * 5pt` so they
+            // form a small vertical stack when crowded but stay glued to
+            // each character once they spread out. Pattern: 0, -5, -10, -15.
+            // Negative shifts the bars FURTHER below the sprite (away from
+            // the head), keeping the head/intent area uncluttered.
+            let stagger: CGFloat = CGFloat(labelStaggerIndex) * -5.0
+            let hpBarY: CGFloat   = -26 + stagger
+            let stunBarY: CGFloat = -31 + stagger
+            let hpLabelY: CGFloat = -38 + stagger
+
+            // HP bar background + fill — reduced 32 → 26 wide per playtest
+            // note (bars overall too chunky relative to the sprite). Center-
+            // anchored fill drains symmetrically (see updateHP).
+            let playerBarWidth: CGFloat = 26
+            let hpBg = SKShapeNode(rectOf: CGSize(width: playerBarWidth, height: 4), cornerRadius: 2)
             hpBg.fillColor = UIColor(hex: "#1A0000")
             hpBg.strokeColor = UIColor(hex: "#330000")
             hpBg.lineWidth = 0.5
-            hpBg.position = CGPoint(x: 0, y: -26)
+            hpBg.position = CGPoint(x: 0, y: hpBarY)
             hpBg.zPosition = 20
-            hpBg.name = "hpBarBg"
+            hpBg.name = "hpBarBg\(nameSuffix)"
             hpBg.userData = NSMutableDictionary()
-            hpBg.userData?["barWidth"] = CGFloat(32.0)
+            hpBg.userData?["barWidth"] = playerBarWidth
             container.addChild(hpBg)
 
             // Add thin glow line around HP bar
-            let hpGlow = SKShapeNode(rectOf: CGSize(width: 32, height: 4), cornerRadius: 2)
+            let hpGlow = SKShapeNode(rectOf: CGSize(width: playerBarWidth, height: 4), cornerRadius: 2)
             hpGlow.fillColor = .clear
             hpGlow.strokeColor = UIColor(hex: "#00FF88").withAlphaComponent(0.3)
             hpGlow.lineWidth = 1
-            hpGlow.position = CGPoint(x: 0, y: -26)
+            hpGlow.position = CGPoint(x: 0, y: hpBarY)
             hpGlow.zPosition = 19
-            hpGlow.name = "hpGlowLine"
+            hpGlow.name = "hpGlowLine\(nameSuffix)"
             container.addChild(hpGlow)
 
             let hpBarFill = SKShapeNode()
             hpBarFill.fillColor = UIColor(hex: "#00FF88")
             hpBarFill.strokeColor = .clear
-            hpBarFill.position = CGPoint(x: 0, y: -26)
+            hpBarFill.position = CGPoint(x: 0, y: hpBarY)
             hpBarFill.zPosition = 21
-            hpBarFill.name = "hpBarFill"
+            hpBarFill.name = "hpBarFill\(nameSuffix)"
             container.addChild(hpBarFill)
 
-            // Stun bar (yellow-orange, SR5 stun track) — just below HP bar
-            let stunBg = SKShapeNode(rectOf: CGSize(width: 32, height: 2.5), cornerRadius: 1)
+            // Stun bar (yellow-orange, SR5 stun track) — tracks HP bar width.
+            let stunBg = SKShapeNode(rectOf: CGSize(width: playerBarWidth, height: 2.5), cornerRadius: 1)
             stunBg.fillColor = UIColor(hex: "#1A1000")
             stunBg.strokeColor = .clear
-            stunBg.position = CGPoint(x: 0, y: -31)
+            stunBg.position = CGPoint(x: 0, y: stunBarY)
             stunBg.zPosition = 20
-            stunBg.name = "stunBarBg"
+            stunBg.name = "stunBarBg\(nameSuffix)"
             stunBg.userData = NSMutableDictionary()
-            stunBg.userData?["barWidth"] = CGFloat(32.0)
+            stunBg.userData?["barWidth"] = playerBarWidth
             container.addChild(stunBg)
 
             let stunBarFill = SKShapeNode()
             stunBarFill.fillColor = UIColor(hex: "#FFAA00")
             stunBarFill.strokeColor = .clear
-            stunBarFill.position = CGPoint(x: 0, y: -31)
+            stunBarFill.position = CGPoint(x: 0, y: stunBarY)
             stunBarFill.zPosition = 21
-            stunBarFill.name = "stunBarFill"
+            stunBarFill.name = "stunBarFill\(nameSuffix)"
             container.addChild(stunBarFill)
 
             // HP numeric label below bar (placeholder - updated via updateHP after placement)
@@ -1219,151 +1421,116 @@ final class SpriteManager {
             hpLabel.fontName = "Menlo-Bold"
             hpLabel.fontSize = 8
             hpLabel.fontColor = UIColor(hex: "#00FF88")
-            hpLabel.position = CGPoint(x: 0, y: -38)
+            hpLabel.position = CGPoint(x: 0, y: hpLabelY)
             hpLabel.zPosition = 21
-            hpLabel.name = "hpLabel"
+            hpLabel.name = "hpLabel\(nameSuffix)"
             container.addChild(hpLabel)
-
-            // Level badge (golden circle top-right) — positioned above the sprite top.
-            // Sprite now uses bottom anchor (0.5, 0.0): top = position.y + displayH.
-            let badge = SKShapeNode(circleOfRadius: 9)
-            badge.fillColor = UIColor(hex: "#FFD700")
-            badge.strokeColor = UIColor(hex: "#886600")
-            badge.lineWidth = 1
-            // Compute badge Y: sprite centre + half display height + clearance.
-            let badgeY: CGFloat
-            if let spr = container.childNode(withName: "characterSprite") as? SKSpriteNode {
-                let dispH = spr.size.height * abs(spr.yScale)   // abs: yScale positive (xScale may be negative for flipped samurai)
-                // Centre anchor: top of sprite is at position.y + dispH/2
-                badgeY = spr.position.y + (dispH / 2) + 14
-            } else {
-                badgeY = 38   // procedural fallback: characters are ~24px tall
-            }
-            badge.position = CGPoint(x: 12, y: badgeY)
-            badge.zPosition = 5
-            badge.name = "levelBadge"
-            container.addChild(badge)
-
-            // Fetch actual level from GameState if available
-            let actualLevel = level
-            let levelLabel = SKLabelNode(text: "\(actualLevel)")
-            levelLabel.fontName = "Helvetica-Bold"
-            levelLabel.fontSize = 9
-            levelLabel.fontColor = UIColor(hex: "#1A0A00")
-            levelLabel.position = CGPoint(x: 12, y: badgeY - 2)
-            levelLabel.zPosition = 6
-            levelLabel.name = "levelLabel"
-            container.addChild(levelLabel)
-
-            // Also animate the badge to pulse slightly for visual polish
-            let badgePulse = SKAction.sequence([
-                SKAction.scale(to: 1.08, duration: 1.2),
-                SKAction.scale(to: 1.0, duration: 1.2)
-            ])
-            badge.run(SKAction.repeatForever(badgePulse))
 
         } else {
             // ── Enemy sprites: use dedicated PNG frames generated for each enemy type ─────
             let eKey = enemySpriteKey(for: type)
-            let accentColor = enemyAccentColor(for: eKey)
-            let isBoss = (eKey == "boss" || eKey == "mech")
+            // Accent uses the RAW archetype string so reinforcement specialists
+            // (sniper/bruiser/spider/riot) get distinct hex-ring tints even when
+            // they share an underlying sprite key with an existing enemy.
+            let accentColor = enemyAccentColor(for: type.lowercased())
+            // Boss-scale check. `bossmage` (M3) maps eKey → "corpmage" (it
+            // reuses those frames), so it wouldn't be caught by eKey alone —
+            // also check the raw archetype string to flag it as a boss.
+            let rawType = type.lowercased()
+            let isBoss = (eKey == "boss" || eKey == "mech" || eKey == "bossmech" || eKey == "bossagi"
+                          || eKey == "bossmage" || rawType == "bossmage")
 
             container.spriteTypeKey = eKey   // stored so animate() can find correct frames
 
-            // ── GUARANTEED BASE INDICATOR (always rendered, never invisible) ──────────────
-            // This hex base ensures enemies are ALWAYS visible on the board even when all
-            // texture loading paths fail. Sprite textures draw on top of it.
-            let baseRadius: CGFloat = isBoss ? 34 : 28
-            let baseFill = SKShapeNode(path: TileMap.hexPath(radius: baseRadius))
-            baseFill.fillColor = accentColor.withAlphaComponent(0.22)
-            baseFill.strokeColor = .clear
-            baseFill.position = CGPoint(x: 0, y: -8)
-            baseFill.zPosition = 0.1
-            baseFill.name = "enemyBaseFill"
-            container.addChild(baseFill)
-
-            let baseRing = SKShapeNode(path: TileMap.hexPath(radius: baseRadius + 3))
-            baseRing.fillColor = .clear
-            baseRing.strokeColor = accentColor.withAlphaComponent(0.85)
-            baseRing.lineWidth = 2.2
-            baseRing.glowWidth = 4.0
-            baseRing.position = CGPoint(x: 0, y: -8)
-            baseRing.zPosition = 0.3
-            baseRing.name = "enemyBaseRing"
-            container.addChild(baseRing)
-            baseRing.run(SKAction.repeatForever(SKAction.sequence([
-                SKAction.fadeAlpha(to: 0.3, duration: 0.7),
-                SKAction.fadeAlpha(to: 1.0, duration: 0.7)
-            ])))
+            let enemyBaseRadius: CGFloat = isBoss ? 34 : 28
+            let enemyBaseGlow = SKShapeNode(path: TileMap.hexPath(radius: enemyBaseRadius))
+            enemyBaseGlow.name = "enemyBaseGlow"
+            enemyBaseGlow.fillColor = UIColor(hex: "#FF2438").withAlphaComponent(0.14)
+            enemyBaseGlow.strokeColor = UIColor(hex: "#FF4A4A").withAlphaComponent(0.62)
+            enemyBaseGlow.lineWidth = 1.6
+            enemyBaseGlow.glowWidth = 4.0
+            enemyBaseGlow.position = CGPoint(x: 0, y: -8)
+            enemyBaseGlow.zPosition = 0.35
+            container.addChild(enemyBaseGlow)
 
             if let idleFrames = enemyIdleTextures[eKey], let firstTex = idleFrames.first {
-                // Hex shadow pool beneath enemy
-                let hexShadow = SKShapeNode(path: TileMap.hexPath(radius: isBoss ? 34 : 28))
-                hexShadow.fillColor = accentColor.withAlphaComponent(0.12)
-                hexShadow.strokeColor = .clear
-                hexShadow.position = CGPoint(x: 0, y: -10)
-                hexShadow.zPosition = 0.2
-                hexShadow.name = "hexShadow"
-                container.addChild(hexShadow)
-
-                // Pulsing hex ring in enemy accent colour
-                let hexRing = SKShapeNode(path: TileMap.hexPath(radius: isBoss ? 34 : 28))
-                hexRing.fillColor = .clear
-                hexRing.strokeColor = accentColor.withAlphaComponent(0.70)
-                hexRing.lineWidth = 1.8
-                hexRing.position = CGPoint(x: 0, y: -10)
-                hexRing.zPosition = 0.4
-                hexRing.name = "hexRing"
-                container.addChild(hexRing)
-                hexRing.run(SKAction.repeatForever(SKAction.sequence([
-                    SKAction.fadeAlpha(to: 0.25, duration: 0.8),
-                    SKAction.fadeAlpha(to: 0.85, duration: 0.8)
-                ])))
-
-                // Main sprite node — NO color tint; sprites carry their own palette
+                // Main sprite node — NO color tint; sprites carry their own palette.
                 // Bottom-anchored + height-based scaling so the enemy stands on the
-                // tile regardless of the source frame's aspect ratio.
-                let targetH: CGFloat = isBoss ? 104 : 88
+                // tile. Height tuned so the sprite's vertical center sits roughly
+                // at the hex tile center, which is what the player perceives as
+                // "centered on the tile" in this top-ish-down hex view.
+                // Bumped 2026-05 (was 62/76 → 70/84) so enemy sprites match
+                // the visual weight of player sprites (now 76/80).
+                // Boss-class scale — same 140pt size for both finale bosses
+                // (M5 mech and M6 AGI). Other "boss" archetype enemies
+                // use the legacy 84pt boss size.
+                let targetH: CGFloat
+                switch eKey {
+                case "bossmech", "bossagi": targetH = 140
+                case "bossmage":            targetH = 130  // dedicated frames — final-boss tier
+                default:
+                    // Bossmage with no dedicated frames yet (placeholder path,
+                    // reuses corpmage). Still oversized so it reads as a boss.
+                    if rawType == "bossmage" { targetH = 120 }
+                    else if isBoss            { targetH = 84  }
+                    else                       { targetH = 70  }
+                }
                 let spriteNode = SKSpriteNode(texture: firstTex)
                 let scale = targetH / max(spriteNode.size.height, 1.0)
                 spriteNode.setScale(scale)
                 spriteNode.anchorPoint = CGPoint(x: 0.5, y: 0.0)
-                spriteNode.position = CGPoint(x: 0, y: -18)
+                // Per-archetype X nudge to compensate for sprites whose
+                // character isn't perfectly centered in their canvas.
+                // Corpmage idle frames have COM around col 41.5 (canvas
+                // center is 40), so the sprite reads slightly RIGHT of
+                // center. Shift LEFT a couple of points to bring it back.
+                let xNudge: CGFloat
+                switch eKey {
+                case "corpmage": xNudge = -3
+                case "bruiser":  xNudge = -14  // -6 → -10 → -14: sprite kept drifting right, walking through the right edge of its hex
+                default:         xNudge = 0
+                }
+                // Anchor (feet) sits below tile center by hexH/2 so the sprite
+                // visually grounds on the tile floor; midline of a 62-pt sprite
+                // then lands ~13 pt above tile center, which reads as "on this hex".
+                spriteNode.position = CGPoint(x: xNudge, y: -TileMap.hexRowSpacing / 2 + 4)
+                // Sprite outline (4 offset color-blended copies) — fine for
+                // tight 154×178 enemy canvases where it reads as a thin halo,
+                // but for the bossmage's high-res 1024×1536 PNG (character in
+                // the centre of a mostly-transparent canvas) the offset
+                // copies render as a giant blue-grey rectangle around the
+                // canvas edge. Disabled for bossmage; the character art is
+                // already cinematic enough to stand alone.
                 addSpriteOutline(
                     texture: firstTex,
                     to: container,
                     scale: scale,
                     position: spriteNode.position,
                     anchorPoint: spriteNode.anchorPoint,
-                    color: accentColor
+                    color: UIColor(hex: "#B8C7D9"),
+                    enabled: rawType != "bossmage"
                 )
                 spriteNode.zPosition = 10
                 spriteNode.name = "characterSprite"
                 spriteNode.colorBlendFactor = 0.0  // full original palette — no tint overlay
                 spriteNode.alpha = 1.0
                 spriteNode.isHidden = false
+                // Bossmage: art is already painted blood-red — no tint or
+                // outline. The earlier red overlay was only meant to
+                // distinguish the placeholder (tinted corpmage); the real
+                // dedicated frames don't need it.
                 container.addChild(spriteNode)
 
-                // Idle animation (cycle all idle frames at 0.35s/frame for smooth breathing)
+                // Idle animation (cycle all idle frames at 0.35s/frame for smooth breathing).
+                // resize:false / restore:false — without these, SpriteKit's default
+                // resize:true would re-set sprite.size to texture.size each frame,
+                // wiping the setScale() above and causing visible jitter / clip
+                // glitching (most obvious on corpmage). Matches the rest of the
+                // animation pipeline.
                 if idleFrames.count >= 2 {
-                    let idleAnim = SKAction.animate(with: idleFrames, timePerFrame: 0.35)
+                    let idleAnim = SKAction.animate(with: idleFrames, timePerFrame: 0.35,
+                                                    resize: false, restore: false)
                     spriteNode.run(SKAction.repeatForever(idleAnim), withKey: "idle")
-                }
-
-                // Ambient glow particle under boss sprites for extra visual weight
-                if isBoss {
-                    let bossGlow = SKShapeNode(circleOfRadius: 18)
-                    bossGlow.fillColor = accentColor.withAlphaComponent(0.15)
-                    bossGlow.strokeColor = accentColor.withAlphaComponent(0.4)
-                    bossGlow.lineWidth = 1.5
-                    bossGlow.position = CGPoint(x: 0, y: -8)
-                    bossGlow.zPosition = 0.1
-                    bossGlow.name = "bossGlow"
-                    container.addChild(bossGlow)
-                    bossGlow.run(SKAction.repeatForever(SKAction.sequence([
-                        SKAction.scale(to: 1.15, duration: 1.0),
-                        SKAction.scale(to: 0.9,  duration: 1.0)
-                    ])))
                 }
 
             } else {
@@ -1376,20 +1543,13 @@ final class SpriteManager {
                 case "drone":    fallbackKey = "decker";  fallbackTint = UIColor(hex: "#FF8800")
                 case "corpmage": fallbackKey = "mage";    fallbackTint = UIColor(hex: "#0088FF")
                 case "medic":    fallbackKey = "face";    fallbackTint = UIColor(hex: "#FF44AA")
+                case "sniper":   fallbackKey = "samurai"; fallbackTint = UIColor(hex: "#22FF66")
+                case "bruiser":  fallbackKey = "samurai"; fallbackTint = UIColor(hex: "#FF3333")
+                case "spider":   fallbackKey = "decker";  fallbackTint = UIColor(hex: "#00FFCC")
+                case "riot":     fallbackKey = "samurai"; fallbackTint = UIColor(hex: "#3366FF")
                 default:         fallbackKey = "samurai"; fallbackTint = accentColor
                 }
                 if let fbFrames = playerIdleTextures[fallbackKey], let fbTex = fbFrames.first {
-                    let fbRing = SKShapeNode(path: TileMap.hexPath(radius: 28))
-                    fbRing.fillColor = .clear
-                    fbRing.strokeColor = fallbackTint.withAlphaComponent(0.65)
-                    fbRing.lineWidth = 1.8
-                    fbRing.position = CGPoint(x: 0, y: -8)
-                    fbRing.zPosition = 0.4
-                    container.addChild(fbRing)
-                    fbRing.run(SKAction.repeatForever(SKAction.sequence([
-                        SKAction.fadeAlpha(to: 0.3, duration: 0.9),
-                        SKAction.fadeAlpha(to: 0.8, duration: 0.9)
-                    ])))
                     let fbSprite = SKSpriteNode(texture: fbTex)
                     let fbTargetH: CGFloat = 88
                     let fbScale = fbTargetH / max(fbSprite.size.height, 1.0)
@@ -1402,7 +1562,8 @@ final class SpriteManager {
                         scale: fbScale,
                         position: fbSprite.position,
                         anchorPoint: fbSprite.anchorPoint,
-                        color: fallbackTint
+                        color: UIColor(hex: "#B8C7D9"),
+                        enabled: true
                     )
                     fbSprite.zPosition = 10
                     fbSprite.name = "characterSprite"
@@ -1412,8 +1573,9 @@ final class SpriteManager {
                     fbSprite.isHidden = false
                     container.addChild(fbSprite)
                     if fbFrames.count >= 2 {
-                        fbSprite.run(SKAction.repeatForever(
-                            SKAction.animate(with: fbFrames, timePerFrame: 0.5)), withKey: "idle")
+                        let fbIdle = SKAction.animate(with: fbFrames, timePerFrame: 0.5,
+                                                      resize: false, restore: false)
+                        fbSprite.run(SKAction.repeatForever(fbIdle), withKey: "idle")
                     }
                 }
             }
@@ -1926,70 +2088,14 @@ final class SpriteManager {
                 container.addChild(body)
             }
 
-            // Hex ground ring for enemy sprites — hostile red/orange tint
-            let enemyHexShadow = SKShapeNode(path: TileMap.hexPath(radius: 20))
-            enemyHexShadow.fillColor = baseColor.withAlphaComponent(0.08)
-            enemyHexShadow.strokeColor = .clear
-            enemyHexShadow.position = CGPoint(x: 0, y: -10)
-            enemyHexShadow.zPosition = 0.2
-            container.addChild(enemyHexShadow)
-
-            let enemyHexRing = SKShapeNode(path: TileMap.hexPath(radius: 20))
-            enemyHexRing.fillColor = .clear
-            enemyHexRing.strokeColor = baseColor.withAlphaComponent(0.45)
-            enemyHexRing.lineWidth = 1.5
-            enemyHexRing.position = CGPoint(x: 0, y: -10)
-            enemyHexRing.zPosition = 0.4
-            container.addChild(enemyHexRing)
-
-            let enemyRingPulse = SKAction.sequence([
-                SKAction.fadeAlpha(to: 0.2, duration: 1.0),
-                SKAction.fadeAlpha(to: 0.5, duration: 1.0)
-            ])
-            enemyHexRing.run(SKAction.repeatForever(enemyRingPulse))
-
-            // Enemy HP bar (consistent with player sprites) - only for non-player sprites
-            if team == "enemy" {
-                let enemyBarWidth: CGFloat = 28.0
-                let hpBg = SKShapeNode(rectOf: CGSize(width: enemyBarWidth, height: 4), cornerRadius: 2)
-                hpBg.fillColor = UIColor(hex: "#1A0000")
-                hpBg.strokeColor = UIColor(hex: "#330000")
-                hpBg.lineWidth = 0.5
-                hpBg.position = CGPoint(x: 0, y: -20)
-                hpBg.zPosition = 20  // ABOVE container (z=10) + enemy body (z=1) — FIX Issue 3
-                hpBg.name = "hpBarBg"
-                hpBg.userData = NSMutableDictionary()
-                hpBg.userData?["barWidth"] = enemyBarWidth
-                container.addChild(hpBg)
-
-                // Add thin glow line around HP bar
-                let hpGlow = SKShapeNode(rectOf: CGSize(width: enemyBarWidth, height: 4), cornerRadius: 2)
-                hpGlow.fillColor = .clear
-                hpGlow.strokeColor = baseColor.withAlphaComponent(0.3)
-                hpGlow.lineWidth = 1
-                hpGlow.position = CGPoint(x: 0, y: -20)
-                hpGlow.zPosition = 19
-                hpGlow.name = "hpGlowLine"
-                container.addChild(hpGlow)
-
-                let hpBarFill = SKShapeNode()
-                hpBarFill.fillColor = baseColor
-                hpBarFill.strokeColor = .clear
-                hpBarFill.position = CGPoint(x: 0, y: -20)
-                hpBarFill.zPosition = 21  // above hpBg (z=20)
-                hpBarFill.name = "hpBarFill"
-                container.addChild(hpBarFill)
-
-                // HP label below bar - shows current/max HP (placeholder, updated via updateHP)
-                let hpLabel = SKLabelNode(text: "-/-")
-                hpLabel.fontName = "Menlo-Bold"
-                hpLabel.fontSize = 8
-                hpLabel.fontColor = baseColor
-                hpLabel.position = CGPoint(x: 0, y: -28)
-                hpLabel.zPosition = 21
-                hpLabel.name = "hpLabel"
-                container.addChild(hpLabel)
-            }
+            // Enemy HP bar intentionally NOT added here — `BattleScene.placeEnemy`
+            // builds the canonical HP bar/label above each enemy (y≈58/66) so it
+            // floats over the sprite's head, not at its feet. Earlier this block
+            // also added a "feet" HP UI inside the container; that created two
+            // SKLabelNodes named "hpLabel" on the same node, and updateHP() only
+            // refreshed whichever DFS found first — leaving the visible above-
+            // sprite label frozen at its spawn-time value (the "14/14 vs 9/18"
+            // corp-guard bug). Single source of truth lives in placeEnemy now.
             } // end fallback procedural enemy sprites
         }
 
@@ -2058,8 +2164,15 @@ final class SpriteManager {
                 let eKey = target.spriteTypeKey.isEmpty ? "guard" : target.spriteTypeKey
                 if let frames = enemyIdleTextures[eKey], frames.count >= 2 {
                     spriteNode.removeAction(forKey: "walk")
-                    spriteNode.run(SKAction.repeatForever(
-                        SKAction.animate(with: frames, timePerFrame: 0.35)), withKey: "idle")
+                    // resize:false — THIS IS THE FIX FOR THE CORPMAGE GLITCH.
+                    // Default resize:true was re-setting sprite.size to each
+                    // frame texture's native size every 0.35s, wiping the
+                    // initial setScale and causing the half-body / split
+                    // glitch the user has reported repeatedly. Matches the
+                    // player-idle path 12 lines down.
+                    let idleAnim = SKAction.animate(with: frames, timePerFrame: 0.35,
+                                                    resize: false, restore: false)
+                    spriteNode.run(SKAction.repeatForever(idleAnim), withKey: "idle")
                     return
                 }
             }
@@ -2069,8 +2182,11 @@ final class SpriteManager {
                 : target.spriteTypeKey
             if let frames = playerIdleTextures[archKey], frames.count >= 2 {
                 spriteNode.removeAction(forKey: "walk")
+                // resize:false — keep spriteNode.size locked. Frame textures
+                // for an archetype are uniform-canvas, so resize is a no-op
+                // at best and a per-tick hidden glitch source at worst.
                 let idleAnim = SKAction.animate(with: frames, timePerFrame: 0.5,
-                                                resize: true, restore: false)
+                                                resize: false, restore: false)
                 spriteNode.run(SKAction.repeatForever(idleAnim), withKey: "idle")
                 return
             }
@@ -2094,7 +2210,10 @@ final class SpriteManager {
                 ? archetypeKey(for: target.name ?? "samurai")
                 : target.spriteTypeKey
             if let firstFrame = playerIdleTextures[archKey]?.first {
-                spriteNode.run(SKAction.setTexture(firstFrame, resize: true))
+                // resize:false — match the rest of the animation pipeline so
+                // pausing on the first idle frame doesn't briefly resize the
+                // sprite to a different canvas dimension.
+                spriteNode.run(SKAction.setTexture(firstFrame, resize: false))
             }
         }
         // Also stop the procedural breathe fallback
@@ -2110,7 +2229,12 @@ final class SpriteManager {
                 let eKey = target.spriteTypeKey.isEmpty ? "guard" : target.spriteTypeKey
                 if let frames = enemyWalkTextures[eKey], !frames.isEmpty {
                     spriteNode.removeAction(forKey: "idle")
-                    let walkAnim = SKAction.animate(with: frames, timePerFrame: 0.14)
+                    // resize:false — sprite size stays locked to the dimensions set
+                    // at sprite creation. All enemy walk frames are uniform-canvas
+                    // PNGs (e.g. corpmage_walk_*.png are all 80×120), so resize
+                    // is unnecessary and was causing per-frame jitter / split
+                    // artifacts in the displayed sprite.
+                    let walkAnim = SKAction.animate(with: frames, timePerFrame: 0.14, resize: false, restore: false)
                     spriteNode.run(SKAction.repeatForever(walkAnim), withKey: "walk")
                     return
                 }
@@ -2120,8 +2244,11 @@ final class SpriteManager {
                 : target.spriteTypeKey
             if let frames = playerWalkTextures[archKey], !frames.isEmpty {
                 spriteNode.removeAction(forKey: "idle")
+                // resize:false — keep spriteNode.size locked to its creation-time
+                // dimensions so frame-to-frame texture swap can't cause vertical
+                // jitter / sprite-splitting artifacts.
                 let walkAnim = SKAction.animate(with: frames, timePerFrame: 0.12,
-                                                resize: true, restore: false)
+                                                resize: false, restore: false)
                 spriteNode.run(SKAction.repeatForever(walkAnim), withKey: "walk")
                 return
             }
@@ -2151,14 +2278,22 @@ final class SpriteManager {
                 let archKey = target.spriteTypeKey.isEmpty
                     ? archetypeKey(for: target.name ?? "samurai")
                     : target.spriteTypeKey
-                attackFrames = playerWalkTextures[archKey]  // use walk as attack fallback
+                // Try the dedicated player attack textures first. These ship as
+                // `samurai_attack_*`, `mage_attack_*`, etc., and were silently
+                // dropped on the floor by the old loader — leaving every player
+                // attack falling through to walk frames. Wired up 2026-05.
+                if let attack = playerAttackTextures[archKey], !attack.isEmpty {
+                    attackFrames = attack
+                } else {
+                    attackFrames = playerWalkTextures[archKey]  // legacy fallback
+                }
             }
             if let frames = attackFrames, frames.count >= 2 {
                 spriteNode.removeAction(forKey: "idle")
                 spriteNode.removeAction(forKey: "walk")
                 // Play attack sequence once, then resume idle
                 let attackAnim = SKAction.animate(with: frames, timePerFrame: 0.12,
-                                                  resize: true, restore: false)
+                                                  resize: false, restore: false)
                 let resumeIdle: SKAction
                 if let idleFrames = (target.team == "enemy"
                     ? enemyIdleTextures[target.spriteTypeKey]
@@ -2166,7 +2301,7 @@ final class SpriteManager {
                    idleFrames.count >= 2 {
                     resumeIdle = SKAction.repeatForever(
                         SKAction.animate(with: idleFrames, timePerFrame: 0.35,
-                                         resize: true, restore: false))
+                                         resize: false, restore: false))
                 } else {
                     resumeIdle = SKAction.repeatForever(
                         SKAction.sequence([SKAction.scale(to: 1.02, duration: 0.3),
@@ -2252,6 +2387,13 @@ final class SpriteManager {
         let move = SKAction.move(to: newPos, duration: duration)
         move.timingMode = .easeInEaseOut
 
+        // Cancel any in-flight move on this node so a second move call doesn't
+        // sequence onto the first (which produced the "mage walks right, cuts
+        // mid-step, snaps back to a different x" visual). The new move starts
+        // from the node's CURRENT position — wherever the prior move was when
+        // it got cancelled — so there's no teleport.
+        target.removeAction(forKey: "move")
+
         // Walk animation during move, then return to idle on completion.
         // Only restart idle for this character if it is still the selected player
         // when the move finishes — avoids re-animating a character whose turn ended
@@ -2272,11 +2414,11 @@ final class SpriteManager {
                     }
                 }
             }
-            target.run(SKAction.sequence([move, onComplete]))
+            target.run(SKAction.sequence([move, onComplete]), withKey: "move")
             sprite.tileX = x
             sprite.tileY = y
         } else {
-            target.run(move)
+            target.run(move, withKey: "move")
         }
     }
 
@@ -2294,25 +2436,12 @@ final class SpriteManager {
         ring.zPosition = 10
         target.addChild(ring)
 
-        // Add inner counter-rotating ring
-        let innerRing = SKShapeNode(circleOfRadius: 14)
-        innerRing.strokeColor = ringColor.withAlphaComponent(0.6)
-        innerRing.lineWidth = 1.5
-        innerRing.fillColor = .clear
-        innerRing.name = "selectionRingInner"
-        innerRing.zPosition = 10
-        target.addChild(innerRing)
-
         // Dramatic pulse animation (1.0 to 1.3 scale)
         let pulse = SKAction.sequence([
             SKAction.scale(to: 1.3, duration: 0.35),
             SKAction.scale(to: 1.0, duration: 0.35)
         ])
         ring.run(SKAction.repeatForever(pulse))
-
-        // Inner ring counter-rotates
-        let counterRotate = SKAction.rotate(byAngle: .pi * 2, duration: 2.0)
-        innerRing.run(SKAction.repeatForever(counterRotate))
     }
 
     /// Remove selection ring.
@@ -2321,12 +2450,43 @@ final class SpriteManager {
         target.childNode(withName: "selectionRingInner")?.removeFromParent()
     }
 
+    /// Resolve the owner-id suffix used when looking up HP-bar / stun-bar
+    /// child nodes. Returns `"_<uuid>"` when the container is a `SpriteNode`
+    /// with a non-empty characterId or enemyId — otherwise `""`. This is the
+    /// counterpart to the suffix written at creation time so DFS lookups
+    /// can address exactly the owner's nodes (no DFS-collision risk if a
+    /// stale duplicate ever ends up in the same subtree).
+    private func ownerSuffix(for node: SKNode) -> String {
+        guard let sn = node as? SpriteNode else { return "" }
+        if !sn.characterId.isEmpty { return "_\(sn.characterId)" }
+        if !sn.enemyId.isEmpty     { return "_\(sn.enemyId)"     }
+        return ""
+    }
+
+    /// DFS for a child by name, with backward-compatibility fallback to the
+    /// unsuffixed legacy name. Used by updateHP so creation paths that haven't
+    /// yet been updated to pass `ownerId` (or callers that still place
+    /// nodes by the old generic name) keep working.
+    private func childOwned<T: SKNode>(_ node: SKNode, _ baseName: String, _ suffix: String, as _: T.Type = T.self) -> T? {
+        if let n = node.childNode(withName: "\(baseName)\(suffix)") as? T { return n }
+        return node.childNode(withName: baseName) as? T
+    }
+
     /// Update HP, Stun label and level badge on a sprite.
     func updateHP(on node: SKNode, currentHP: Int, maxHP: Int, currentStun: Int = 0, maxStun: Int = 0, level: Int = 1, isPlayer: Bool = false) {
-        // Update HP bar fill - left-anchored (drains from right like classic HP bars)
-        guard let barFill = node.childNode(withName: "hpBarFill") as? SKShapeNode,
-              let bgNode = node.childNode(withName: "hpBarBg"),
+        let suffix = ownerSuffix(for: node)
+
+        // HP bar fill — CENTER-anchored so the fill stays aligned with the
+        // background bar (which is created via SKShapeNode(rectOf:) and is
+        // therefore also center-anchored). Drains symmetrically from both
+        // sides as HP depletes. The previous left-anchored impl (x:0,...)
+        // caused the fill to start at the bg's center and extend RIGHT
+        // past the bg's right edge — at full HP players saw a black gap
+        // on the left and green spilling past on the right.
+        guard let barFill = childOwned(node, "hpBarFill", suffix, as: SKShapeNode.self),
+              let bgNode  = childOwned(node, "hpBarBg",   suffix, as: SKNode.self),
               let barWidth = bgNode.userData?["barWidth"] as? CGFloat else { return }
+        let barHeight = bgNode.userData?["barHeight"] as? CGFloat ?? 4
 
         let pct = max(0.0, min(1.0, Double(currentHP) / Double(maxHP)))
         let fillWidth = barWidth * CGFloat(pct)
@@ -2335,29 +2495,31 @@ final class SpriteManager {
             : currentHP > maxHP / 4 ? UIColor.yellow
             : UIColor(hex: "#FF3333")
 
-        let newPath = CGPath(roundedRect: CGRect(x: 0, y: -2, width: fillWidth, height: 4),
-                              cornerWidth: 2, cornerHeight: 2, transform: nil)
+        let newPath = CGPath(roundedRect: CGRect(x: -fillWidth / 2, y: -barHeight / 2,
+                                                 width: fillWidth, height: barHeight),
+                              cornerWidth: barHeight / 2, cornerHeight: barHeight / 2, transform: nil)
         barFill.path = newPath
         barFill.fillColor = barColor
 
-        if let glowLine = node.childNode(withName: "hpGlowLine") as? SKShapeNode {
+        if let glowLine = childOwned(node, "hpGlowLine", suffix, as: SKShapeNode.self) {
             glowLine.strokeColor = barColor.withAlphaComponent(0.3)
         }
 
-        if let hpLabel = node.childNode(withName: "hpLabel") as? SKLabelNode {
+        if let hpLabel = childOwned(node, "hpLabel", suffix, as: SKLabelNode.self) {
             hpLabel.text = "\(currentHP)/\(maxHP)"
             hpLabel.fontColor = barColor
         }
 
-        // Update stun bar fill (yellow-orange, left-anchored)
-        if let stunFill = node.childNode(withName: "stunBarFill") as? SKShapeNode,
-           let stunBg = node.childNode(withName: "stunBarBg"),
+        // Stun bar fill — same center-anchor fix as HP. Drains symmetrically.
+        if let stunFill = childOwned(node, "stunBarFill", suffix, as: SKShapeNode.self),
+           let stunBg   = childOwned(node, "stunBarBg",   suffix, as: SKNode.self),
            let stunBarWidth = stunBg.userData?["barWidth"] as? CGFloat,
            maxStun > 0 {
             let stunPct = max(0.0, min(1.0, Double(currentStun) / Double(maxStun)))
             let stunFillWidth = stunBarWidth * CGFloat(stunPct)
             let stunColor: UIColor = stunPct > 0.7 ? UIColor(hex: "#FF4400") : UIColor(hex: "#FFAA00")
-            let stunPath = CGPath(roundedRect: CGRect(x: 0, y: -1.25, width: max(0, stunFillWidth), height: 2.5),
+            let stunPath = CGPath(roundedRect: CGRect(x: -stunFillWidth / 2, y: -1.25,
+                                                     width: max(0, stunFillWidth), height: 2.5),
                                    cornerWidth: 1, cornerHeight: 1, transform: nil)
             stunFill.path = stunPath
             stunFill.fillColor = stunColor

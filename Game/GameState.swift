@@ -63,7 +63,7 @@ enum SpellType: String, CaseIterable, Codable {
         case .fireball: return "Blast ALL enemies. \(baseDamage)+hits Physical each."
         case .manaBolt: return "Focus single target. \(baseDamage)+hits Physical."
         case .shock:    return "Stun single target. \(baseDamage)+hits Stun."
-        case .heal:     return "Restore HP & stun to self."
+        case .heal:     return "Restore HP & stun to a chosen ally."
         }
     }
 
@@ -177,6 +177,25 @@ final class GameState: ObservableObject {
     @Published var playerTeam: [Character] = []
     @Published var enemies: [Enemy] = []
 
+    /// Transient warning banner text (set by BattleScene when player tries to
+    /// leave a room without hacking a required terminal, etc.). Auto-clears
+    /// after ~3s — SwiftUI overlay observes and renders. nil = no banner.
+    @Published var transientWarning: String? = nil
+
+    /// Posts a transient warning and schedules an auto-clear after `duration`s.
+    /// Re-firing while a previous warning is active replaces its text and
+    /// resets the timer (no stacking).
+    func postTransientWarning(_ text: String, duration: TimeInterval = 3.0) {
+        transientWarning = text
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            // Only clear if it's still the same warning — a newer warning may
+            // have overwritten it in the meantime, and we'd be cutting its
+            // own timer short otherwise.
+            if self.transientWarning == text { self.transientWarning = nil }
+        }
+    }
+
     // MARK: - Inventory / Loot
 
     /// Unequipped items available to the team
@@ -186,18 +205,21 @@ final class GameState: ObservableObject {
         let id = UUID()
         let name: String
         let type: ItemType
-        let bonus: Int  // HP heal or armor value
+        let bonus: Int  // HP heal, armor value, or tactical item base damage
 
         enum ItemType: String {
             case consumable  // medkit
             case weapon
             case armor
+            case grenade     // tactical throwable
         }
     }
 
     private let lootTable: [(type: Item.ItemType, chance: Double, name: String, bonus: Int)] = [
         (.consumable, 0.6, "Medkit", 10),
         (.consumable, 0.3, "Stimpatch", 5),
+        (.consumable, 0.25, "Mana Focus", 6),  // restores mana for the mage
+        (.consumable, 0.22, "Frag Grenade", 7),
         (.weapon, 0.2, "Combat Knife +1", 1),
         (.weapon, 0.1, "Heavy Pistol", 2),
         (.armor, 0.15, "Armored Vest", 2),
@@ -481,6 +503,78 @@ final class GameState: ObservableObject {
         set { sessionState.dataAcquired = newValue }
     }
 
+    /// M3 grimoire pickup status — mirrors sessionState (see GameSessionState).
+    var grimoireAcquired: Bool {
+        get { sessionState.grimoireAcquired }
+        set { sessionState.grimoireAcquired = newValue }
+    }
+
+    /// M3 boss-phase-2 trigger flag — mirrors sessionState.
+    var mageBossPhase2Triggered: Bool {
+        get { sessionState.mageBossPhase2Triggered }
+        set { sessionState.mageBossPhase2Triggered = newValue }
+    }
+    /// M3 boss-phase-2 deferred-spawn flag — see GameSessionState.
+    var mageBossPhase2Pending: Bool {
+        get { sessionState.mageBossPhase2Pending }
+        set { sessionState.mageBossPhase2Pending = newValue }
+    }
+    var mageBossPendingSpawnX: Int {
+        get { sessionState.mageBossPendingSpawnX }
+        set { sessionState.mageBossPendingSpawnX = newValue }
+    }
+    var mageBossPendingSpawnY: Int {
+        get { sessionState.mageBossPendingSpawnY }
+        set { sessionState.mageBossPendingSpawnY = newValue }
+    }
+
+    /// Total kills across all rooms in the current mission.
+    var missionEnemiesDefeated: Int {
+        get { sessionState.missionEnemiesDefeated }
+        set { sessionState.missionEnemiesDefeated = newValue }
+    }
+
+    /// Has the first kill in the current room been processed (for barrier drops)?
+    /// Reset on room transition.
+    var firstKillProcessedInRoom: Bool {
+        get { sessionState.firstKillProcessedInRoom }
+        set { sessionState.firstKillProcessedInRoom = newValue }
+    }
+
+    var extractionAnimationInProgress: Bool {
+        get { sessionState.extractionAnimationInProgress }
+        set { sessionState.extractionAnimationInProgress = newValue }
+    }
+
+    var intimidationOriginalAgi: [UUID: Int] {
+        get { sessionState.intimidationOriginalAgi }
+        set { sessionState.intimidationOriginalAgi = newValue }
+    }
+
+    /// Drives the Matrix hacking mini-game overlay. SwiftUI binds to this so
+    /// it must be @Published directly on GameState (forwarded to sessionState
+    /// won't trigger view updates).
+    @Published var showMatrixMiniGame: Bool = false
+    var pendingHackTerminalX: Int {
+        get { sessionState.pendingHackTerminalX }
+        set { sessionState.pendingHackTerminalX = newValue }
+    }
+    var pendingHackTerminalY: Int {
+        get { sessionState.pendingHackTerminalY }
+        set { sessionState.pendingHackTerminalY = newValue }
+    }
+    var pendingHackCharacterId: UUID? {
+        get { sessionState.pendingHackCharacterId }
+        set { sessionState.pendingHackCharacterId = newValue }
+    }
+
+    /// Stable display id for the currently-loaded mission (e.g. "Mission001").
+    /// Used by OutcomePipeline to record the run's score under the right key.
+    var currentMissionDisplayId: String? {
+        get { sessionState.currentMissionDisplayId }
+        set { sessionState.currentMissionDisplayId = newValue }
+    }
+
     // MARK: - Pending Enemy Spawns
 
     /// Enemies not yet on the map (waiting for their delay timer)
@@ -642,6 +736,10 @@ final class GameState: ObservableObject {
         get { sessionState.defendingCharacterId }
         set { sessionState.defendingCharacterId = newValue }
     }
+
+    /// Active overwatch entries: characterId → attack pool snapshot.
+    /// Cleared at the start of each round (resetTurnTracking).
+    @Published var overwatchers: [UUID: Int] = [:]
 
     // MARK: - Computed
 
@@ -872,17 +970,75 @@ final class GameState: ObservableObject {
     /// Live hit-preview for the currently selected attacker → target pair.
     /// Returns nil if no valid attacker or target is selected.
     var hitPreview: CombatMechanics.HitPreview? {
+        attackPreview
+    }
+
+    var attackPreview: CombatMechanics.HitPreview? {
         guard let attacker = activeCharacter ?? currentCharacter,
-              let targetId  = targetCharacterId,
-              let target    = enemies.first(where: { $0.id == targetId && $0.isAlive }) else { return nil }
+              let target = previewTarget(for: attacker) else { return nil }
+        let weapon = attacker.equippedWeapon ?? Weapon(name: "Fists", type: .unarmed, damage: 3, accuracy: 3, armorPiercing: 0)
+        if (attacker.archetype == .streetSam || attacker.archetype == .decker),
+           (weapon.type == .blade || weapon.type == .unarmed),
+           hexDistance(x1: attacker.positionX, y1: attacker.positionY,
+                       x2: target.positionX, y2: target.positionY) > 1 {
+            return CombatMechanics.HitPreview(
+                actionLabel: "ATK",
+                weaponName: weapon.name,
+                targetName: target.name,
+                attackPool: 0,
+                defensePool: 0,
+                coverBonus: 0,
+                estimatedHitChance: 0,
+                weaponDamage: weapon.damage,
+                estimatedDamage: 0,
+                blocked: true,
+                reason: "Move adjacent first"
+            )
+        }
         return CombatMechanics.computeHitPreview(
             attacker:  attacker,
             target:    target,
             tiles:     currentMissionTiles,
+            weapon:    weapon,
+            actionLabel: "ATK",
             isBlocked: { sx, sy, tx, ty in
                 self.isLineBlockedByWall(fromX: sx, fromY: sy, toX: tx, toY: ty)
             }
         )
+    }
+
+    var shootPreview: CombatMechanics.HitPreview? {
+        guard let attacker = activeCharacter ?? currentCharacter,
+              attacker.archetype != .streetSam,
+              let target = previewTarget(for: attacker) else { return nil }
+        let sidearm: Weapon
+        switch attacker.archetype {
+        case .decker:
+            sidearm = Weapon(name: "Smartgun Pistol", type: .pistol, damage: 5, accuracy: 5, armorPiercing: 1)
+        default:
+            sidearm = Weapon(name: "Sidearm", type: .pistol, damage: 4, accuracy: 4, armorPiercing: 1)
+        }
+        return CombatMechanics.computeHitPreview(
+            attacker: attacker,
+            target: target,
+            tiles: currentMissionTiles,
+            weapon: sidearm,
+            actionLabel: "SHT",
+            isBlocked: { sx, sy, tx, ty in
+                self.isLineBlockedByWall(fromX: sx, fromY: sy, toX: tx, toY: ty)
+            }
+        )
+    }
+
+    private func previewTarget(for attacker: Character) -> Enemy? {
+        if let targetId = targetCharacterId,
+           let selected = enemies.first(where: { $0.id == targetId && $0.isAlive }) {
+            return selected
+        }
+        return livingEnemies
+            .map { ($0, hexDistance(x1: attacker.positionX, y1: attacker.positionY, x2: $0.positionX, y2: $0.positionY)) }
+            .sorted { $0.1 < $1.1 }
+            .first?.0
     }
 
     // MARK: - Setup
@@ -1001,8 +1157,16 @@ final class GameState: ObservableObject {
             let soakRoll = DiceEngine.roll(pool: max(0, soakPool))
             let finalDamage = max(1, baseDamage - soakRoll.hits)
             target.takeDamage(amount: finalDamage, isStun: false)
+            // Burning: 2 rounds, 3 dmg/round
+            target.statusEffects.append(.burning(roundsLeft: 2))
             addLog("  → \(target.name): \(baseDamage)P - \(soakRoll.hits)soak = \(finalDamage) dmg (\(target.currentHP)/\(target.maxHP) HP)")
+            addLog("    🔥 BURNING for 2 rounds!")
             NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": finalDamage])
+            // Visual: orange explosion on each enemy tile.
+            NotificationCenter.default.post(
+                name: .fireballEffect, object: nil,
+                userInfo: ["x": target.positionX, "y": target.positionY]
+            )
             if !target.isAlive { handleEnemyKilled(target, by: mage) }
         }
         addLog("  Mana: \(mage.currentMana)/\(mage.maxMana)")
@@ -1064,6 +1228,22 @@ final class GameState: ObservableObject {
         addLog("  Mana: \(mage.currentMana)/\(mage.maxMana)")
 
         NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": finalDamage])
+        // Visual: bolt from caster to target. Yellow zigzag for SHOCK,
+        // purple straight bolt for MANABOLT.
+        if type == .shock {
+            NotificationCenter.default.post(
+                name: .shockEffect, object: nil,
+                userInfo: ["fromX": mage.positionX, "fromY": mage.positionY,
+                           "toX": target.positionX, "toY": target.positionY]
+            )
+        } else {
+            NotificationCenter.default.post(
+                name: .boltEffect, object: nil,
+                userInfo: ["fromX": mage.positionX, "fromY": mage.positionY,
+                           "toX": target.positionX, "toY": target.positionY,
+                           "color": "#AA66FF"]
+            )
+        }
         if !target.isAlive {
             handleEnemyKilled(target, by: mage)
             if livingEnemies.isEmpty { onRoomCleared() }
@@ -1073,7 +1253,36 @@ final class GameState: ObservableObject {
 
     // MARK: Heal
 
-    func castHeal(by mage: Character) {
+    /// Cast HEAL on a chosen ally (defaults to the mage if no target given).
+    /// Heal can target ANY living party member, including the mage themselves.
+    func castHeal(by mage: Character, targetId: UUID? = nil) {
+        // Resolve the heal target. Prefer an explicit targetId (passed from
+        // the UI's heal-target picker), else the currently-selected character
+        // if it's a living ally, else the mage.
+        //
+        // 2026-05 — also handles the "I picked an ally but they died before
+        // the spell resolved" case explicitly: if the requested target is
+        // now dead, log it clearly so the player isn't confused about why
+        // the heal landed on the wrong character. Refunds the mana so the
+        // mage isn't penalised for the timing race.
+        if let id = targetId,
+           let intended = playerTeam.first(where: { $0.id == id }),
+           !intended.isAlive {
+            addLog("⚠️ \(intended.name) is down — heal cancelled (mana refunded). Use a Stim or revive ability if available.")
+            return
+        }
+        let target: Character = {
+            if let id = targetId,
+               let c = playerTeam.first(where: { $0.id == id && $0.isAlive }) {
+                return c
+            }
+            if let id = selectedCharacterId,
+               let c = playerTeam.first(where: { $0.id == id && $0.isAlive }) {
+                return c
+            }
+            return mage
+        }()
+
         let spellPool = mage.attributes.log + mage.skills.spellcasting
         let spellRoll = DiceEngine.roll(pool: spellPool)
         mage.currentMana -= SpellType.heal.manaCost
@@ -1089,15 +1298,28 @@ final class GameState: ObservableObject {
             return
         }
 
-        let healHP  = max(1, 2 + spellRoll.hits)
+        let healHP   = max(1, 2 + spellRoll.hits)
         let healStun = max(1, 1 + spellRoll.hits / 2)
-        let prevHP = mage.currentHP
-        mage.currentHP = min(mage.maxHP, mage.currentHP + healHP)
-        mage.recoverStun(amount: healStun)
-        let actualHP   = mage.currentHP - prevHP
-        addLog("💚 \(mage.name) HEAL! [\(spellPool)d6→\(spellRoll.hits) hits] +\(actualHP) HP, -\(healStun) Stun. (\(mage.currentHP)/\(mage.maxHP) HP | Stun \(mage.currentStun)/\(mage.maxStun))")
+        let prevHP = target.currentHP
+        target.currentHP = min(target.maxHP, target.currentHP + healHP)
+        target.recoverStun(amount: healStun)
+        let actualHP = target.currentHP - prevHP
+        let onSelf = (target.id == mage.id)
+        let header = onSelf
+            ? "💚 \(mage.name) HEAL (self)!"
+            : "💚 \(mage.name) HEALs \(target.name)!"
+        addLog("\(header) [\(spellPool)d6→\(spellRoll.hits) hits] +\(actualHP) HP, -\(healStun) Stun. (\(target.currentHP)/\(target.maxHP) HP | Stun \(target.currentStun)/\(target.maxStun))")
         addLog("  Mana: \(mage.currentMana)/\(mage.maxMana)")
-        NotificationCenter.default.post(name: .characterHit, object: nil, userInfo: ["characterId": mage.id.uuidString, "damage": -actualHP])
+        // Force SwiftUI re-render of the team panel — HPBar takes Int values
+        // by-value, so a mutation on the Character object alone doesn't reach
+        // GameState's observers without an explicit nudge.
+        objectWillChange.send()
+        NotificationCenter.default.post(name: .characterHit, object: nil, userInfo: ["characterId": target.id.uuidString, "damage": -actualHP])
+        // Visual: green particle bloom + "+N HP" floating text on the target.
+        NotificationCenter.default.post(
+            name: .healEffect, object: nil,
+            userInfo: ["targetId": target.id.uuidString, "amount": actualHP]
+        )
         completeAction(for: mage)
     }
 
@@ -1105,6 +1327,8 @@ final class GameState: ObservableObject {
 
     func handleEnemyKilled(_ enemy: Enemy, by mage: Character) {
         HapticsManager.shared.enemyKilled()
+        missionEnemiesDefeated += 1
+        CombatFlowController.handleEnemyKillForRoomEffects(gameState: self)
         addLog("☠️ \(enemy.name) DOWN! +\(enemy.maxHP / 2) XP")
         generateLoot()
         let leveledUp = mage.gainXP(enemy.maxHP / 2)
@@ -1114,10 +1338,213 @@ final class GameState: ObservableObject {
             NotificationCenter.default.post(name: .characterLevelUp, object: nil, userInfo: ["characterId": mage.id.uuidString])
         }
         NotificationCenter.default.post(name: .enemyDied, object: nil, userInfo: ["enemyId": enemy.id.uuidString])
+        if livingEnemies.isEmpty { onRoomCleared() }
+    }
+
+    /// Spawn the room's designated boss enemy AFTER regular enemies are
+    /// cleared. Plays the full reveal sequence (arrival horn + thud + radio
+    /// + boss music swap) and suppresses any pending reinforcement waves so
+    /// the boss is the focal threat. Marks `bossDeployedRoomIds[room]` so
+    /// the next `onRoomCleared` call resolves normally.
+    func deployBoss(_ boss: BossSpawn, in room: Room) {
+        let enemy: Enemy
+        switch boss.type {
+        case "mech":    enemy = Enemy.bossMech()
+        case "boss":    enemy = Enemy.bossMech()
+        case "agi", "bossagi", "ai":  enemy = Enemy.bossAGI()
+        default:        enemy = Enemy.bossMech()
+        }
+        enemy.positionX = boss.x
+        enemy.positionY = boss.y
+        // Name + archetype already set by the factory (MEKTON-7 / AGI-PRIME)
+        // so SFX + sprite dispatch route correctly.
+
+        // Mark deployed BEFORE adding to enemies, so the .enemySpawned
+        // observer in BattleScene doesn't recurse into onRoomCleared early.
+        RoomManager.shared.bossDeployedRoomIds.insert(room.id)
+
+        // Suppress reinforcements for this room — boss fight is the focus.
+        pendingSpawns.removeAll()
+
+        // M5 Mech Bay: the wall cluster in the middle of the room is the
+        // PARKED MEKTON-7 silhouette. When the real boss "wakes up" and spawns
+        // at (3,9), the central decoration disappears — that mech IS the boss.
+        // Convert those wall tiles to floor in the live grid and post
+        // .barriersDropped so BattleScene re-renders the floor tiles.
+        if enemy.archetype == "bossmech" && room.id == "room_2" {
+            var tiles = currentMissionTiles
+            // Cluster from Mission005_multi.json room_2 map:
+            //   (2,6),(3,6),(4,6),(2,7),(3,7),(4,7),(3,8)
+            let mechSilhouette: [(Int, Int)] = [
+                (2, 6), (3, 6), (4, 6),
+                (2, 7), (3, 7), (4, 7),
+                (3, 8)
+            ]
+            var droppedCoords: [[String: Int]] = []
+            for (x, y) in mechSilhouette {
+                guard y >= 0, y < tiles.count, x >= 0, x < tiles[y].count else { continue }
+                tiles[y][x] = TileType.floor.rawValue
+                droppedCoords.append(["x": x, "y": y])
+            }
+            currentMissionTiles = tiles
+            NotificationCenter.default.post(
+                name: .barriersDropped, object: nil,
+                userInfo: ["tiles": droppedCoords]
+            )
+        }
+
+        enemies.append(enemy)
+        addLog("⚠️  HEAVY UNIT DEPLOYED — \(enemy.name)")
+
+        // Visual + audio reveal — fire each notification with userInfo so
+        // the BattleScene observer can place sprite + run intro sequence.
+        NotificationCenter.default.post(
+            name: .enemySpawned, object: nil,
+            userInfo: [
+                "enemyId": enemy.id.uuidString,
+                "isBoss": true
+            ]
+        )
+        // Reveal SFX cluster — per-archetype. Mech gets the heavy
+        // industrial horn + thud + radio sequence; AGI gets the glitchy
+        // hack-intrusion stinger + a paced trace-warning pulse (until
+        // dedicated AGI SFX files ship). All calls no-op if files missing.
+        if enemy.archetype == "bossagi" {
+            // AGI reveal sequence — three-stage cinematic:
+            //   1. arrival_glitch: reality-tear
+            //   2. manifestation: ringing emergence + heartbeat thud (~1.5s in)
+            //   3. voice_mocking: corp-AGI taunt line (~3.0s in)
+            SFXManager.shared.play("agi_arrival_glitch")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                SFXManager.shared.play("agi_manifestation")
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                SFXManager.shared.play("agi_voice_mocking")
+            }
+            // Chained boss music — "Intruder Protocol" → "Intruder Protocol 2"
+            // alternating with a 3-second early handoff so the fade-out tail
+            // of the first track is replaced by the crossfade into the second.
+            MusicManager.shared.playBossChain(
+                ["m6_boss_a", "m6_boss_b"],
+                startOffset: 0,
+                endTrimSeconds: 3.0
+            )
+        } else {
+            SFXManager.shared.play("mech_arrival_horn")
+            SFXManager.shared.play("mech_thud_landing")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                SFXManager.shared.play("mech_engagement_radio")
+            }
+            MusicManager.shared.playBossTrack(filename: "m5_boss", startOffset: 28)
+        }
+
+        HapticsManager.shared.playerKilled()  // strong shake for the entrance
+        objectWillChange.send()
+    }
+
+    /// Death from a non-attributed source (burn DoT, environmental hazards).
+    /// No XP awarded — no character "lands the kill" — but the death pipeline
+    /// still runs so sprites despawn and the room-clear state advances.
+    func handleEnemyKilledByEnvironment(_ enemy: Enemy) {
+        HapticsManager.shared.enemyKilled()
+        missionEnemiesDefeated += 1
+        CombatFlowController.handleEnemyKillForRoomEffects(gameState: self)
+        addLog("☠️ \(enemy.name) DOWN! (burned out)")
+        generateLoot()
+        NotificationCenter.default.post(name: .enemyDied, object: nil, userInfo: ["enemyId": enemy.id.uuidString])
+        if livingEnemies.isEmpty { onRoomCleared() }
     }
 
     func performDefend() {
         CombatFlowController.performDefend(gameState: self)
+    }
+
+    @discardableResult
+    func throwGrenade(item: Item, by runner: Character) -> Bool {
+        guard !CombatFlowController.characterHasAlreadyMoved(gameState: self, runner) else { return false }
+        guard let targetId = targetCharacterId,
+              let primary = enemies.first(where: { $0.id == targetId && $0.isAlive }) else {
+            addLog("Select an enemy before throwing \(item.name).")
+            HapticsManager.shared.buttonTap()
+            return false
+        }
+        if isLineBlockedByWall(
+            fromX: runner.positionX, fromY: runner.positionY,
+            toX: primary.positionX, toY: primary.positionY
+        ) {
+            addLog("⛔ \(item.name) throw blocked by wall!")
+            HapticsManager.shared.buttonTap()
+            return false
+        }
+
+        switch actionMode {
+        case .street: applyStreetAction()
+        case .signal: applySignalAction()
+        }
+
+        let throwPool = max(1, runner.attributes.agi + max(1, runner.skills.firearms / 2) + runner.level)
+        let throwRoll = DiceEngine.roll(pool: throwPool)
+        HapticsManager.shared.attackHit()
+        NotificationCenter.default.post(
+            name: .fireballEffect,
+            object: nil,
+            userInfo: ["x": primary.positionX, "y": primary.positionY]
+        )
+
+        if throwRoll.criticalGlitch {
+            let selfDamage = 4
+            runner.takeDamage(amount: selfDamage)
+            addLog("💥 CRIT GLITCH! \(runner.name)'s \(item.name) detonates early — \(selfDamage) dmg!")
+            NotificationCenter.default.post(
+                name: .characterHit,
+                object: nil,
+                userInfo: ["characterId": runner.id.uuidString, "damage": selfDamage]
+            )
+            completeAction(for: runner)
+            return true
+        }
+        if throwRoll.glitch || throwRoll.hits == 0 {
+            addLog("⚠️ \(runner.name) throws \(item.name) wide. [\(throwPool)d6→\(throwRoll.hits)]")
+            completeAction(for: runner)
+            return true
+        }
+
+        let blastTargets = enemies.filter { enemy in
+            enemy.isAlive && hexDistance(
+                x1: primary.positionX, y1: primary.positionY,
+                x2: enemy.positionX, y2: enemy.positionY
+            ) <= 1
+        }
+
+        addLog("💣 \(runner.name) throws \(item.name)! [\(throwPool)d6→\(throwRoll.hits)] \(blastTargets.count) target\(blastTargets.count == 1 ? "" : "s") in blast.")
+
+        for enemy in blastTargets {
+            let distance = hexDistance(
+                x1: primary.positionX, y1: primary.positionY,
+                x2: enemy.positionX, y2: enemy.positionY
+            )
+            let falloff = distance == 0 ? 0 : 2
+            let baseDamage = max(1, item.bonus + throwRoll.hits - falloff)
+            let soakPool = max(0, enemy.computeDerived().soak - 2)
+            let soakRoll = DiceEngine.roll(pool: soakPool)
+            let finalDamage = max(0, baseDamage - soakRoll.hits)
+            enemy.takeDamage(amount: finalDamage, isStun: false)
+            addLog("  → \(enemy.name): \(baseDamage)P AP-2 - \(soakRoll.hits) soak = \(finalDamage) dmg. (\(enemy.currentHP)/\(enemy.maxHP) HP)")
+            NotificationCenter.default.post(
+                name: .enemyHit,
+                object: nil,
+                userInfo: ["enemyId": enemy.id.uuidString, "damage": finalDamage]
+            )
+            if !enemy.isAlive {
+                handleEnemyKilled(enemy, by: runner)
+            }
+        }
+
+        if livingEnemies.isEmpty {
+            onRoomCleared()
+        }
+        completeAction(for: runner)
+        return true
     }
 
     /// Decker HACK: Disables target enemy for 1 round (0 attack dice, can't move).
@@ -1153,6 +1580,14 @@ final class GameState: ObservableObject {
         target.status = .stunned
         addLog("💻 \(decker.name) HACKS \(target.name)! [\(hackPool)d6→\(hackRoll.hits)] — SYSTEM DISABLED for 1 round!")
         NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": 0])
+        // Visual: stream of binary glyphs from decker to target + circuit
+        // breach flash on impact.
+        NotificationCenter.default.post(
+            name: .hackEffect, object: nil,
+            userInfo: ["fromX": decker.positionX, "fromY": decker.positionY,
+                       "toX": target.positionX, "toY": target.positionY,
+                       "targetId": target.id.uuidString]
+        )
         completeAction(for: decker)
     }
 
@@ -1168,6 +1603,9 @@ final class GameState: ObservableObject {
         CombatFlowController.performBlitz(gameState: self)
     }
 
+    /// Apply Blitz damage to a single target. Does NOT advance the turn — the
+    /// caller (`performBlitz`) does that ONCE after all adjacent targets are
+    /// hit, so a multi-target sweep doesn't fire `completeAction` N times.
     func performBlitzOnTarget(_ target: Enemy, by sam: Character) {
         // Blitz pool: BOD + STR + blades skill (raw power charge)
         let blitzPool = sam.attributes.bod + sam.attributes.str + sam.skills.blades
@@ -1180,11 +1618,11 @@ final class GameState: ObservableObject {
             addLog("💥 CRITICAL GLITCH! \(sam.name) stumbles — \(selfDmg) self-damage!")
             HapticsManager.shared.playerDamaged()
             NotificationCenter.default.post(name: .characterHit, object: nil, userInfo: ["characterId": sam.id.uuidString, "damage": selfDmg])
-            completeAction(for: sam)
             return
         }
 
-        let defensePool = max(1, target.attributes.rea)
+        // Hacked / stunned enemies can't dodge a Blitz — pool collapses to 0.
+        let defensePool = (target.status == .stunned) ? 0 : max(1, target.attributes.rea)
         let defenseRoll = DiceEngine.roll(pool: defensePool)
         let netHits = max(0, attackRoll.hits - defenseRoll.hits)
 
@@ -1195,11 +1633,13 @@ final class GameState: ObservableObject {
         let finalDmg = max(1, baseDmg - soakRoll.hits)
 
         target.takeDamage(amount: finalDmg, isStun: false)
-        addLog("⚡ \(sam.name) BLITZ! [\(blitzPool)d6→\(attackRoll.hits)] \(baseDmg)P - \(soakRoll.hits)soak = \(finalDmg) dmg! (\(target.currentHP)/\(target.maxHP) | Stun \(target.currentStun)/\(target.maxStun))")
+        addLog("⚡ \(sam.name) BLITZ → \(target.name)! [\(blitzPool)d6→\(attackRoll.hits)] \(baseDmg)P - \(soakRoll.hits)soak = \(finalDmg) dmg! (\(target.currentHP)/\(target.maxHP))")
         NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": finalDmg])
 
         if !target.isAlive {
             HapticsManager.shared.enemyKilled()
+            missionEnemiesDefeated += 1
+            CombatFlowController.handleEnemyKillForRoomEffects(gameState: self)
             addLog("☠️ \(target.name) DOWN! +\(target.maxHP / 2) XP")
             generateLoot()
             let leveledUp = sam.gainXP(target.maxHP / 2)
@@ -1209,10 +1649,7 @@ final class GameState: ObservableObject {
                 NotificationCenter.default.post(name: .characterLevelUp, object: nil, userInfo: ["characterId": sam.id.uuidString])
             }
             NotificationCenter.default.post(name: .enemyDied, object: nil, userInfo: ["enemyId": target.id.uuidString])
-            if livingEnemies.isEmpty { onRoomCleared() }
         }
-
-        completeAction(for: sam)
     }
 
     /// Move a character to a new tile position (called from BattleScene on player tap).
@@ -1228,6 +1665,63 @@ final class GameState: ObservableObject {
 
     func completeAction(for character: Character) {
         CombatFlowController.completeAction(gameState: self, for: character)
+    }
+
+    /// Enter overwatch: lock in the character's attack pool as a reaction trigger.
+    /// Any enemy that moves into LOS of this character before their next turn
+    /// will be automatically attacked (halved net hits — reaction fire penalty).
+    func performOverwatch() {
+        guard let a = activeCharacter ?? currentCharacter else { return }
+        let ovwPool = a.attackPool(skill: .firearms)
+        overwatchers[a.id] = ovwPool
+        addLog("🎯 \(a.name) ENTERS OVERWATCH — holding fire on any movement.")
+        NotificationCenter.default.post(name: .characterDefend, object: nil, userInfo: ["characterId": a.id.uuidString])
+        completeAction(for: a)
+    }
+
+    /// Fire an overwatch shot at a moving enemy. Called from runEnemyAI just before
+    /// each enemy movement step. Returns the number of shots fired (0 or 1 per overwatcher).
+    func fireOverwatchShot(atEnemy enemy: Enemy, attackerId: UUID) -> Int {
+        guard let ovwPool = overwatchers[attackerId] else { return 0 }
+        // Only fire if enemy is in LOS with no wall blocking
+        guard let attacker = playerTeam.first(where: { $0.id == attackerId }) else { return 0 }
+        if isLineBlockedByWall(fromX: attacker.positionX, fromY: attacker.positionY,
+                               toX: enemy.positionX, toY: enemy.positionY) { return 0 }
+        // Fire the overwatch shot at the enemy's current position
+        let weapon = attacker.equippedWeapon ?? Weapon(name: "Sidearm", type: .pistol, damage: 4, accuracy: 4, armorPiercing: 1)
+        let attackRoll = DiceEngine.roll(pool: ovwPool)
+        if attackRoll.criticalGlitch {
+            addLog("💥 \(attacker.name) OVERWATCH fumble!")
+            attacker.takeDamage(amount: 2)
+            return 1
+        }
+        if attackRoll.glitch || attackRoll.hits == 0 {
+            addLog("⚠️ \(attacker.name) OVERWATCH misses!")
+            return 1
+        }
+        // Reaction fire: halved net hits (surprise penalty but not a full ambush)
+        let defensePool = enemy.attributes.rea + enemy.attributes.agi
+        let defenseRoll = DiceEngine.roll(pool: defensePool)
+        let netHits = max(0, attackRoll.hits - defenseRoll.hits) / 2
+        if netHits == 0 {
+            addLog("→ \(attacker.name) OVERWATCH fires at \(enemy.name) — DODGED!")
+            return 1
+        }
+        let baseDmg = weapon.damage + netHits
+        let soakPool = max(0, enemy.computeDerived().soak - weapon.armorPiercing)
+        let soakRoll = DiceEngine.roll(pool: soakPool)
+        let finalDmg = max(0, baseDmg - soakRoll.hits)
+        enemy.takeDamage(amount: finalDmg, isStun: weapon.isStunDamage)
+        addLog("⚡ \(attacker.name) OVERWATCH → \(enemy.name)! \(netHits) net hits → \(finalDmg) dmg. (\(enemy.currentHP)/\(enemy.maxHP) HP)")
+        NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "damage": finalDmg])
+        if !enemy.isAlive {
+            HapticsManager.shared.enemyKilled()
+            missionEnemiesDefeated += 1
+            CombatFlowController.handleEnemyKillForRoomEffects(gameState: self)
+            addLog("☠️ \(enemy.name) DOWN from OVERWATCH!")
+            NotificationCenter.default.post(name: .enemyDied, object: nil, userInfo: ["enemyId": enemy.id.uuidString])
+        }
+        return 1
     }
 
     func endTurn() {
@@ -1298,6 +1792,38 @@ final class GameState: ObservableObject {
     /// MULTI-ROOM PROGRESSION: called when livingEnemies becomes empty.
     func onRoomCleared() {
         guard livingEnemies.isEmpty else { return }
+
+        // ── BOSS PHASE INTERCEPT ──────────────────────────────────────
+        // If the current room defines a `bossSpawn` and we haven't deployed
+        // the boss yet, spawn the boss instead of marking the room clear.
+        // The boss becomes the "last enemy" — when they die, this method
+        // re-fires (because livingEnemies will be empty again) and falls
+        // through to normal clear since `bossDeployedRoomIds` is now set.
+        if let room = RoomManager.shared.currentRoom,
+           let boss = room.bossSpawn,
+           !RoomManager.shared.bossDeployedRoomIds.contains(room.id),
+           !RoomManager.shared.bossPendingRoomIds.contains(room.id) {
+            // Suspense beat: let the player think the mission is over.
+            // For the AGI boss, delay the actual manifestation by 2.5s
+            // and show a "room cleared" message first. Mark `pending` so
+            // a second onRoomCleared call during the delay window doesn't
+            // re-enter and schedule a duplicate spawn. The mech boss still
+            // drops immediately — his thing is the impact, not the wait.
+            if boss.type == "agi" || boss.type == "bossagi" || boss.type == "ai" {
+                RoomManager.shared.bossPendingRoomIds.insert(room.id)
+                addLog("★ ROOM CLEARED ★")
+                addLog("...the lights dim. Something is wrong.")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                    guard let self = self else { return }
+                    RoomManager.shared.bossPendingRoomIds.remove(room.id)
+                    self.deployBoss(boss, in: room)
+                }
+            } else {
+                deployBoss(boss, in: room)
+            }
+            return
+        }
+
         if RoomManager.shared.currentMission != nil {
             guard RoomManager.shared.markCurrentRoomCleared() else { return }
         }
@@ -1367,6 +1893,10 @@ final class GameState: ObservableObject {
                         }
                         .sorted { $0.2 < $1.2 }
                     if let pick = candidates.first, pick.2 < 100 {
+                        // Overwatch check: before the enemy moves, fire at their START position
+                        for (attackerId, _) in overwatchers {
+                            fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                        }
                         enemy.positionX = pick.0
                         enemy.positionY = pick.1
                         addLog("→ \(enemy.name) repositions")
@@ -1422,14 +1952,27 @@ final class GameState: ObservableObject {
                     NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": rx, "y": ry])
                 }
             } else {
+                // Multi-step move — collect path silently, post .enemyMoved
+                // ONCE at the end so the visual animation doesn't restart
+                // mid-flight on every step (caused the corpmage's
+                // "walks-right-disappears-half-body" glitch).
+                let drStartX = enemy.positionX, drStartY = enemy.positionY
                 for _ in 0..<2 {
                     if let (nx, ny) = bfsPathfindDrone(from: enemy, towardX: closestPlayer.positionX, y: closestPlayer.positionY) {
+                        // Overwatch: check before each step of multi-step movement
+                        for (attackerId, _) in overwatchers {
+                            fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                        }
                         enemy.positionX = nx; enemy.positionY = ny
                         let newDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
-                        addLog("→ \(enemy.name) advances")
-                        NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": nx, "y": ny])
                         if newDist >= 2 { break }
                     } else { break }
+                }
+                if enemy.positionX != drStartX || enemy.positionY != drStartY {
+                    addLog("→ \(enemy.name) advances")
+                    NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                        userInfo: ["enemyId": enemy.id.uuidString,
+                                   "x": enemy.positionX, "y": enemy.positionY])
                 }
                 if enemyMovedThisTurn() { return }
                 let afterDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
@@ -1481,21 +2024,34 @@ final class GameState: ObservableObject {
             if let woundedAlly = findWoundedAlly(for: enemy) {
                 let distToAlly = hexDistance(x1: woundedAlly.positionX, y1: woundedAlly.positionY, x2: enemy.positionX, y2: enemy.positionY)
                 if distToAlly > 1 {
+                    // Single .enemyMoved post at end (see corpmage fix above).
+                    let healStartX = enemy.positionX, healStartY = enemy.positionY
                     for _ in 0..<2 {
                         if let (newX, newY) = bfsPathfindToWounded(from: enemy, toward: woundedAlly) {
+                            // Overwatch: check before each step
+                            for (attackerId, _) in overwatchers {
+                                fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                            }
                             enemy.positionX = newX; enemy.positionY = newY
-                            addLog("→ \(enemy.name) moves to assist ally")
-                            NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": newX, "y": newY])
                             let newDist = hexDistance(x1: woundedAlly.positionX, y1: woundedAlly.positionY, x2: enemy.positionX, y2: enemy.positionY)
                             if newDist <= 1 { break }
                         } else { break }
+                    }
+                    if enemy.positionX != healStartX || enemy.positionY != healStartY {
+                        addLog("→ \(enemy.name) moves to assist ally")
+                        NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                            userInfo: ["enemyId": enemy.id.uuidString,
+                                       "x": enemy.positionX, "y": enemy.positionY])
                     }
                     let afterDist = hexDistance(x1: woundedAlly.positionX, y1: woundedAlly.positionY, x2: enemy.positionX, y2: enemy.positionY)
                     if afterDist > 1 { return }
                     if enemyMovedThisTurn() { return }
                 }
+                // Don't heal a corpse — between findWoundedAlly and the move-to-ally
+                // loop the ally could have been killed (async damage events).
+                guard woundedAlly.isAlive else { return }
                 let healAmount = 8 + Int.random(in: 0...4)
-                let actualHeal = min(healAmount, woundedAlly.maxHP - woundedAlly.currentHP)
+                let actualHeal = max(0, min(healAmount, woundedAlly.maxHP - woundedAlly.currentHP))
                 woundedAlly.currentHP += actualHeal
                 HapticsManager.shared.attackHit()
                 addLog("💉 \(enemy.name) heals \(woundedAlly.name)! +\(actualHeal) HP. (\(woundedAlly.currentHP)/\(woundedAlly.maxHP))")
@@ -1513,6 +2069,10 @@ final class GameState: ObservableObject {
                 let distToAlly = hexDistance(x1: ally.positionX, y1: ally.positionY, x2: enemy.positionX, y2: enemy.positionY)
                 if distToAlly > 2 {
                     if let (nx, ny) = bfsPathfindToWounded(from: enemy, toward: ally) {
+                        // Overwatch: check before movement
+                        for (attackerId, _) in overwatchers {
+                            fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                        }
                         enemy.positionX = nx; enemy.positionY = ny
                         addLog("→ \(enemy.name) repositions near ally")
                         NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": nx, "y": ny])
@@ -1565,14 +2125,24 @@ final class GameState: ObservableObject {
             }!
             let dist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
             if dist > 1 {
+                // Single .enemyMoved post at end (see corpmage fix above).
+                let eliteStartX = enemy.positionX, eliteStartY = enemy.positionY
                 for _ in 0..<3 {
                     if let (newX, newY) = bfsPathfind(from: enemy, toward: closestPlayer) {
+                        // Overwatch: check before each step
+                        for (attackerId, _) in overwatchers {
+                            fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                        }
                         enemy.positionX = newX; enemy.positionY = newY
-                        addLog("→ \(enemy.name) charges!")
-                        NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": newX, "y": newY])
                         let newDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
                         if newDist <= 1 { break }
                     } else { break }
+                }
+                if enemy.positionX != eliteStartX || enemy.positionY != eliteStartY {
+                    addLog("→ \(enemy.name) charges!")
+                    NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                        userInfo: ["enemyId": enemy.id.uuidString,
+                                   "x": enemy.positionX, "y": enemy.positionY])
                 }
                 let afterMoveDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
                 if afterMoveDist > 1 { return }
@@ -1619,6 +2189,236 @@ final class GameState: ObservableObject {
                 }
             }
 
+        case "bossmage":
+            // M3 boss — Sato Unbound. Aggressive blood-magic caster. Per
+            // playtest 2026-05-23: boss was "stuck in one place for several
+            // turns" — root cause was preferredRange=3 letting him stop the
+            // moment a player got near. New behavior: re-evaluate closest
+            // target every step AND keep closing aggressively (range 2)
+            // so he always advances on the party. Boss still steps one tile
+            // per move-budget iteration to avoid the bfsPathfind teleport
+            // pattern. Only stops moving if already at range 2 OR cornered.
+            do {
+                let startX = enemy.positionX
+                let startY = enemy.positionY
+                let preferredRange = 2
+                for _ in 0..<enemy.moveRange {
+                    // Re-target every step — players may move past the boss
+                    // mid-pursuit; without this he'd commit to a stale target
+                    // and miss closer threats.
+                    guard let closestPlayer = livingPlayers.min(by: { a, b in
+                        let distA = hexDistance(x1: a.positionX, y1: a.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                        let distB = hexDistance(x1: b.positionX, y1: b.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                        return distA < distB
+                    }) else { break }
+                    let curDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY,
+                                              x2: enemy.positionX, y2: enemy.positionY)
+                    if curDist <= preferredRange { break }
+                    if let (newX, newY) = bfsNextStep(from: enemy, toward: closestPlayer) {
+                        for (attackerId, _) in overwatchers {
+                            fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                        }
+                        enemy.positionX = newX; enemy.positionY = newY
+                    } else {
+                        break
+                    }
+                }
+                // Re-pick spell target from final position so the cast
+                // resolves against whoever is actually closest now.
+                guard let closestPlayer = livingPlayers.min(by: { a, b in
+                    let distA = hexDistance(x1: a.positionX, y1: a.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                    let distB = hexDistance(x1: b.positionX, y1: b.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                    return distA < distB
+                }) else { return }
+                if enemy.positionX != startX || enemy.positionY != startY {
+                    addLog("→ \(enemy.name) glides forward, robes trailing red")
+                    NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                        userInfo: ["enemyId": enemy.id.uuidString,
+                                   "x": enemy.positionX, "y": enemy.positionY])
+                }
+                // Cast spell from new position if in range.
+                let afterDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY,
+                                            x2: enemy.positionX, y2: enemy.positionY)
+                if afterDist <= 6 {
+                    let attackPool = enemy.attributes.agi + 4
+                    let defensePool = closestPlayer.attributes.rea + closestPlayer.attributes.agi
+                    let attackRoll = DiceEngine.roll(pool: attackPool)
+                    let defenseRoll = DiceEngine.roll(pool: defensePool)
+                    let netHits = max(0, attackRoll.hits - defenseRoll.hits)
+                    if netHits == 0 {
+                        addLog("→ \(enemy.name) hurls a blood-bolt — \(closestPlayer.name) dives clear!")
+                    } else {
+                        let baseDmg = 8 + netHits
+                        let soakPool = max(0, closestPlayer.computeDerived().soak - 3)
+                        let soakRoll = DiceEngine.roll(pool: soakPool)
+                        let dmg = escalatedIncomingDamage(max(0, baseDmg - soakRoll.hits))
+                        if dmg > 0 {
+                            closestPlayer.takeDamage(amount: dmg, isStun: false)
+                            HapticsManager.shared.playerDamaged()
+                            addLog("🩸 \(enemy.name)'s blood-bolt hits \(closestPlayer.name)! \(dmg)P. (HP \(closestPlayer.currentHP)/\(closestPlayer.maxHP))")
+                            NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: [
+                                "playerId": closestPlayer.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString
+                            ])
+                            if !closestPlayer.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: closestPlayer) }
+                        } else {
+                            addLog("→ \(enemy.name)'s spell — \(closestPlayer.name) soaks all damage!")
+                        }
+                    }
+                }
+            }
+
+        case "bossmech":
+            // M5 boss — heavy autocannon, range 6, aggressively pursues. The
+            // mech holds at preferred range ~4 (close enough to threaten,
+            // not so close it walks into melee), advancing ONE tile per
+            // move-budget iteration via `bfsNextStep`. Earlier this used
+            // `bfsPathfind` which returns a tile ADJACENT TO THE PLAYER —
+            // that teleported the mech across the whole room in one tick
+            // and looked like a glitch (sometimes the player saw the boss
+            // "not moving" because it pinned itself in melee on turn 1 and
+            // never moved again). Step-by-step pursuit reads as proper AI.
+            do {
+                let closestPlayer = livingPlayers.min { a, b in
+                    let distA = hexDistance(x1: a.positionX, y1: a.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                    let distB = hexDistance(x1: b.positionX, y1: b.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                    return distA < distB
+                }!
+                let startX = enemy.positionX
+                let startY = enemy.positionY
+                let preferredRange = 4   // autocannon optimal: ~4 tiles
+                for _ in 0..<enemy.moveRange {
+                    let curDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY,
+                                              x2: enemy.positionX, y2: enemy.positionY)
+                    // Already at preferred range — hold position and shoot.
+                    if curDist <= preferredRange { break }
+                    if let (newX, newY) = bfsNextStep(from: enemy, toward: closestPlayer) {
+                        for (attackerId, _) in overwatchers {
+                            fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                        }
+                        enemy.positionX = newX; enemy.positionY = newY
+                    } else {
+                        break
+                    }
+                }
+                if enemy.positionX != startX || enemy.positionY != startY {
+                    addLog("→ \(enemy.name) advances on \(closestPlayer.name)")
+                    NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                        userInfo: ["enemyId": enemy.id.uuidString,
+                                   "x": enemy.positionX, "y": enemy.positionY])
+                }
+                // Fire from new position.
+                let afterDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY,
+                                            x2: enemy.positionX, y2: enemy.positionY)
+                if afterDist <= 6 {
+                    let attackPool = enemy.attributes.agi + (enemy.equippedWeapon?.accuracy ?? 4) / 2 + 1
+                    let defensePool = closestPlayer.attributes.rea + closestPlayer.attributes.agi
+                    let attackRoll = DiceEngine.roll(pool: attackPool)
+                    let defenseRoll = DiceEngine.roll(pool: defensePool)
+                    let netHits = max(0, attackRoll.hits - defenseRoll.hits)
+                    if netHits == 0 {
+                        addLog("→ \(enemy.name) autocannon — \(closestPlayer.name) dodges!")
+                    } else {
+                        let baseDmg = (enemy.equippedWeapon?.damage ?? 10) + netHits
+                        let ap = enemy.equippedWeapon?.armorPiercing ?? 4
+                        let soakPool = max(0, closestPlayer.computeDerived().soak - ap)
+                        let soakRoll = DiceEngine.roll(pool: soakPool)
+                        let dmg = escalatedIncomingDamage(max(0, baseDmg - soakRoll.hits))
+                        if dmg > 0 {
+                            closestPlayer.takeDamage(amount: dmg, isStun: false)
+                            HapticsManager.shared.playerDamaged()
+                            addLog("💥 \(enemy.name) autocannon hits \(closestPlayer.name) — \(dmg)P. (HP \(closestPlayer.currentHP)/\(closestPlayer.maxHP))")
+                            NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: [
+                                "playerId": closestPlayer.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString
+                            ])
+                            NotificationCenter.default.post(name: .gunfireEffect, object: nil,
+                                userInfo: [
+                                    "fromX": enemy.positionX, "fromY": enemy.positionY,
+                                    "toX": closestPlayer.positionX, "toY": closestPlayer.positionY,
+                                    "weaponType": (enemy.equippedWeapon?.type.rawValue ?? "rifle"),
+                                    "enemyArchetype": enemy.archetype
+                                ])
+                            if !closestPlayer.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: closestPlayer) }
+                        } else {
+                            addLog("→ \(enemy.name) — \(closestPlayer.name) soaks all damage!")
+                        }
+                    }
+                }
+            }
+
+        case "bossagi":
+            // M6 boss — AGGRESSIVE pursue. The AGI prefers to chase right up
+            // to the player (Reality Glitch is best in close range). Steps
+            // ONE tile per move-budget iteration via `bfsNextStep` so it
+            // visibly stalks across the room rather than teleporting (the
+            // earlier `bfsPathfind` returned a tile adjacent to the player
+            // directly, which moved the boss its full distance in one tick
+            // and made it appear to skip all intermediate squares).
+            let closestPlayer = livingPlayers.min { a, b in
+                let distA = hexDistance(x1: a.positionX, y1: a.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                let distB = hexDistance(x1: b.positionX, y1: b.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                return distA < distB
+            }!
+            let startX = enemy.positionX
+            let startY = enemy.positionY
+            let preferredRange = 2   // AGI hunts in close — preferred ~2 tiles
+            for _ in 0..<enemy.moveRange {
+                let curDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY,
+                                          x2: enemy.positionX, y2: enemy.positionY)
+                if curDist <= preferredRange { break }
+                if let (newX, newY) = bfsNextStep(from: enemy, toward: closestPlayer) {
+                    for (attackerId, _) in overwatchers {
+                        fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                    }
+                    enemy.positionX = newX; enemy.positionY = newY
+                } else {
+                    break
+                }
+            }
+            if enemy.positionX != startX || enemy.positionY != startY {
+                addLog("→ \(enemy.name) phase-shifts toward \(closestPlayer.name)")
+                NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                    userInfo: ["enemyId": enemy.id.uuidString,
+                               "x": enemy.positionX, "y": enemy.positionY])
+            }
+
+            // Attack from the new position if in range.
+            let afterDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY,
+                                        x2: enemy.positionX, y2: enemy.positionY)
+            if afterDist <= 6 {
+                let attackPool = enemy.attributes.agi + (enemy.equippedWeapon?.accuracy ?? 5) / 2 + 1
+                let defensePool = closestPlayer.attributes.rea + closestPlayer.attributes.agi
+                let attackRoll = DiceEngine.roll(pool: attackPool)
+                let defenseRoll = DiceEngine.roll(pool: defensePool)
+                let netHits = max(0, attackRoll.hits - defenseRoll.hits)
+                if netHits == 0 {
+                    addLog("→ AGI-PRIME's Reality Glitch — \(closestPlayer.name) phases through!")
+                } else {
+                    let baseDmg = (enemy.equippedWeapon?.damage ?? 9) + netHits
+                    let ap = enemy.equippedWeapon?.armorPiercing ?? 5
+                    let soakPool = max(0, closestPlayer.computeDerived().soak - ap)
+                    let soakRoll = DiceEngine.roll(pool: soakPool)
+                    let dmg = escalatedIncomingDamage(max(0, baseDmg - soakRoll.hits))
+                    if dmg > 0 {
+                        closestPlayer.takeDamage(amount: dmg, isStun: false)
+                        HapticsManager.shared.playerDamaged()
+                        addLog("✨ AGI-PRIME's Reality Glitch hits \(closestPlayer.name)! \(dmg)P dmg. (HP \(closestPlayer.currentHP)/\(closestPlayer.maxHP))")
+                        NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: [
+                            "playerId": closestPlayer.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString
+                        ])
+                        NotificationCenter.default.post(name: .gunfireEffect, object: nil,
+                            userInfo: [
+                                "fromX": enemy.positionX, "fromY": enemy.positionY,
+                                "toX": closestPlayer.positionX, "toY": closestPlayer.positionY,
+                                "weaponType": (enemy.equippedWeapon?.type.rawValue ?? "rifle"),
+                                "enemyArchetype": enemy.archetype
+                            ])
+                        if !closestPlayer.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: closestPlayer) }
+                    } else {
+                        addLog("→ AGI-PRIME's glitch — \(closestPlayer.name) soaks all damage!")
+                    }
+                }
+            }
+
         default:
             let closestPlayer = livingPlayers.min { a, b in
                 let distA = hexDistance(x1: a.positionX, y1: a.positionY, x2: enemy.positionX, y2: enemy.positionY)
@@ -1644,15 +2444,34 @@ final class GameState: ObservableObject {
             }
 
             if dist > maxWeaponRange {
-                // Move up to moveRange tiles toward player, then attack
+                // Move up to moveRange tiles toward player. Post .enemyMoved
+                // ONCE at the end with the final destination so the visual
+                // animation slides smoothly from start → final without
+                // cancelling itself mid-flight on every intermediate step.
+                // (The previous version posted inside the loop, which
+                // combined with animateMove's "move" action key cancelling
+                // produced the corpmage's "walks right, half body, reappears
+                // left" glitch — each intermediate post killed the in-flight
+                // animation and replaced it with a new one starting from the
+                // node's mid-tile position.)
+                let startX = enemy.positionX
+                let startY = enemy.positionY
                 for _ in 0..<enemy.moveRange {
                     if let (newX, newY) = bfsPathfind(from: enemy, toward: closestPlayer) {
+                        // Overwatch: check before each step
+                        for (attackerId, _) in overwatchers {
+                            fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                        }
                         enemy.positionX = newX; enemy.positionY = newY
-                        addLog("→ \(enemy.name) advances")
-                        NotificationCenter.default.post(name: .enemyMoved, object: nil, userInfo: ["enemyId": enemy.id.uuidString, "x": newX, "y": newY])
                         let newDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY, x2: enemy.positionX, y2: enemy.positionY)
                         if newDist <= maxWeaponRange { break }
                     } else { break }
+                }
+                if enemy.positionX != startX || enemy.positionY != startY {
+                    addLog("→ \(enemy.name) advances")
+                    NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                        userInfo: ["enemyId": enemy.id.uuidString,
+                                   "x": enemy.positionX, "y": enemy.positionY])
                 }
             }
 
@@ -1699,6 +2518,22 @@ final class GameState: ObservableObject {
                 let guardPlayerCoverBonus = CombatMechanics.coverDefenseBonus(count: guardCoverCount)
                 let playerDefensePool = target.attributes.rea + target.attributes.agi + defenseBonus + guardPlayerCoverBonus
 
+                // Post gunfire effect so SFXManager can play the right
+                // weapon clip (sniper enemies share the rifle WeaponType but
+                // should sound distinct, so we also pass archetype).
+                let weaponType = enemy.equippedWeapon?.type
+                if let wt = weaponType, wt != .blade && wt != .unarmed {
+                    NotificationCenter.default.post(
+                        name: .gunfireEffect, object: nil,
+                        userInfo: [
+                            "fromX": enemy.positionX, "fromY": enemy.positionY,
+                            "toX":   target.positionX,  "toY":   target.positionY,
+                            "weaponType":     wt.rawValue,
+                            "enemyArchetype": enemy.archetype
+                        ]
+                    )
+                }
+
                 let attackRoll = DiceEngine.roll(pool: enemyAttackPool)
                 let defenseRoll = DiceEngine.roll(pool: playerDefensePool)
                 let netHits = max(0, attackRoll.hits - defenseRoll.hits)
@@ -1741,6 +2576,14 @@ final class GameState: ObservableObject {
     /// BFS pathfinding — returns best hex-adjacent tile to move toward target.
     func bfsPathfind(from enemy: Enemy, toward target: Character) -> (Int, Int)? {
         PathingAndAIHelpers.bfsPathfind(gameState: self, from: enemy, toward: target)
+    }
+
+    /// Single-step BFS — returns the FIRST hex toward target along the
+    /// shortest path. Used by boss pursuit AI so each move-budget iteration
+    /// advances ONE tile (visible per-tile pursuit) instead of teleporting
+    /// straight to a tile adjacent to the player.
+    func bfsNextStep(from enemy: Enemy, toward target: Character) -> (Int, Int)? {
+        PathingAndAIHelpers.bfsNextStep(gameState: self, from: enemy, toward: target)
     }
 
     /// Find a wounded ally (enemy) within 5 hex tiles to heal.
@@ -1822,6 +2665,56 @@ final class GameState: ObservableObject {
         if combatLog.count > 50 { combatLog.removeFirst() }
         // Force SwiftUI refresh for array mutations
         objectWillChange.send()
+
+        // Play UI error chirp on user-facing failure messages. We detect by
+        // prefix/keyword so call sites stay terse — anything starting with
+        // these tokens is treated as a "you can't do that" feedback event.
+        // Glitches (⚠️/💥) are gameplay events with their own SFX, so excluded.
+        if SFXClassifier.isLockedDoor(entry) {
+            // Door-specific buzzy refusal — checked BEFORE generic error so
+            // it doesn't get masked by the broader "Move closer" matcher.
+            SFXManager.shared.play("door_locked")
+        } else if SFXClassifier.isUserError(entry) {
+            HapticsManager.shared.error()
+        } else if SFXClassifier.isUnlock(entry) {
+            HapticsManager.shared.unlock()
+        }
+    }
+}
+
+/// Helper for classifying combat-log entries so SFX can fire from a single
+/// place (addLog) rather than at every error site.
+@MainActor
+enum SFXClassifier {
+    static func isUserError(_ entry: String) -> Bool {
+        // Prefixes / keywords that indicate "you can't do that" feedback.
+        let triggers = [
+            "No target", "No targets",
+            "No character",
+            "Not enough",
+            "Only the ",     // "Only the Face can intimidate", etc.
+            "already moved", "already attacked",
+            "Move adjacent", "Move closer",
+            "Out of ",
+            "Invalid target",
+            "Cannot move",
+            "⛔",            // line-of-sight-blocked emoji prefix
+        ]
+        return triggers.contains { entry.contains($0) }
+    }
+
+    static func isUnlock(_ entry: String) -> Bool {
+        // Door / terminal / objective unlocks.
+        return entry.contains("Door unlocked") ||
+               entry.contains("data acquired") ||
+               entry.contains("Terminal hacked")
+    }
+
+    static func isLockedDoor(_ entry: String) -> Bool {
+        // Player tried to use a still-locked door.
+        return entry.contains("Use the marked door tile") ||
+               entry.contains("Cannot move onto a door tile") ||
+               entry.contains("Move closer to the door first")
     }
 }
 
@@ -1830,18 +2723,36 @@ final class GameState: ObservableObject {
 /// Game state machine managing all major game states and transitions
 enum GamePhase: Equatable {
     case title
+    case prologue            // Pre-M1 "Neon Lotus" VN-style recruit cinematic
     case missionSelect
+    case missionIntro        // Per-mission pre-briefing VN cutscene (M1-M6)
     case briefing
     case combat
+    case missionOutro        // Per-mission post-combat VN cutscene (M1-M6) — plays before debrief on victory
+    case dropIntro           // M3.5 pre-chase VN cinematic (runners exiting M3, boarding bike)
+    case hoverbikeChase      // M3.5 "The Drop" — side-scrolling chase mission
+    case basementBrawl       // M4.5 "Basement Brawl" — Raze solo side-on melee duel
+    case mirrorline          // M2.5 "Mirrorline" — Sable solo astral sigil-tracing
+    case coldTrace           // M5.5 "Cold Trace" — Cipher solo matrix-dive process-triage
     case debrief
+    case gameEnding          // Post-M6-victory ending cutscene (epilogue + AI-seed coda)
 
     var displayName: String {
         switch self {
-        case .title:         return "Title"
-        case .missionSelect: return "Mission Select"
-        case .briefing:      return "Briefing"
-        case .combat:       return "Combat"
-        case .debrief:       return "Debrief"
+        case .title:           return "Title"
+        case .prologue:        return "Prologue"
+        case .missionSelect:   return "Mission Select"
+        case .missionIntro:    return "Mission Intro"
+        case .briefing:        return "Briefing"
+        case .combat:          return "Combat"
+        case .missionOutro:    return "Mission Outro"
+        case .dropIntro:       return "The Drop — Intro"
+        case .hoverbikeChase:  return "The Drop"
+        case .basementBrawl:   return "Basement Brawl"
+        case .mirrorline:      return "Mirrorline"
+        case .coldTrace:       return "Cold Trace"
+        case .debrief:         return "Debrief"
+        case .gameEnding:      return "Endless Rain"
         }
     }
 }
@@ -1850,83 +2761,34 @@ enum GamePhase: Equatable {
 
 enum StateTransition {
     case startGame
+    case viewPrologue          // Title → Prologue (Neon Lotus recruit scene)
+    case finishPrologue        // Prologue → Title (loops back, doesn't auto-start M1)
+    case viewMissionIntro      // MissionSelect → MissionIntro (per-mission cutscene)
+    case finishMissionIntro    // MissionIntro → Briefing (mission-specific cutscene done)
+    case viewDropIntro         // MissionSelect → DropIntro (M3.5 cutscene)
+    case finishDropIntro       // DropIntro → HoverbikeChase (auto-into the chase)
+    case viewHoverbikeChase    // MissionSelect → HoverbikeChase (skip intro)
+    case finishHoverbikeChase  // HoverbikeChase → MissionSelect (legacy/abort path)
+    case endChase(won: Bool)   // HoverbikeChase → MissionOutro on win, Debrief on loss
+    case viewBasementBrawl     // MissionIntro → BasementBrawl (M4.5 gameplay)
+    case endBrawl(won: Bool)   // BasementBrawl → MissionOutro on win, Debrief on loss
+    case viewMirrorline        // MissionIntro → Mirrorline (M2.5 gameplay)
+    case endMirrorline(won: Bool)  // Mirrorline → MissionOutro on win, Debrief on loss
+    case viewColdTrace         // MissionIntro → ColdTrace (M5.5 gameplay)
+    case endColdTrace(won: Bool)  // ColdTrace → MissionOutro on win, Debrief on loss
     case selectMission(String)
     case beginMission
     case startCombat
     case endCombat(won: Bool)
+    case viewMissionOutro      // Combat → MissionOutro (post-combat cutscene on victory)
+    case finishMissionOutro    // MissionOutro → Debrief (outro done, go score the mission)
+    case viewGameEnding        // Debrief → GameEnding (only after M6 victory)
+    case finishGameEnding      // GameEnding → Title (epilogue done, return to title)
     case viewDebrief
     case returnToTitle
     case exitGame
 }
 
-// MARK: - Game State Manager
-
-/// Legacy compatibility phase manager retained for older references.
-/// Not the primary phase-flow authority; `PhaseManager` is canonical.
-/// Future transition rule edits must be made in
-/// `docs/architecture/PhaseFlowAuthorityMatrix.md` and mirrored here only
-/// for compatibility parity.
-@MainActor
-final class GameStateManager: ObservableObject {
-
-    @Published private(set) var currentState: GamePhase = .title
-    @Published private(set) var selectedMissionId: String?
-    @Published private(set) var combatWon: Bool?
-
-    private var stateHistory: [GamePhase] = [.title]
-
-    // MARK: - Transition
-
-    func transition(to event: StateTransition) -> Bool {
-        let nextState = computeNext(from: currentState, event: event)
-
-        if nextState == currentState {
-            return false
-        }
-
-        if let missionId = extractMissionId(from: event) {
-            selectedMissionId = missionId
-        }
-
-        if let won = extractCombatResult(from: event) {
-            combatWon = won
-        }
-
-        stateHistory.append(nextState)
-        currentState = nextState
-        return true
-    }
-
-    // MARK: - Query
-
-    var canStartGame: Bool { currentState == .title }
-    var canSelectMission: Bool { currentState == .missionSelect }
-    var isInCombat: Bool { currentState == .combat }
-    var stateStack: [GamePhase] { stateHistory }
-
-    // MARK: - Private
-
-    /// Compatibility mirror of the canonical matrix for active transitions.
-    private func computeNext(from state: GamePhase, event: StateTransition) -> GamePhase {
-        switch (state, event) {
-        case (.title, .startGame):         return .missionSelect
-        case (.missionSelect, .selectMission): return .briefing
-        case (.briefing, .beginMission):    return .combat
-        case (.combat, .endCombat):        return .debrief
-        case (.combat, .returnToTitle):    return .title
-        case (.debrief, .returnToTitle):   return .title
-        case (_, .returnToTitle):          return .title
-        default:                            return state
-        }
-    }
-
-    private func extractMissionId(from event: StateTransition) -> String? {
-        if case .selectMission(let id) = event { return id }
-        return nil
-    }
-
-    private func extractCombatResult(from event: StateTransition) -> Bool? {
-        if case .endCombat(let won) = event { return won }
-        return nil
-    }
-}
+// `GameStateManager` (legacy phase manager) was removed 2026-05 — was
+// declared "for compatibility" but had zero call sites. `PhaseManager` in
+// ShadowrunGameApp.swift is the canonical phase-flow authority.

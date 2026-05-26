@@ -9,11 +9,13 @@ struct MissionSetupService {
         if let multiMission = MissionLoader.shared.loadMultiRoomMission(named: resolvedMissionId) {
             RoomManager.shared.loadMission(named: resolvedMissionId)
             setupMultiRoomMission(gameState: gameState, mission: multiMission)
+            gameState.currentMissionDisplayId = resolvedMissionId
             return resolvedMissionId
         }
 
         if let mission = MissionLoader.shared.loadMission(named: resolvedMissionId) {
             setupMission(gameState: gameState, mission: mission)
+            gameState.currentMissionDisplayId = resolvedMissionId
             return resolvedMissionId
         }
 
@@ -22,6 +24,7 @@ struct MissionSetupService {
         }
 
         setupMission(gameState: gameState, mission: fallbackMission)
+        gameState.currentMissionDisplayId = "Mission001"
         return "Mission001"
     }
 
@@ -34,14 +37,15 @@ struct MissionSetupService {
     }
 
     static func setupMission(gameState: GameState, mission: Mission) {
-        print("[GameState] setupMission: \(mission.title)")
+        dlog("[GameState] setupMission: \(mission.title)")
         RoomManager.shared.unloadMission()
         gameState.playerTeam = Character.allRunners
-        if let spawn = Optional(mission.playerSpawn) {
-            for (i, char) in gameState.playerTeam.enumerated() {
-                char.positionX = spawn.x + i
-                char.positionY = spawn.y
-            }
+        let spawn = mission.playerSpawn
+        let positions = findGroupSpawnSlots(map: mission.map, anchor: spawn, count: gameState.playerTeam.count)
+        for (i, char) in gameState.playerTeam.enumerated() {
+            let p = positions[i]
+            char.positionX = p.x
+            char.positionY = p.y
         }
 
         gameState.enemies = []
@@ -76,6 +80,11 @@ struct MissionSetupService {
 
         gameState.missionRequiresData = mapContainsDataTerminal(gameState.currentMissionTiles)
         gameState.dataAcquired = false
+        gameState.grimoireAcquired = false   // M3 bonus item — reset per attempt
+        gameState.mageBossPhase2Triggered = false   // M3 boss phase 2 — reset per attempt
+        gameState.mageBossPhase2Pending = false
+        gameState.mageBossPendingSpawnX = 0
+        gameState.mageBossPendingSpawnY = 0
         if gameState.missionRequiresData {
             gameState.addLog("OBJECTIVE — Hack data terminal (cyan tile) before extracting.")
         }
@@ -97,6 +106,10 @@ struct MissionSetupService {
         gameState.missionHeat = 0
         gameState.missionHeatTier = .low
         gameState.currentTurnCount = 0
+        gameState.missionEnemiesDefeated = 0
+        gameState.firstKillProcessedInRoom = false
+        // Refresh per-mission charges (Blitz, etc.) on each new run.
+        for char in gameState.playerTeam { char.blitzChargesUsed = 0 }
         gameState.combatLog = ["Mission started: \(mission.title)"]
         gameState.extractionX = adjustedMissionMap.1.x
         gameState.extractionY = adjustedMissionMap.1.y
@@ -118,15 +131,30 @@ struct MissionSetupService {
     }
 
     static func setupMultiRoomMission(gameState: GameState, mission: MultiRoomMission) {
-        print("[GameState] setupMultiRoomMission: \(mission.title)")
+        dlog("[GameState] setupMultiRoomMission: \(mission.title)")
+        // BUG FIX 2026-05-10: zero out terminal-state flags from any previous
+        // run BEFORE we start setting up the new one. The "M3 first-time-only
+        // RUN COMPLETE" repro happens when the user finishes M2, then enters
+        // M3 — stale extractionAnimationInProgress / combatEnded / combatWon
+        // from M2's extraction win leak into M3 setup, and some observer
+        // fires the debrief overlay before this method finishes setting up.
+        // Resetting them up-front (not just via resetCombatOutcomeFlags below)
+        // guarantees no terminal flag is true during the setup window.
+        CombatFlowController.resetCombatOutcomeFlagsForNewMission(gameState: gameState)
+        gameState.extractionAnimationInProgress = false
+        gameState.combatEnded = false
+        gameState.missionComplete = false
+        gameState.combatWon = nil
         gameState.playerTeam = Character.allRunners
 
         let firstRoom = mission.rooms.first!
         RoomManager.shared.markRoomEntered(firstRoom.id)
         let spawn = firstRoom.playerSpawn
+        let positions = findGroupSpawnSlots(map: firstRoom.map, anchor: spawn, count: gameState.playerTeam.count)
         for (i, char) in gameState.playerTeam.enumerated() {
-            char.positionX = spawn.x + i
-            char.positionY = spawn.y
+            let p = positions[i]
+            char.positionX = p.x
+            char.positionY = p.y
         }
 
         gameState.enemies = []
@@ -166,20 +194,20 @@ struct MissionSetupService {
         }
 
         let firstRoomExtraction = firstRoom.extractionPoint ?? SpawnPoint(x: firstRoom.playerSpawn.x, y: firstRoom.playerSpawn.y)
-        let protectedTiles = Set(
-            firstRoom.enemies.map { tileKey(gameState: gameState, x: $0.x, y: $0.y) } +
-            [tileKey(gameState: gameState, x: firstRoom.playerSpawn.x, y: firstRoom.playerSpawn.y)]
-        )
-        let adjustedFirstRoomMap = applyMapSituation(
-            gameState: gameState,
-            to: firstRoom.map,
-            extractionPoint: (firstRoomExtraction.x, firstRoomExtraction.y),
-            protectedTiles: protectedTiles
-        )
-        gameState.currentMissionTiles = adjustedFirstRoomMap.0
+        // Multi-room missions are hand-authored — respect the JSON map exactly.
+        // applyMapSituation rewrites cover/floor tiles for single-shot missions to
+        // give them a procedural variation, but for multi-room runs the level
+        // designer placed crates / barriers deliberately. Skip the transform so
+        // we don't sprinkle extra cover into open dock floors and chambers.
+        gameState.currentMissionTiles = firstRoom.map
 
         gameState.missionRequiresData = anyRoomHasDataTerminal(rooms: mission.rooms)
         gameState.dataAcquired = false
+        gameState.grimoireAcquired = false   // M3 bonus item — reset per attempt
+        gameState.mageBossPhase2Triggered = false   // M3 boss phase 2 — reset per attempt
+        gameState.mageBossPhase2Pending = false
+        gameState.mageBossPendingSpawnX = 0
+        gameState.mageBossPendingSpawnY = 0
         if gameState.missionRequiresData {
             gameState.addLog("OBJECTIVE — Hack data terminal (cyan tile) before extracting.")
         }
@@ -203,6 +231,10 @@ struct MissionSetupService {
         gameState.missionHeat = 0
         gameState.missionHeatTier = .low
         gameState.currentTurnCount = 0
+        gameState.missionEnemiesDefeated = 0
+        gameState.firstKillProcessedInRoom = false
+        // Refresh per-mission charges (Blitz, etc.) on each new run.
+        for char in gameState.playerTeam { char.blitzChargesUsed = 0 }
         gameState.combatLog = ["Mission started: \(mission.title)", "Entering: \(firstRoom.title)"]
         applyCorpAttentionEnemyInfluence(
             gameState: gameState,
@@ -214,12 +246,18 @@ struct MissionSetupService {
         gameState.addLog(gameState.generateMissionBriefing())
 
         if let _ = firstRoom.extractionPoint {
-            gameState.extractionX = adjustedFirstRoomMap.1.x
-            gameState.extractionY = adjustedFirstRoomMap.1.y
+            gameState.extractionX = firstRoomExtraction.x
+            gameState.extractionY = firstRoomExtraction.y
             gameState.addLog("🚁 Extraction marker active — reach it when all rooms are clear!")
+        } else {
+            // CRITICAL: reset extraction coords to a SAFE OFF-MAP sentinel
+            // when the first room has no extraction point. Without this,
+            // stale extractionX/Y from a previous mission (e.g. M6's (3,10))
+            // can match a player spawn slot here and instantly fire the
+            // "extracted" outcome → "RUN COMPLETE" after 2 moves.
+            gameState.extractionX = -1
+            gameState.extractionY = -1
         }
-        // For rooms without an extraction point (intermediate rooms), don't set extractionX/Y.
-        // The player must clear all rooms to activate extraction in the final room.
 
         processDelayedSpawns(gameState: gameState, enemyPhaseIndex: 0)
         gameState.activeCharacterId = gameState.playerTeam.first?.id
@@ -360,6 +398,102 @@ struct MissionSetupService {
         "\(x),\(y)"
     }
 
+    /// Find N walkable tiles for the runner team, anchored on `anchor`.
+    /// Walks outward from the anchor in BFS order picking only walkable tiles
+    /// (not walls), so all 4 runners land on floor / cover / door / extraction
+    /// regardless of where the anchor sits relative to the room edges.
+    /// Used to be the naive `(spawn.x + i, spawn.y)` which dumped char 4 on
+    /// the right wall whenever the anchor sat in the middle of the room.
+    static func findGroupSpawnSlots(map: [[Int]], anchor: SpawnPoint, count: Int) -> [SpawnPoint] {
+        let walkable: Set<Int> = [0, 2, 3, 4, 5]
+        func tile(_ x: Int, _ y: Int) -> Int? {
+            guard y >= 0, y < map.count, x >= 0, x < map[y].count else { return nil }
+            return map[y][x]
+        }
+        func isWalkable(_ x: Int, _ y: Int) -> Bool {
+            guard let t = tile(x, y) else { return false }
+            return walkable.contains(t)
+        }
+        // Hex distance — same odd-q axial conversion used in PathingAndAIHelpers.
+        func hexDist(_ ax: Int, _ ay: Int, _ bx: Int, _ by: Int) -> Int {
+            let aq = ax
+            let ar = ay - (ax - (ax & 1)) / 2
+            let bq = bx
+            let br = by - (bx - (bx & 1)) / 2
+            return (abs(aq - bq) + abs(ar - br) + abs(-aq - ar + bq + br)) / 2
+        }
+
+        // HORIZONTAL ROW LAYOUT — lay the team out left-to-right along the
+        // anchor's Y row, starting at anchor.x and walking right. If a tile
+        // is blocked, skip it and try the next one. Falls back to BFS only
+        // if the row can't fit the team (small rooms).
+        var candidates: [SpawnPoint] = []
+        var seen: Set<String> = []
+        let mapW = map.first?.count ?? 0
+        // Walk RIGHT along the row starting at anchor.x
+        for dx in 0..<mapW {
+            let x = anchor.x + dx
+            guard x < mapW else { break }
+            if isWalkable(x, anchor.y) && !seen.contains("\(x),\(anchor.y)") {
+                candidates.append(SpawnPoint(x: x, y: anchor.y))
+                seen.insert("\(x),\(anchor.y)")
+                if candidates.count >= count { break }
+            }
+        }
+        // If the row didn't have enough room (small map), also walk LEFT.
+        if candidates.count < count {
+            for dx in 1..<mapW {
+                let x = anchor.x - dx
+                guard x >= 0 else { break }
+                if isWalkable(x, anchor.y) && !seen.contains("\(x),\(anchor.y)") {
+                    candidates.append(SpawnPoint(x: x, y: anchor.y))
+                    seen.insert("\(x),\(anchor.y)")
+                    if candidates.count >= count { break }
+                }
+            }
+        }
+        // Final fallback: BFS within radius 2 if even both directions
+        // couldn't fit the team (extreme edge case).
+        if candidates.count < count {
+            let maxRadius = 2
+            var queue: [(Int, Int)] = [(anchor.x, anchor.y)]
+            seen.insert("\(anchor.x),\(anchor.y)")
+            while !queue.isEmpty && candidates.count < count {
+                let (cx, cy) = queue.removeFirst()
+                if isWalkable(cx, cy)
+                    && hexDist(cx, cy, anchor.x, anchor.y) <= maxRadius
+                    && !candidates.contains(where: { $0.x == cx && $0.y == cy }) {
+                    candidates.append(SpawnPoint(x: cx, y: cy))
+                }
+                let neighbors: [(Int, Int)] = (cx % 2 == 0)
+                    ? [(cx, cy-1),(cx, cy+1),(cx-1, cy-1),(cx-1, cy),(cx+1, cy-1),(cx+1, cy)]
+                    : [(cx, cy-1),(cx, cy+1),(cx-1, cy),(cx-1, cy+1),(cx+1, cy),(cx+1, cy+1)]
+                for (nx, ny) in neighbors {
+                    let key = "\(nx),\(ny)"
+                    if seen.contains(key) { continue }
+                    if hexDist(nx, ny, anchor.x, anchor.y) > maxRadius { continue }
+                    seen.insert(key)
+                    queue.append((nx, ny))
+                }
+            }
+        }
+
+        // Pick the first `count` candidates in order (row order from the
+        // horizontal-row pass, otherwise BFS-distance order).
+        var picked: [SpawnPoint] = []
+        for cand in candidates {
+            if picked.count >= count { break }
+            if picked.contains(where: { $0.x == cand.x && $0.y == cand.y }) { continue }
+            picked.append(cand)
+        }
+        // Fallback: if we somehow can't find enough walkable tiles, repeat the
+        // anchor (caller can still play, characters just stack visually).
+        while picked.count < count {
+            picked.append(SpawnPoint(x: anchor.x, y: anchor.y))
+        }
+        return picked
+    }
+
     /// True if the tile grid contains at least one data terminal (TileType 5).
     static func mapContainsDataTerminal(_ tiles: [[Int]]) -> Bool {
         for row in tiles {
@@ -409,13 +543,18 @@ struct MissionSetupService {
     static func makeEnemy(gameState: GameState, for type: String, archetype: EnemyArchetype) -> Enemy {
         let enemy: Enemy
         switch type {
-        case "guard": enemy = Enemy.corpGuard()
-        case "drone": enemy = Enemy.securityDrone()
-        case "elite": enemy = Enemy.eliteGuard()
-        case "mage": enemy = Enemy.corpMage()
-        case "healer": enemy = Enemy.medic()
-        case "mech": enemy = Enemy.combatMech()
-        default: enemy = Enemy.corpGuard()
+        case "guard":   enemy = Enemy.corpGuard()
+        case "drone":   enemy = Enemy.securityDrone()
+        case "elite":   enemy = Enemy.eliteGuard()
+        case "mage":    enemy = Enemy.corpMage()
+        case "bossmage": enemy = Enemy.bossMage()
+        case "healer":  enemy = Enemy.medic()
+        case "mech":    enemy = Enemy.combatMech()
+        case "sniper":  enemy = Enemy.sniper()
+        case "bruiser": enemy = Enemy.bruiser()
+        case "spider":  enemy = Enemy.spiderDrone()
+        case "riot":    enemy = Enemy.riotTrooper()
+        default:        enemy = Enemy.corpGuard()
         }
         applyEnemyArchetype(gameState: gameState, archetype: archetype, to: enemy)
         return enemy
@@ -578,8 +717,49 @@ struct MissionSetupService {
     }
 
     static func processDelayedSpawns(gameState: GameState, enemyPhaseIndex: Int) {
+        // Boss-active gate. If a boss (M3 Sato, M5 MEKTON-7, M6 AGI-PRIME) is
+        // on the field, suppress all timed/queued reinforcement spawns so the
+        // boss is the focal threat and the room can't get re-cluttered mid-
+        // fight. Mirrors the deployBoss `pendingSpawns.removeAll()` pattern
+        // but acts as a per-tick gate rather than a one-shot purge.
+        let bossActive = gameState.enemies.contains { e in
+            let arch = e.archetype.lowercased()
+            return e.isAlive && (arch == "bossmage" || arch == "bossmech" || arch == "bossagi")
+        }
+        if bossActive {
+            return
+        }
         let due = gameState.pendingSpawns.filter { $0.delayRounds <= enemyPhaseIndex }
+        // Build the occupied-tile set BEFORE spawning so each new arrival
+        // also avoids tiles claimed by earlier arrivals in this same wave.
+        // Players + already-living enemies count. M5R1 repro: a drone with
+        // a hand-authored spawn coord (3,5) landed on top of Raze who'd
+        // moved there during the delay window — two sprites stacked.
+        var occupied = Set<String>()
+        for char in gameState.playerTeam where char.isAlive {
+            occupied.insert("\(char.positionX),\(char.positionY)")
+        }
+        for e in gameState.enemies where e.isAlive {
+            occupied.insert("\(e.positionX),\(e.positionY)")
+        }
         for spawn in due {
+            // If the spawn tile is occupied (or off-map / non-walkable),
+            // search outward through hex neighbours for the nearest free
+            // walkable tile and shift the spawn there.
+            let key = "\(spawn.enemy.positionX),\(spawn.enemy.positionY)"
+            if occupied.contains(key) || !isSpawnableTile(gameState: gameState,
+                                                          x: spawn.enemy.positionX,
+                                                          y: spawn.enemy.positionY) {
+                if let (nx, ny) = findFreeAdjacentTile(gameState: gameState,
+                                                       fromX: spawn.enemy.positionX,
+                                                       fromY: spawn.enemy.positionY,
+                                                       occupied: occupied) {
+                    dlog("[ProcessDelayedSpawns] tile (\(spawn.enemy.positionX),\(spawn.enemy.positionY)) occupied — relocating \(spawn.enemy.name) to (\(nx),\(ny))")
+                    spawn.enemy.positionX = nx
+                    spawn.enemy.positionY = ny
+                }
+            }
+            occupied.insert("\(spawn.enemy.positionX),\(spawn.enemy.positionY)")
             gameState.enemies.append(spawn.enemy)
             gameState.addLog("⚠️ \(spawn.enemy.name) reinforcements arrive!")
             NotificationCenter.default.post(
@@ -589,5 +769,62 @@ struct MissionSetupService {
             )
         }
         gameState.pendingSpawns.removeAll { $0.delayRounds <= enemyPhaseIndex }
+        // If reinforcements actually spawned and the room was previously
+        // marked cleared, re-lock the door — players have to defeat the
+        // new wave before they can leave.
+        if !due.isEmpty {
+            if RoomManager.shared.unmarkCurrentRoomCleared() {
+                gameState.addLog("🔒 Door re-locked — defeat reinforcements first.")
+                // Force the BattleScene to refresh door visuals.
+                NotificationCenter.default.post(name: .roomNavigationRequested, object: nil)
+            }
+        }
+    }
+
+    /// True if the tile is a walkable, in-bounds floor (or floor-equivalent)
+    /// suitable for spawning an enemy onto. Walls, off-map, and non-floor
+    /// tile types return false. Doors / data terminals / extraction are
+    /// considered NON-spawnable since something else lives on them.
+    private static func isSpawnableTile(gameState: GameState, x: Int, y: Int) -> Bool {
+        let map = gameState.currentMissionTiles
+        guard y >= 0, y < map.count, x >= 0, x < map[y].count else { return false }
+        return map[y][x] == TileType.floor.rawValue
+    }
+
+    /// BFS outward from (fromX, fromY) for the nearest walkable, unoccupied
+    /// tile. Used by processDelayedSpawns to relocate a spawn when its
+    /// authored tile got claimed by a player who moved into it during the
+    /// delay window. Returns nil only if no free tile exists within ~8 rings
+    /// (effectively never, on the current map sizes).
+    private static func findFreeAdjacentTile(
+        gameState: GameState,
+        fromX: Int,
+        fromY: Int,
+        occupied: Set<String>
+    ) -> (Int, Int)? {
+        var visited: Set<String> = ["\(fromX),\(fromY)"]
+        var frontier: [(Int, Int)] = [(fromX, fromY)]
+        let maxRings = 8
+        for _ in 0..<maxRings {
+            var next: [(Int, Int)] = []
+            for (cx, cy) in frontier {
+                for (nx, ny) in gameState.hexNeighbors(x: cx, y: cy) {
+                    let key = "\(nx),\(ny)"
+                    if visited.contains(key) { continue }
+                    visited.insert(key)
+                    if isSpawnableTile(gameState: gameState, x: nx, y: ny)
+                        && !occupied.contains(key) {
+                        return (nx, ny)
+                    }
+                    if isSpawnableTile(gameState: gameState, x: nx, y: ny) {
+                        // Walkable but occupied — keep expanding through it.
+                        next.append((nx, ny))
+                    }
+                }
+            }
+            if next.isEmpty { break }
+            frontier = next
+        }
+        return nil
     }
 }

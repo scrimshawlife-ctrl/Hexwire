@@ -50,10 +50,32 @@ struct Room: Codable, Identifiable {
     let enemies: [EnemySpawn]
     let connections: [RoomConnection]
 
+    /// Optional list of tiles that should be converted to floor (walkable) the
+    /// first time an enemy is killed in this room. Used for dynamic barriers
+    /// like Mission 1 / Security Wing's central caution barriers — they block
+    /// movement until the first guard goes down, then drop.
+    let removeOnFirstKill: [SpawnPoint]?
+
+    /// Optional boss that spawns AFTER the room's regular enemies are
+    /// cleared. Used by M5 r2 (Mekton Blues finale) — drops a Combat Mech
+    /// in once the lesser ones are down, with a full audio/visual reveal.
+    /// While the boss is alive, normal reinforcement spawns are suppressed.
+    let bossSpawn: BossSpawn?
+
     /// Convert raw map ints into TileType 2D array
     var tileMap: [[TileType]] {
         map.map { row in row.map { TileType(rawValue: $0) ?? .floor } }
     }
+}
+
+/// Boss spawn record. Triggered once per room from `onRoomCleared` when the
+/// last regular enemy dies. The boss enemy is added to gameState.enemies
+/// in place of marking the room cleared, so the player must defeat THIS
+/// before the room counts as won.
+struct BossSpawn: Codable {
+    let type: String        // enemy archetype key — "mech" for the M5 boss
+    let x: Int
+    let y: Int
 }
 
 /// A doorway leading from one room to another.
@@ -77,6 +99,11 @@ struct MultiRoomMission: Codable {
     let briefing: String?           // story/plot text shown at mission start
     let missionCompleteSummary: String?  // shown on victory
     let rooms: [Room]
+    /// How runners exfil at the end of the run. nil → "helicopter". Values:
+    ///   "helicopter" : helipad — animated heli lands, takes off
+    ///   "ladder"     : climb-out (e.g. M3 ritual chamber roof access)
+    ///   "door"       : walk through a door (e.g. M5 mech bay freight elevator)
+    let extractionType: String?
 
     /// The room the player starts in.
     var startRoomId: String {
@@ -113,25 +140,48 @@ final class MissionLoader {
         if FileManager.default.fileExists(atPath: projectMissionsURL.path) {
             return loadMission(from: projectMissionsURL)
         }
-        print("MissionLoader: Mission '\(name)' not found in bundle or project directory")
+        dlog("MissionLoader: Mission '\(name)' not found in bundle or project directory")
         return nil
     }
 
     /// Load a multi-room mission by name.
     func loadMultiRoomMission(named name: String) -> MultiRoomMission? {
         let multiName = name.hasSuffix("_multi") ? name : "\(name)_multi"
-        // Try bundle first
+        // Try bundle Missions/ subdirectory first (preferred bundling)
         if let url = Bundle.main.url(forResource: multiName, withExtension: "json", subdirectory: "Missions") {
+            dlog("MissionLoader: Found multi-room mission '\(multiName)' in Missions/ subdir")
             return loadMultiRoomMission(from: url)
         }
-        // Fallback to project directory
+        // CRITICAL FIX: also try bundle root (this is where single-room JSONs are
+        // found on device, and the multi-room JSONs ship the same way).
+        if let url = Bundle.main.url(forResource: multiName, withExtension: "json") {
+            dlog("MissionLoader: Found multi-room mission '\(multiName)' at bundle root")
+            return loadMultiRoomMission(from: url)
+        }
+        // Fallback to project directory (dev/simulator only — won't work on device)
         let projectURL = URL(fileURLWithPath: #file)
             .deletingLastPathComponent()
             .appendingPathComponent("\(multiName).json")
         if FileManager.default.fileExists(atPath: projectURL.path) {
+            dlog("MissionLoader: Found multi-room mission '\(multiName)' at project path \(projectURL.path)")
             return loadMultiRoomMission(from: projectURL)
         }
-        print("MissionLoader: Multi-room mission '\(multiName)' not found, falling back to single-room")
+        dlog("MissionLoader: ⚠️ Multi-room mission '\(multiName)' not found in bundle subdir, bundle root, or project dir — falling back to single-room")
+        // Diagnostic: dump what JSON files DO exist in the bundle so we know what's wrong
+        if let bundlePath = Bundle.main.resourcePath {
+            let fm = FileManager.default
+            if let contents = try? fm.contentsOfDirectory(atPath: bundlePath) {
+                let jsons = contents.filter { $0.hasSuffix(".json") }
+                dlog("MissionLoader: bundle root JSON files = \(jsons)")
+            }
+            let missionsDir = (bundlePath as NSString).appendingPathComponent("Missions")
+            if let contents = try? fm.contentsOfDirectory(atPath: missionsDir) {
+                let jsons = contents.filter { $0.hasSuffix(".json") }
+                dlog("MissionLoader: bundle Missions/ JSON files = \(jsons)")
+            } else {
+                dlog("MissionLoader: bundle has no Missions/ subdirectory")
+            }
+        }
         return nil
     }
 
@@ -142,7 +192,7 @@ final class MissionLoader {
             let decoder = JSONDecoder()
             return try decoder.decode(MultiRoomMission.self, from: data)
         } catch {
-            print("MissionLoader: Failed to load multi-room mission from \(url): \(error)")
+            dlog("MissionLoader: Failed to load multi-room mission from \(url): \(error)")
             return nil
         }
     }
@@ -154,7 +204,7 @@ final class MissionLoader {
             let decoder = JSONDecoder()
             return try decoder.decode(Mission.self, from: data)
         } catch {
-            print("MissionLoader: Failed to load mission from \(url): \(error)")
+            dlog("MissionLoader: Failed to load mission from \(url): \(error)")
             return nil
         }
     }

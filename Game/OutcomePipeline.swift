@@ -60,6 +60,26 @@ struct OutcomePipeline {
         // 13. set broad outcome flags through canonical combat-flow owner path
         CombatFlowController.applyCombatOutcome(gameState: gameState, won: won)
 
+        // 13b. Persist per-mission best score on victory (survives app relaunch).
+        if won, let missionId = gameState.currentMissionDisplayId {
+            let score = MissionStatsStore.computeScore(
+                enemiesDefeated: gameState.missionEnemiesDefeated,
+                livingPlayers: gameState.livingPlayers.count,
+                roundsTaken: gameState.roundNumber,
+                dataAcquired: gameState.dataAcquired
+            )
+            // Credit the wallet alongside the score record. Bonus credits
+            // (data, grimoire) only apply if the runner actually grabbed them.
+            MissionStatsStore.shared.recordVictory(
+                missionId: missionId,
+                score: score,
+                dataAcquired: gameState.dataAcquired,
+                grimoireAcquired: gameState.grimoireAcquired
+            )
+            gameState.addLog("Mission Score: \(score)  (Best: \(MissionStatsStore.shared.record(for: missionId).bestScore))")
+            gameState.addLog("Wallet: ¥\(MissionStatsStore.shared.playerNuyen)")
+        }
+
         // 14. post notification
         NotificationCenter.default.post(
             name: .combatAction,

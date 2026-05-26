@@ -10,12 +10,12 @@
       "title": "Perimeter Courtyard",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
@@ -25,16 +25,16 @@
       "playerSpawn": { "x": 1, "y": 10 },
       "extractionPoint": null,
       "enemies": [
-        { "type": "guard", "x": 4, "y": 4, "delay": 0 },
-        { "type": "drone", "x": 2, "y": 3, "delay": 2 }
+        { "type": "guard", "x": 4, "y": 8, "delay": 0 },
+        { "type": "drone", "x": 2, "y": 4, "delay": 2 }
       ],
       "connections": [
         {
           "targetRoomId": "room_1",
           "triggerTileX": 3,
-          "triggerTileY": 6,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 10
+          "targetSpawnY": 9
         }
       ]
     },
@@ -43,38 +43,45 @@
       "title": "Security Wing",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 0, 0, 0, 1, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 3, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 3, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 3, "y": 10 },
+      "playerSpawn": { "x": 3, "y": 9 },
       "extractionPoint": null,
+      "removeOnFirstKill": [
+        { "x": 1, "y": 5 },
+        { "x": 2, "y": 5 },
+        { "x": 3, "y": 5 },
+        { "x": 4, "y": 5 },
+        { "x": 5, "y": 5 }
+      ],
       "enemies": [
-        { "type": "elite", "x": 3, "y": 3, "delay": 0 },
-        { "type": "guard", "x": 2, "y": 5, "delay": 3 }
+        { "type": "guard", "x": 2, "y": 8, "delay": 0 },
+        { "type": "elite", "x": 3, "y": 3, "delay": 0 }
       ],
       "connections": [
         {
           "targetRoomId": "room_0",
           "triggerTileX": 3,
-          "triggerTileY": 8,
+          "triggerTileY": 10,
           "targetSpawnX": 3,
-          "targetSpawnY": 6
+          "targetSpawnY": 2
         },
         {
           "targetRoomId": "room_2",
           "triggerTileX": 3,
-          "triggerTileY": 6,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 10
+          "targetSpawnY": 2
         }
       ]
     },
@@ -83,31 +90,31 @@
       "title": "Rooftop Helipad",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 4, 0, 0, 1],
-        [1, 0, 0, 0, 0, 2, 1],
-        [1, 0, 2, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 2, 0, 1],
-        [1, 2, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 2, 0, 0, 0, 2, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 2, 0, 1],
+        [1, 0, 2, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 4, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 3, "y": 10 },
-      "extractionPoint": { "x": 3, "y": 1 },
+      "playerSpawn": { "x": 3, "y": 2 },
+      "extractionPoint": { "x": 3, "y": 10 },
       "enemies": [
-        { "type": "guard", "x": 4, "y": 4, "delay": 0 },
-        { "type": "mage",  "x": 2, "y": 3, "delay": 4 }
+        { "type": "guard", "x": 4, "y": 7, "delay": 0 },
+        { "type": "mage",  "x": 2, "y": 8, "delay": 4 }
       ],
       "connections": [
         {
           "targetRoomId": "room_1",
           "triggerTileX": 3,
-          "triggerTileY": 8,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 6
+          "targetSpawnY": 2
         }
       ]
     }

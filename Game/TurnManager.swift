@@ -242,18 +242,30 @@ final class Enemy: ObservableObject, Identifiable, Codable {
     @Published var positionY: Int = 0
 
     @Published var status: StatusEffect = .wounded
+    /// Active timed status effects (burning, marked, confused).
+    @Published var statusEffects: [StatusEffect] = []
 
     var initiativeRoll: Int = 0
 
     /// Maximum tiles this enemy can reposition before attempting to attack.
     /// Used by non-drone enemy AI to enforce a move-then-attack economy.
-    var moveRange: Int { 2 }
+    /// Spider drones move 3 (fast harasser); riot troopers and combat mechs
+    /// move 1 (heavy/slow); everyone else uses the default 2.
+    var moveRange: Int {
+        switch archetype.lowercased() {
+        case "spider":      return 3
+        case "riot", "mech": return 1
+        case "bossmech":    return 2   // boss-class mech advances faster than the regular grunt mech
+        case "bossagi":     return 3   // AGI phase-shifts — moves 3 tiles per turn
+        default:            return 2
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, name, archetype, attributes
         case equippedWeapon, equippedArmor
         case currentHP, maxHP
-        case positionX, positionY, status
+        case positionX, positionY, status, statusEffects
     }
 
     init(id: UUID = UUID(), name: String, archetype: String,
@@ -283,6 +295,7 @@ final class Enemy: ObservableObject, Identifiable, Codable {
         positionX = try container.decode(Int.self, forKey: .positionX)
         positionY = try container.decode(Int.self, forKey: .positionY)
         status = try container.decode(StatusEffect.self, forKey: .status)
+        statusEffects = try container.decodeIfPresent([StatusEffect].self, forKey: .statusEffects) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -298,6 +311,7 @@ final class Enemy: ObservableObject, Identifiable, Codable {
         try container.encode(positionX, forKey: .positionX)
         try container.encode(positionY, forKey: .positionY)
         try container.encode(status, forKey: .status)
+        try container.encode(statusEffects, forKey: .statusEffects)
     }
 
     var isAlive: Bool { status != .dead && currentHP > 0 }
@@ -341,7 +355,11 @@ final class Enemy: ObservableObject, Identifiable, Codable {
 
     static func securityDrone() -> Enemy {
         var attrs = AttributeSet.zero
-        attrs.bod = 4; attrs.agi = 4; attrs.rea = 5; attrs.str = 2
+        // Tuned 2026-05: REA 5→4→3, AGI 4→3. Drones were the worst offender
+        // for miss rates; even 9-die player attacks were missing ~50%.
+        // New defense pool (REA+AGI = 6d → 2.4 hits) puts drones in line
+        // with corp guards rather than as an evasion outlier.
+        attrs.bod = 4; attrs.agi = 3; attrs.rea = 3; attrs.str = 2
         attrs.cha = 0; attrs.int = 3; attrs.log = 1; attrs.wil = 1
 
         let weapon = Weapon(name: "SMG", type: .smg, damage: 5, accuracy: 4, armorPiercing: 1)
@@ -351,7 +369,11 @@ final class Enemy: ObservableObject, Identifiable, Codable {
 
     static func eliteGuard() -> Enemy {
         var attrs = AttributeSet.zero
-        attrs.bod = 5; attrs.agi = 4; attrs.rea = 4; attrs.str = 4
+        // Tuned 2026-05: REA 4→3. Old defense pool 8d → 3.2 hits made
+        // Elites near-impossible to land net hits on with a 9-die attacker.
+        // New defense 7d → 2.8 keeps them tougher than Corp Guards (6d) but
+        // beatable by skilled shooters.
+        attrs.bod = 5; attrs.agi = 4; attrs.rea = 3; attrs.str = 4
         attrs.cha = 2; attrs.int = 3; attrs.log = 2; attrs.wil = 3
 
         let weapon = Weapon(name: "Assault Rifle", type: .rifle, damage: 7, accuracy: 4, armorPiercing: 2)
@@ -371,6 +393,23 @@ final class Enemy: ObservableObject, Identifiable, Codable {
 
         return Enemy(name: "Corp Mage", archetype: "mage",
                      attributes: attrs, weapon: weapon, armor: armor, maxHP: 16)
+    }
+
+    /// **Boss Mage** — M3 finale boss. Blood mage "Sato" — taller scale,
+    /// 3x the HP of a regular corp mage, hits harder, casts at longer range.
+    /// Sprite key is `bossmage` (falls back to corpmage frames at boss scale).
+    static func bossMage() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 5; attrs.agi = 4; attrs.rea = 4; attrs.str = 3
+        attrs.cha = 5; attrs.int = 5; attrs.log = 6; attrs.wil = 7
+
+        // Bigger, scarier spell: harder hitting Bloodbolt with AP.
+        let weapon = Weapon(name: "Bloodbolt",  type: .unarmed,
+                            damage: 9, accuracy: 6, armorPiercing: 2)
+        let armor = Armor(name: "Ritual Wardplate", armorValue: 3, spellPenalty: 0)
+
+        return Enemy(name: "Sato", archetype: "bossmage",
+                     attributes: attrs, weapon: weapon, armor: armor, maxHP: 48)
     }
 
     static func medic() -> Enemy {
@@ -395,5 +434,98 @@ final class Enemy: ObservableObject, Identifiable, Codable {
 
         return Enemy(name: "Combat Mech", archetype: "mech",
                      attributes: attrs, weapon: weapon, armor: armor, maxHP: 34)
+    }
+
+    /// **Boss Mech** — M5 finale boss. Heavier armor + 2.5× HP + slightly
+    /// punchier weapon. Spawns via `bossSpawn` after r2 regulars are cleared.
+    static func bossMech() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 9; attrs.agi = 3; attrs.rea = 2; attrs.str = 8
+        attrs.cha = 0; attrs.int = 2; attrs.log = 2; attrs.wil = 4
+
+        let weapon = Weapon(name: "Heavy Autocannon", type: .rifle,
+                            damage: 10, accuracy: 4, armorPiercing: 4)
+        let armor = Armor(name: "Heavy Mech Plating", armorValue: 7, spellPenalty: -3)
+
+        return Enemy(name: "MEKTON-7", archetype: "bossmech",
+                     attributes: attrs, weapon: weapon, armor: armor, maxHP: 80)
+    }
+
+    /// **Boss AGI** — M6 finale boss. Projected combat avatar of the corp
+    /// AGI. Hard to hit (high REA/AGI — flickering target), tankier than
+    /// elites but less than the mech (it's data, not steel). Spell-style
+    /// ranged attack at range 6. Lower physical armor but spell-resistant.
+    static func bossAGI() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 5; attrs.agi = 5; attrs.rea = 5; attrs.str = 3
+        attrs.cha = 6; attrs.int = 7; attrs.log = 7; attrs.wil = 6
+
+        let weapon = Weapon(name: "Reality Glitch", type: .rifle,
+                            damage: 9, accuracy: 5, armorPiercing: 5)
+        let armor = Armor(name: "Data Skin", armorValue: 4, spellPenalty: -2)
+
+        return Enemy(name: "AGI-PRIME", archetype: "bossagi",
+                     attributes: attrs, weapon: weapon, armor: armor, maxHP: 60)
+    }
+
+    // MARK: - Reinforcement / Specialist Archetypes
+    // Added 2026-05: rounds out enemy roster for room-clear reinforcement waves.
+
+    /// **Sniper** — long-range high-accuracy specialist. Glass cannon: hits hard
+    /// at distance but folds quickly under return fire. Prefers to stay in cover
+    /// and rarely closes for melee.
+    static func sniper() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 2; attrs.agi = 4; attrs.rea = 4; attrs.str = 2
+        attrs.cha = 2; attrs.int = 4; attrs.log = 4; attrs.wil = 3
+
+        // High accuracy, high damage, hefty AP — rifle scaled for precision fire.
+        let weapon = Weapon(name: "Sniper Rifle", type: .rifle, damage: 9, accuracy: 6, armorPiercing: 3)
+        let armor = Armor(name: "Stealth Suit", armorValue: 1, spellPenalty: 0)
+
+        return Enemy(name: "Sniper", archetype: "sniper",
+                     attributes: attrs, weapon: weapon, armor: armor, maxHP: 14)
+    }
+
+    /// **Bruiser** — melee shock trooper. High HP/STR, low REA so easier to hit
+    /// at range, but devastating in close quarters. Prefers to charge.
+    static func bruiser() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 6; attrs.agi = 4; attrs.rea = 2; attrs.str = 6
+        attrs.cha = 1; attrs.int = 2; attrs.log = 1; attrs.wil = 4
+
+        // Monofilament whip-style melee — brutal damage, mid AP.
+        let weapon = Weapon(name: "Shock Baton", type: .unarmed, damage: 8, accuracy: 5, armorPiercing: 2)
+        let armor = Armor(name: "Combat Armor", armorValue: 3, spellPenalty: -1)
+
+        return Enemy(name: "Bruiser", archetype: "bruiser",
+                     attributes: attrs, weapon: weapon, armor: armor, maxHP: 26)
+    }
+
+    /// **Spider Drone** — fast scout drone. Lower HP/damage than the Security
+    /// Drone but extra moveRange (3 tiles). Hits-and-runs to harass deckers.
+    static func spiderDrone() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 2; attrs.agi = 5; attrs.rea = 4; attrs.str = 1
+        attrs.cha = 0; attrs.int = 3; attrs.log = 1; attrs.wil = 1
+
+        let weapon = Weapon(name: "Taser Pulse", type: .pistol, damage: 4, accuracy: 4, armorPiercing: 0)
+        let enemy = Enemy(name: "Spider Drone", archetype: "spider",
+                          attributes: attrs, weapon: weapon, armor: nil, maxHP: 10)
+        return enemy
+    }
+
+    /// **Riot Trooper** — heavy shielded crowd-control unit. High armor and
+    /// soak make ranged attacks bounce; mid-tier damage but reliable. Slow.
+    static func riotTrooper() -> Enemy {
+        var attrs = AttributeSet.zero
+        attrs.bod = 5; attrs.agi = 2; attrs.rea = 2; attrs.str = 5
+        attrs.cha = 2; attrs.int = 2; attrs.log = 2; attrs.wil = 4
+
+        let weapon = Weapon(name: "Riot Shotgun", type: .smg, damage: 6, accuracy: 4, armorPiercing: 1)
+        let armor = Armor(name: "Riot Plate + Shield", armorValue: 6, spellPenalty: -2)
+
+        return Enemy(name: "Riot Trooper", archetype: "riot",
+                     attributes: attrs, weapon: weapon, armor: armor, maxHP: 24)
     }
 }

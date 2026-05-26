@@ -43,6 +43,7 @@ targets:
           - ".git"
           - ".github"
           - ".gitignore"
+          - ".claude"
           - "build"
           - "docs"
           - "scripts"

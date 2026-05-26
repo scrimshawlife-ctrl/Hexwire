@@ -344,9 +344,17 @@ struct StatusDisplay: View {
                         Image(systemName: archetypeIcon(c.archetype))
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundColor(archetypeColor(c.archetype))
+                        // .lineLimit(1) prevents the name from wrapping into a
+                        // vertical stack of single letters when the parent
+                        // HStack is space-starved. (Tried .fixedSize too —
+                        // that caused the StatusDisplay to over-allocate
+                        // width, exploding the HUD vertically and leaving
+                        // dead black space. lineLimit(1) alone is sufficient
+                        // — SwiftUI truncates instead of wrapping.)
                         Text(c.name)
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(gameState.isDefending ? .gray : .white)
+                            .lineLimit(1)
                         Text("LV\(c.level)")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.black)
@@ -356,11 +364,18 @@ struct StatusDisplay: View {
                             .cornerRadius(3)
                     }
 
-                    // Weapon name in small muted text
-                    if let weapon = gameState.loot.first(where: { $0.type == .weapon }) {
+                    // Weapon name in small muted text — shows the character's
+                    // OWN equipped weapon (was incorrectly reading from
+                    // gameState.loot.first, which made every character's HUD
+                    // say "combat knife" the moment anyone picked one up).
+                    // Clamped to one line + truncated so a long weapon name
+                    // can't drive the column wider.
+                    if let weapon = c.equippedWeapon {
                         Text(weapon.name)
                             .font(.system(size: 8, weight: .medium, design: .monospaced))
                             .foregroundColor(CombatTheme.textMuted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
 
                     HPBar(current: c.currentHP, max: c.maxHP)
@@ -388,17 +403,12 @@ struct StatusDisplay: View {
 
                 Spacer()
 
-                // Mana display (mages only) in compact form
-                if c.maxMana > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 8))
-                            .foregroundColor(Color(hex: "6699FF"))
-                        Text("\(c.currentMana)")
-                            .font(.system(size: 9, design: .monospaced))
-                            .foregroundColor(Color(hex: "6699FF"))
-                    }
-                }
+                // (Removed 2026-05-10: redundant right-side mana display
+                // for mages/deckers. The ManaBar in the VStack above already
+                // shows it, and the extra widget was competing for
+                // horizontal width on iPhone when the right-side IntelMetric
+                // row included DATA CORE — squeezing the name column and
+                // making "Sable"/"Cipher" wrap one letter per line.)
 
                 // Turn indicator
                 if gameState.isPlayerInputPhase {
@@ -421,8 +431,11 @@ struct StatusDisplay: View {
                     }
                 }
             }
+            // Slimmed 2026-05 — vertical padding 6 → 3 — to recover space for
+            // the play map. Avatar still anchors the panel; bars get tighter
+            // but everything stays legible.
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 3)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(
@@ -454,6 +467,7 @@ struct ActionButton: View {
     let height: CGFloat
     let action: () -> Void
     var disabled: Bool = false
+    var disabledReason: String? = nil
 
     @State private var pressed = false
 
@@ -490,12 +504,30 @@ struct ActionButton: View {
                     }
                 }
 
-                VStack(spacing: 1) {
+                VStack(spacing: 2) {
                     Image(systemName: icon)
-                        .font(.system(size: 13))
+                        .font(.system(size: disabledReason == nil ? 17 : 14))
                     Text(title.uppercased())
-                        .font(.system(size: 6, weight: .black))
-                        .tracking(0.2)
+                        .font(.system(size: 9, weight: .black))
+                        .tracking(0.3)
+                    if disabled, let disabledReason {
+                        Text(disabledReason)
+                            .font(.system(size: 6.2, weight: .black, design: .monospaced))
+                            .tracking(0)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                            .foregroundColor(color.opacity(0.90))
+                            .padding(.horizontal, 3)
+                            .padding(.vertical, 1)
+                            .background(
+                                Capsule()
+                                    .fill(Color.black.opacity(0.55))
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(color.opacity(0.35), lineWidth: 0.5)
+                                    )
+                            )
+                    }
                 }
                 .foregroundColor(disabled ? Color.white.opacity(0.3) : (pressed ? .white : Color.white.opacity(0.9)))
             }
@@ -533,17 +565,24 @@ struct ActionBar: View {
     let onEndTurn: () -> Void
     var actionDisabled: Bool = false
     var endTurnDisabled: Bool = false
+    var attackDisabledReason: String? = nil
+    var shootDisabledReason: String? = nil
+    var specialDisabledReason: String? = nil
+    var itemDisabledReason: String? = nil
+    /// When true, the SHT button is greyed out (e.g. Street Samurai is melee
+    /// only and can't shoot).
+    var shootDisabled: Bool = false
 
     var body: some View {
         HStack(spacing: 5) {
-            ActionButton(title: "ATK", icon: "flame.fill", color: CombatTheme.damage, width: 46, height: 34, action: onAttack, disabled: actionDisabled)
-            ActionButton(title: "SHT", icon: "scope", color: Color(hex: "00D4FF"), width: 46, height: 34, action: onShoot, disabled: actionDisabled)
-            ActionButton(title: "DEF", icon: "shield.fill", color: CombatTheme.secondary, width: 46, height: 34, action: onDefend, disabled: actionDisabled)
+            ActionButton(title: "ATK", icon: "flame.fill", color: CombatTheme.damage, width: 56, height: 54, action: onAttack, disabled: actionDisabled || attackDisabledReason != nil, disabledReason: attackDisabledReason)
+            ActionButton(title: "SHT", icon: "scope", color: Color(hex: "00D4FF"), width: 56, height: 54, action: onShoot, disabled: actionDisabled || shootDisabled || shootDisabledReason != nil, disabledReason: shootDisabledReason)
+            ActionButton(title: "DEF", icon: "shield.fill", color: CombatTheme.secondary, width: 56, height: 54, action: onDefend, disabled: actionDisabled)
             if let onSpecial {
-                ActionButton(title: specialTitle, icon: specialIcon, color: specialColor, width: 46, height: 34, action: onSpecial, disabled: actionDisabled)
+                ActionButton(title: specialTitle, icon: specialIcon, color: specialColor, width: 56, height: 54, action: onSpecial, disabled: actionDisabled || specialDisabledReason != nil, disabledReason: specialDisabledReason)
             }
-            ActionButton(title: "ITM", icon: "cross.case.fill", color: Color(hex: "8866FF"), width: 46, height: 34, action: onItems, disabled: actionDisabled)
-            ActionButton(title: "END", icon: "arrow.right.circle.fill", color: CombatTheme.accent, width: 46, height: 34, action: onEndTurn, disabled: endTurnDisabled)
+            ActionButton(title: "ITM", icon: "cross.case.fill", color: Color(hex: "8866FF"), width: 56, height: 54, action: onItems, disabled: actionDisabled || itemDisabledReason != nil, disabledReason: itemDisabledReason)
+            ActionButton(title: "END", icon: "arrow.right.circle.fill", color: CombatTheme.accent, width: 56, height: 54, action: onEndTurn, disabled: endTurnDisabled)
         }
     }
 }
@@ -554,11 +593,11 @@ struct CombatLogView: View {
     @ObservedObject var gameState: GameState
 
     private var recentEntries: [String] {
-        Array(gameState.combatLog.suffix(2))
+        Array(gameState.combatLog.suffix(3))
     }
 
     private func hasMoreEntries() -> Bool {
-        gameState.combatLog.count > 2
+        gameState.combatLog.count > 3
     }
 
     private func entryColor(_ text: String) -> Color {
@@ -590,8 +629,12 @@ struct CombatLogView: View {
                 }
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        // Bumped left padding (16 vs 8) so text clears the iPhone notch /
+        // rounded-corner safe-area on the left edge — earlier letters were
+        // being clipped by the screen curve.
+        .padding(.leading, 16)
+        .padding(.trailing, 10)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(CombatTheme.panelBG)
@@ -699,6 +742,9 @@ struct CombatUtilityButton: View {
     let tint: Color
     let action: () -> Void
     var disabled: Bool = false
+    /// Compact variant for when the button shares a row with the status
+    /// panel — drops fonts/padding so 3 buttons fit alongside StatusDisplay.
+    var compact: Bool = false
 
     var body: some View {
         Button(action: {
@@ -706,17 +752,26 @@ struct CombatUtilityButton: View {
             HapticsManager.shared.buttonTap()
             action()
         }) {
-            VStack(spacing: 2) {
+            // Two size profiles. Default (compact: false) is the original
+            // thumb-friendly utility chip used elsewhere. The compact
+            // profile is used when the utility row is merged onto the
+            // status line — same shape, smaller fonts/padding so MODE +
+            // LAY LOW + INTEL fit beside the player card.
+            VStack(spacing: compact ? 1 : 3) {
                 Text(title)
-                    .font(.system(size: 8, weight: .black, design: .monospaced))
+                    .font(.system(size: compact ? 9 : 11, weight: .black, design: .monospaced))
                     .foregroundColor(.white.opacity(disabled ? 0.35 : 0.88))
                 Text(value)
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .font(.system(size: compact ? 10 : 12, weight: .bold, design: .monospaced))
                     .foregroundColor(disabled ? CombatTheme.textMuted.opacity(0.55) : tint)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, compact ? 6 : 12)
+            .padding(.vertical, compact ? 8 : 9)
+            // Compact buttons now match the StatusDisplay panel height (≈52pt)
+            // so the merged HUD row looks aligned instead of having short
+            // chips floating next to a taller character card.
+            .frame(minHeight: compact ? 52 : 44)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(disabled ? Color.black.opacity(0.2) : tint.opacity(0.12))
@@ -777,8 +832,13 @@ struct MissionIntelCard: View {
                 Spacer(minLength: 8)
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(CombatTheme.textMuted.opacity(0.9))
+                        // 44×44 invisible tap area — Apple's minimum touch
+                        // target. Icon stays small visually; the hit box
+                        // doesn't.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -875,10 +935,19 @@ struct SpellPickerSheet: View {
     @ObservedObject var gameState: GameState
     @Binding var showingPicker: Bool
 
+    /// True while the player is choosing which ally to heal — replaces the
+    /// spell list with a roster of party members.
+    @State private var showingHealTargetPicker: Bool = false
+
     private var mage: Character? {
         (gameState.activeCharacter ?? gameState.currentCharacter).flatMap {
             $0.archetype == .mage ? $0 : nil
         }
+    }
+
+    /// Living party members eligible for HEAL targeting.
+    private var healableTargets: [Character] {
+        gameState.playerTeam.filter { $0.isAlive }
     }
 
     var body: some View {
@@ -929,10 +998,16 @@ struct SpellPickerSheet: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(CombatTheme.textMuted)
                             .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                 }
             }
 
+            // Heal target picker overrides the spell list when active.
+            if showingHealTargetPicker {
+                healTargetPickerBody
+            } else {
             ScrollView {
                 VStack(spacing: 10) {
                     ForEach(SpellType.allCases, id: \.self) { spell in
@@ -940,6 +1015,12 @@ struct SpellPickerSheet: View {
                         Button(action: {
                             guard canCast else { return }
                             HapticsManager.shared.buttonTap()
+                            // HEAL needs a target — show the party-member
+                            // picker instead of casting immediately.
+                            if spell == .heal {
+                                showingHealTargetPicker = true
+                                return
+                            }
                             showingPicker = false
                             gameState.performSpell(type: spell)
                         }) {
@@ -1007,11 +1088,99 @@ struct SpellPickerSheet: View {
                     }
                 }
             }
+            }   // end of else branch (spell list)
         }
         .padding(16)
         .background(CombatTheme.panelBG)
         .cornerRadius(16)
         .padding(20)
+    }
+
+    // MARK: - Heal target picker
+
+    /// Roster of living allies — tap one to cast HEAL on them. Replaces the
+    /// spell-list region while `showingHealTargetPicker == true`.
+    @ViewBuilder
+    private var healTargetPickerBody: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button(action: {
+                    HapticsManager.shared.buttonTap()
+                    showingHealTargetPicker = false
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundColor(Color(hex: "6699FF"))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                Text("HEAL — PICK A TARGET")
+                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                    .tracking(2)
+                    .foregroundColor(Color(hex: "6699FF"))
+                Spacer()
+            }
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(healableTargets, id: \.id) { ally in
+                        Button(action: {
+                            HapticsManager.shared.buttonTap()
+                            showingHealTargetPicker = false
+                            showingPicker = false
+                            gameState.performSpell(type: .heal, targetId: ally.id)
+                        }) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(archetypeColor(ally.archetype).opacity(0.18))
+                                        .frame(width: 44, height: 44)
+                                    Text(String(ally.name.prefix(1)).uppercased())
+                                        .font(.system(size: 18, weight: .black, design: .monospaced))
+                                        .foregroundColor(archetypeColor(ally.archetype))
+                                }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(ally.name)
+                                            .font(.system(size: 13, weight: .black))
+                                            .foregroundColor(.white)
+                                        if ally.id == mage?.id {
+                                            Text("(self)")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundColor(CombatTheme.textMuted)
+                                        }
+                                    }
+                                    Text("HP \(ally.currentHP)/\(ally.maxHP)  •  Stun \(ally.currentStun)/\(ally.maxStun)")
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundColor(CombatTheme.textMuted)
+                                }
+                                Spacer()
+                                Image(systemName: "cross.fill")
+                                    .foregroundColor(Color(hex: "44CC88"))
+                                    .font(.system(size: 18))
+                            }
+                            .padding(12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(CombatTheme.panelBG)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(archetypeColor(ally.archetype).opacity(0.4), lineWidth: 1.2)
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func archetypeColor(_ archetype: CharacterArchetype) -> Color {
+        switch archetype {
+        case .streetSam: return Color(hex: "FF6633")
+        case .mage:    return Color(hex: "6699FF")
+        case .decker:  return Color(hex: "00DDFF")
+        case .face:    return Color(hex: "FFCC00")
+        }
     }
 }
 
@@ -1023,7 +1192,7 @@ struct ItemPickerSheet: View {
     let onUseItem: () -> Void
 
     private var usableItems: [GameState.Item] {
-        gameState.loot.filter { $0.type == .consumable }
+        gameState.loot.filter { $0.type == .consumable || $0.type == .grenade }
     }
 
     var body: some View {
@@ -1060,6 +1229,8 @@ struct ItemPickerSheet: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(CombatTheme.textMuted)
                             .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                 }
             }
@@ -1080,20 +1251,108 @@ struct ItemPickerSheet: View {
                         ForEach(usableItems) { item in
                             Button(action: {
                                 HapticsManager.shared.buttonTap()
-                                if let idx = gameState.loot.firstIndex(where: { $0.id == item.id }) {
+                                guard let idx = gameState.loot.firstIndex(where: { $0.id == item.id }) else {
+                                    showingPicker = false
+                                    return
+                                }
+                                let chosen = gameState.loot[idx]
+                                // Pick the SELECTED character first (the one the
+                                // player has chosen on screen) — earlier this
+                                // fell through to activeCharacter, which often
+                                // pointed to a different runner so the heal
+                                // appeared to do nothing on the unit the
+                                // player was looking at.
+                                let target: Character? = {
+                                    if let id = gameState.selectedCharacterId,
+                                       let c = gameState.playerTeam.first(where: { $0.id == id && $0.isAlive }) {
+                                        return c
+                                    }
+                                    return gameState.activeCharacter ?? gameState.currentCharacter
+                                }()
+                                guard let char = target else {
+                                    showingPicker = false
+                                    return
+                                }
+
+                                let isManaItem = chosen.name.lowercased().contains("mana")
+                                               || chosen.name.lowercased().contains("focus")
+                                let isGrenade = chosen.name.lowercased().contains("grenade")
+
+                                if isGrenade {
+                                    guard let targetId = gameState.targetCharacterId,
+                                          gameState.enemies.contains(where: { $0.id == targetId && $0.isAlive }) else {
+                                        gameState.addLog("Select an enemy before using \(chosen.name).")
+                                        showingPicker = false
+                                        return
+                                    }
                                     let removed = gameState.loot.remove(at: idx)
-                                    if let char = gameState.activeCharacter ?? gameState.currentCharacter {
-                                        let healed = min(char.maxHP, char.currentHP + removed.bonus)
-                                        let actualHeal = healed - char.currentHP
-                                        char.currentHP = healed
-                                        gameState.addLog("\(char.name) uses \(removed.name)! +\(actualHeal) HP. (\(char.currentHP)/\(char.maxHP))")
-                                        HapticsManager.shared.attackHit()
-                                        // Use completeAction to properly end turn and advance to next player
-                                        gameState.completeAction(for: char)
+                                    if !gameState.throwGrenade(item: removed, by: char) {
+                                        gameState.loot.insert(removed, at: min(idx, gameState.loot.count))
+                                    }
+                                    showingPicker = false
+                                    return
+                                }
+
+                                // Don't consume the item if it can't actually do anything
+                                // for the chosen target — show a message and bail out so
+                                // the player can pick a different runner.
+                                if isManaItem {
+                                    if char.maxMana <= 0 {
+                                        gameState.addLog("\(char.name) can't channel — \(chosen.name) cancelled.")
+                                        showingPicker = false
+                                        return
+                                    }
+                                    if char.currentMana >= char.maxMana {
+                                        gameState.addLog("\(char.name) is at full Mana — \(chosen.name) cancelled.")
+                                        showingPicker = false
+                                        return
+                                    }
+                                } else {
+                                    if char.currentHP >= char.maxHP && char.currentStun <= 0 {
+                                        gameState.addLog("\(char.name) is already at full HP — \(chosen.name) cancelled.")
+                                        showingPicker = false
+                                        return
                                     }
                                 }
+
+                                // Commit: remove the item AFTER we've confirmed it'll do something.
+                                let removed = gameState.loot.remove(at: idx)
+
+                                if isManaItem {
+                                    let before = char.currentMana
+                                    let restored = min(char.maxMana, before + removed.bonus)
+                                    char.currentMana = restored
+                                    let delta = restored - before
+                                    gameState.addLog("\(char.name) uses \(removed.name)! +\(delta) Mana. (\(char.currentMana)/\(char.maxMana))")
+                                } else {
+                                    // Apply heal via the character's own heal() method so
+                                    // any stat-watching observers in Character fire correctly,
+                                    // then echo it through the @Published assignment too
+                                    // (defense-in-depth — the original direct assignment
+                                    // worked but a recent SwiftUI change can occasionally
+                                    // drop the publish if the value is set on a copy).
+                                    let before = char.currentHP
+                                    char.heal(amount: removed.bonus)
+                                    if char.currentHP == before {
+                                        // Fallback: ensure the @Published mutation publishes.
+                                        char.currentHP = min(char.maxHP, before + removed.bonus)
+                                    }
+                                    let actualHeal = char.currentHP - before
+                                    char.recoverStun(amount: removed.bonus / 2)
+                                    gameState.addLog("\(char.name) uses \(removed.name)! +\(actualHeal) HP. (\(char.currentHP)/\(char.maxHP))")
+                                    // Visual: green particle bloom + "+N HP"
+                                    // floating text on the target. Same effect
+                                    // the mage's HEAL spell uses, so item +
+                                    // spell heals look consistent.
+                                    NotificationCenter.default.post(
+                                        name: .healEffect, object: nil,
+                                        userInfo: ["targetId": char.id.uuidString,
+                                                   "amount": actualHeal]
+                                    )
+                                }
+                                HapticsManager.shared.attackHit()
+                                gameState.completeAction(for: char)
                                 showingPicker = false
-                                onUseItem()
                             }) {
                                 HStack {
                                     Image(systemName: itemIcon(for: item))
@@ -1104,9 +1363,9 @@ struct ItemPickerSheet: View {
                                         Text(item.name)
                                             .font(.system(size: 13, weight: .semibold))
                                             .foregroundColor(.white)
-                                        Text("+\(item.bonus) HP")
+                                        Text(itemEffectText(for: item))
                                             .font(.system(size: 11, design: .monospaced))
-                                            .foregroundColor(CombatTheme.accent)
+                                            .foregroundColor(itemColor(for: item))
                                     }
                                     Spacer()
                                     Image(systemName: "chevron.right")
@@ -1135,19 +1394,31 @@ struct ItemPickerSheet: View {
     }
 
     private func itemIcon(for item: GameState.Item) -> String {
+        if item.name.lowercased().contains("grenade") { return "circle.hexagongrid.fill" }
+        if item.name.lowercased().contains("mana") || item.name.lowercased().contains("focus") { return "sparkles" }
         switch item.type {
         case .consumable: return "cross.case.fill"
         case .weapon:    return "flame.fill"
         case .armor:     return "shield.fill"
+        case .grenade:   return "circle.hexagongrid.fill"
         }
     }
 
     private func itemColor(for item: GameState.Item) -> Color {
+        if item.name.lowercased().contains("grenade") { return CombatTheme.damage }
+        if item.name.lowercased().contains("mana") || item.name.lowercased().contains("focus") { return Color(hex: "6699FF") }
         switch item.type {
         case .consumable: return CombatTheme.accent
         case .weapon:    return CombatTheme.damage
         case .armor:     return Color(hex: "8866FF")
+        case .grenade:   return CombatTheme.damage
         }
+    }
+
+    private func itemEffectText(for item: GameState.Item) -> String {
+        if item.name.lowercased().contains("grenade") { return "\(item.bonus)P AP-2 BLAST" }
+        if item.name.lowercased().contains("mana") || item.name.lowercased().contains("focus") { return "+\(item.bonus) MANA" }
+        return "+\(item.bonus) HP"
     }
 }
 
@@ -1164,39 +1435,56 @@ struct TurnIndicatorBanner: View {
         gameState.activeCharacter?.name ?? gameState.currentCharacter?.name ?? "UNKNOWN"
     }
 
+    private var currentCharHasMoved: Bool {
+        guard let char = gameState.activeCharacter ?? gameState.currentCharacter else { return false }
+        return gameState.characterHasMovedThisTurn[char.id] == true
+    }
+
+    private var turnStateTitle: String {
+        if isEnemyTurn { return "ENEMY TURN" }
+        return currentCharHasMoved ? "MOVE USED" : "YOUR TURN"
+    }
+
+    private var turnStateColor: Color {
+        if isEnemyTurn { return Color(hex: "FF3333") }
+        return currentCharHasMoved ? CombatTheme.gold : CombatTheme.accent
+    }
+
     var body: some View {
-        HStack(spacing: 6) {
-            // Turn state pill
-            HStack(spacing: 5) {
+        HStack(spacing: 5) {
+            // Turn state pill — slightly narrower padding to make room for
+            // the metric chips that moved up from line 2 of the HUD.
+            HStack(spacing: 4) {
                 if isEnemyTurn {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 8))
-                    Text("ENEMY TURN")
+                    Text(turnStateTitle)
                         .font(.system(size: 9, weight: .black))
                 } else {
-                    Image(systemName: "play.fill")
+                    Image(systemName: currentCharHasMoved ? "arrowshape.turn.up.right.fill" : "play.fill")
                         .font(.system(size: 8))
                     VStack(spacing: 0) {
-                        Text("YOUR TURN")
+                        Text(turnStateTitle)
                             .font(.system(size: 9, weight: .black))
                         Text(currentCharName)
                             .font(.system(size: 7, weight: .semibold, design: .monospaced))
+                            .lineLimit(1)
                     }
                 }
             }
-            .foregroundColor(isEnemyTurn ? Color(hex: "FF3333") : CombatTheme.accent)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .foregroundColor(turnStateColor)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isEnemyTurn
                           ? Color(hex: "FF3333").opacity(0.15)
-                          : CombatTheme.accent.opacity(0.12))
+                          : turnStateColor.opacity(0.12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
                             .stroke(isEnemyTurn
                                     ? Color(hex: "FF3333").opacity(0.5)
-                                    : CombatTheme.accent.opacity(0.4), lineWidth: 1)
+                                    : turnStateColor.opacity(0.4), lineWidth: 1)
                     )
             )
             .scaleEffect(pulseScale)
@@ -1208,47 +1496,46 @@ struct TurnIndicatorBanner: View {
                 }
             }
 
-            // Round indicator
-            Text("R\(roundNumber)")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundColor(CombatTheme.textMuted)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.black.opacity(0.3))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(CombatTheme.secondary.opacity(0.4), lineWidth: 1)
-                        )
-                )
+            Spacer(minLength: 0)
 
-            // Enemy count with skull
-            HStack(spacing: 3) {
-                Text("💀")
-                    .font(.system(size: 9))
-                Text("x\(gameState.livingEnemies.count)")
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .foregroundColor(CombatTheme.enemyColor)
-            }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(CombatTheme.enemyColor.opacity(0.15))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(CombatTheme.enemyColor.opacity(0.4), lineWidth: 1)
-                    )
+            // ROUND chip — replaces the old "R1" text pill so the metric
+            // matches the chip style used for ENEMY / TRACE alongside it.
+            IntelMetricBadge(label: "ROUND", value: "R\(roundNumber)", tint: CombatTheme.secondary)
+
+            // Skull icon retained as a visual cue, then ENEMY chip with the
+            // count in the same chip style as ROUND / TRACE.
+            Text("💀")
+                .font(.system(size: 12))
+            IntelMetricBadge(label: "ENEMY", value: "\(gameState.livingEnemies.count)", tint: CombatTheme.enemyColor)
+
+            // TRACE chip moves up here from the old line-2 chip column.
+            IntelMetricBadge(
+                label: "TRACE",
+                value: "\(gameState.traceLevel)/\(gameState.traceThreshold)",
+                tint: gameState.traceTier >= 2 ? CombatTheme.enemyColor : CombatTheme.accent
             )
 
-            Spacer()
+            // DATA chip is conditional — only shows on missions that
+            // require a terminal hack.
+            if gameState.missionRequiresData {
+                IntelMetricBadge(
+                    label: "DATA",
+                    value: gameState.dataAcquired ? "GOT" : "...",
+                    tint: gameState.dataAcquired ? CombatTheme.accent : Color(hex: "00D4FF")
+                )
+            }
 
-            // Mini mission objective hint
-            if !isEnemyTurn {
-                Text("Reach ★ EXIT to extract")
-                    .font(.system(size: 8, weight: .medium, design: .monospaced))
-                    .foregroundColor(CombatTheme.accent.opacity(0.7))
+            // LOOT chip — only shows when the team has picked something up.
+            // Moved up from the conditional status strip so the HUD stays
+            // smooth: appearing loot used to push the action bar down
+            // because it lived in a row that grew/shrank with state. As a
+            // chip on line 1, it just slots in beside the other metrics.
+            if !gameState.loot.isEmpty {
+                IntelMetricBadge(
+                    label: "LOOT",
+                    value: "\(gameState.loot.count)",
+                    tint: CombatTheme.gold
+                )
             }
         }
         .padding(.horizontal, 5)
@@ -1279,12 +1566,19 @@ struct HitPreviewCard: View {
     var body: some View {
         Group {
             if preview.blocked {
-                // LOS blocked state
+                // Blocked state: LOS, range, or another hard pre-attack gate.
                 HStack(spacing: 6) {
-                    Image(systemName: "xmark.shield.fill")
+                    Text(preview.actionLabel)
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(CombatTheme.enemyColor)
+                        .cornerRadius(3)
+                    Image(systemName: preview.reason == "Move adjacent first" ? "figure.walk.circle.fill" : "xmark.shield.fill")
                         .foregroundColor(CombatTheme.enemyColor)
                         .font(.system(size: 11))
-                    Text("NO LOS — \(preview.reason ?? "blocked")")
+                    Text(preview.reason == "Move adjacent first" ? "MELEE ONLY - MOVE ADJACENT" : "NO LOS - \(preview.reason ?? "blocked")")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundColor(CombatTheme.enemyColor)
                     Spacer()
@@ -1299,7 +1593,34 @@ struct HitPreviewCard: View {
                 )
             } else {
                 // Normal preview state
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text(preview.actionLabel)
+                                .font(.system(size: 7, weight: .black, design: .monospaced))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(hitColor)
+                                .cornerRadius(3)
+                            Text(preview.weaponName.uppercased())
+                                .font(.system(size: 7, weight: .bold, design: .monospaced))
+                                .foregroundColor(CombatTheme.textMuted)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.6)
+                        }
+                        Text(preview.targetName.uppercased())
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(width: 88, alignment: .leading)
+
+                    Rectangle()
+                        .fill(CombatTheme.secondary.opacity(0.5))
+                        .frame(width: 1, height: 28)
+
                     // Hit chance %
                     VStack(spacing: 1) {
                         Text("HIT")
@@ -1351,6 +1672,9 @@ struct HitPreviewCard: View {
                         Text("~\(Int(preview.estimatedDamage.rounded()))")
                             .font(.system(size: 15, weight: .black, design: .monospaced))
                             .foregroundColor(CombatTheme.damage)
+                        Text("W\(preview.weaponDamage)")
+                            .font(.system(size: 7, weight: .bold, design: .monospaced))
+                            .foregroundColor(CombatTheme.textMuted)
                     }
 
                     Spacer()
@@ -1364,6 +1688,15 @@ struct HitPreviewCard: View {
                             .font(.system(size: 13))
                             .foregroundColor(CombatTheme.accent)
                     }
+
+                    VStack(spacing: 1) {
+                        Text("COST")
+                            .font(.system(size: 7, weight: .black, design: .monospaced))
+                            .foregroundColor(CombatTheme.textMuted)
+                        Text("TURN")
+                            .font(.system(size: 8, weight: .black, design: .monospaced))
+                            .foregroundColor(CombatTheme.gold)
+                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -1376,6 +1709,132 @@ struct HitPreviewCard: View {
             }
         }
         .animation(.easeInOut(duration: 0.15), value: hitChancePct)
+    }
+}
+
+struct HitPreviewStrip: View {
+    let previews: [CombatMechanics.HitPreview]
+    var notice: String? = nil
+
+    private var targetName: String {
+        previews.first?.targetName.uppercased() ?? "TARGET"
+    }
+
+    private var stripColor: Color {
+        if previews.allSatisfy(\.blocked) { return CombatTheme.enemyColor }
+        if previews.contains(where: { $0.estimatedHitChance > 0.60 }) { return CombatTheme.accent }
+        if previews.contains(where: { $0.estimatedHitChance > 0.35 }) { return Color.yellow }
+        return CombatTheme.enemyColor
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if previews.isEmpty {
+                Image(systemName: "arrowshape.turn.up.right.fill")
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundColor(CombatTheme.gold)
+                Text(notice ?? "END TURN")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundColor(CombatTheme.gold)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+            } else {
+                HStack(spacing: 3) {
+                    Text("TGT")
+                        .font(.system(size: 7, weight: .black, design: .monospaced))
+                        .foregroundColor(CombatTheme.textMuted)
+                    Text(targetName)
+                        .font(.system(size: 9, weight: .black, design: .monospaced))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                .frame(width: 72, alignment: .leading)
+
+                ForEach(Array(previews.enumerated()), id: \.offset) { _, preview in
+                    CompactHitPreviewPill(preview: preview)
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 3) {
+                    Image(systemName: notice == nil ? "checkmark.circle.fill" : "arrowshape.turn.up.right.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(notice == nil
+                                         ? (previews.allSatisfy(\.blocked) ? CombatTheme.textMuted : CombatTheme.accent)
+                                         : CombatTheme.gold)
+                    Text(notice ?? "TURN")
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundColor(CombatTheme.gold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(CombatTheme.panelBG)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(stripColor.opacity(0.45), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct CompactHitPreviewPill: View {
+    let preview: CombatMechanics.HitPreview
+
+    private var hitChancePct: Int {
+        Int((preview.estimatedHitChance * 100).rounded())
+    }
+
+    private var tint: Color {
+        if preview.blocked { return CombatTheme.enemyColor }
+        if preview.estimatedHitChance > 0.60 { return CombatTheme.accent }
+        if preview.estimatedHitChance > 0.35 { return Color.yellow }
+        return CombatTheme.enemyColor
+    }
+
+    private var blockedLabel: String {
+        preview.reason == "Move adjacent first" ? "ADJ" : "NO LOS"
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text(preview.actionLabel)
+                .font(.system(size: 7, weight: .black, design: .monospaced))
+                .foregroundColor(.black)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(tint)
+                .cornerRadius(3)
+
+            if preview.blocked {
+                Text(blockedLabel)
+                    .font(.system(size: 8, weight: .black, design: .monospaced))
+                    .foregroundColor(tint)
+            } else {
+                Text("\(hitChancePct)%")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundColor(tint)
+                Text("~\(Int(preview.estimatedDamage.rounded()))")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundColor(CombatTheme.damage)
+                Text("\(preview.attackPool)/\(preview.defensePool)")
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundColor(CombatTheme.textMuted)
+                if preview.coverBonus > 0 {
+                    Text("+\(preview.coverBonus)c")
+                        .font(.system(size: 7, weight: .black, design: .monospaced))
+                        .foregroundColor(CombatTheme.gold)
+                }
+            }
+        }
+        .lineLimit(1)
     }
 }
 
@@ -1458,6 +1917,73 @@ struct CombatUI: View {
         return gameState.characterHasMovedThisTurn[char.id] == true
     }
 
+    private var activeRunner: Character? {
+        gameState.activeCharacter ?? gameState.currentCharacter
+    }
+
+    private var actionStateDisabledReason: String? {
+        if gameState.isCombatResolvedOrBeyond { return "USED" }
+        if hasActedThisRound { return "USED" }
+        if hasMovedThisTurn { return "MOVED" }
+        return nil
+    }
+
+    private var selectedOrNearestEnemy: Enemy? {
+        guard let runner = activeRunner else { return nil }
+        if let targetId = gameState.targetCharacterId,
+           let selected = gameState.enemies.first(where: { $0.id == targetId && $0.isAlive }) {
+            return selected
+        }
+        return gameState.livingEnemies
+            .map { ($0, gameState.hexDistance(x1: runner.positionX, y1: runner.positionY, x2: $0.positionX, y2: $0.positionY)) }
+            .sorted { $0.1 < $1.1 }
+            .first?.0
+    }
+
+    private var attackDisabledReason: String? {
+        if let reason = actionStateDisabledReason { return reason }
+        guard !gameState.livingEnemies.isEmpty else { return "NO TARGET" }
+        if let preview = gameState.attackPreview, preview.blocked {
+            return preview.reason == "Move adjacent first" ? "RANGE" : "NO LOS"
+        }
+        return nil
+    }
+
+    private var shootDisabledReason: String? {
+        if let reason = actionStateDisabledReason { return reason }
+        guard activeRunner?.archetype != .streetSam else { return "RANGE" }
+        guard !gameState.livingEnemies.isEmpty else { return "NO TARGET" }
+        if let preview = gameState.shootPreview, preview.blocked {
+            return preview.reason == "Move adjacent first" ? "RANGE" : "NO LOS"
+        }
+        return nil
+    }
+
+    private var specialDisabledReason: String? {
+        if let reason = actionStateDisabledReason { return reason }
+        guard let runner = activeRunner else { return nil }
+        switch runner.archetype {
+        case .mage:
+            let cheapestSpell = SpellType.allCases.map(\.manaCost).min() ?? 0
+            return runner.currentMana < cheapestSpell ? "NO MANA" : nil
+        case .decker:
+            if runner.currentMana < 2 { return "NO MANA" }
+            guard let target = selectedOrNearestEnemy else { return "NO TARGET" }
+            return gameState.isLineBlockedByWall(
+                fromX: runner.positionX,
+                fromY: runner.positionY,
+                toX: target.positionX,
+                toY: target.positionY
+            ) ? "NO LOS" : nil
+        default:
+            return nil
+        }
+    }
+
+    private var itemDisabledReason: String? {
+        actionStateDisabledReason
+    }
+
     private var hasMultipleRooms: Bool {
         (RoomManager.shared.currentMission?.rooms.count ?? 0) > 1
     }
@@ -1486,187 +2012,88 @@ struct CombatUI: View {
                     gameState: gameState
                 )
 
-                // Team Roster Bar - NEW component
-                TeamRosterBar(gameState: gameState)
+                // (TeamRosterBar removed 2026-05 — selection happens by tapping
+                // a runner directly on the map, the in-HUD roster picker was
+                // redundant and ate vertical real estate.)
+                // (Room navigation arrows removed — players navigate between
+                // rooms via door tiles on the map.)
 
-                // Room navigation arrows
-                if hasMultipleRooms {
-                    HStack(spacing: 8) {
-                        // LEFT arrow
-                        Button(action: navigateRoomLeft) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 11, weight: .black))
-                                Text("ROOM")
-                                    .font(.system(size: 8, weight: .black))
-                            }
-                            .foregroundColor(currentRoomIndex > 0 ? CombatTheme.accent : CombatTheme.textMuted)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(currentRoomIndex > 0
-                                          ? CombatTheme.accent.opacity(0.12)
-                                          : Color.clear)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(currentRoomIndex > 0
-                                                    ? CombatTheme.accent.opacity(0.4)
-                                                    : CombatTheme.secondary.opacity(0.3), lineWidth: 1)
-                                    )
-                            )
-                        }
-                        .disabled(currentRoomIndex <= 0 || arePlayerControlsDisabled)
-                        .opacity(currentRoomIndex <= 0 ? 0.4 : 1.0)
+                // Line 2 of the HUD — status panel + utility chips on the
+                // same row. Pre-rework this was two separate rows:
+                //   • StatusDisplay alongside a right-side chip column
+                //     (ROUND/ENEMY/DATA/TRACE)
+                //   • Below it, the utility row with MODE/LAY LOW/INTEL/DIAG
+                // The chip column moved up into the TurnIndicatorBanner so
+                // those three buttons could be promoted to line 2, killing
+                // the old line 3 entirely. DIAG (dev-only diagnostics
+                // overlay) is dropped — was clutter for players.
+                HStack(alignment: .center, spacing: 6) {
+                    StatusDisplay(gameState: gameState)
+                        .frame(maxWidth: .infinity)
 
-                        Spacer()
+                    CombatUtilityButton(
+                        title: "MODE",
+                        value: gameState.actionMode == .street ? "STREET" : "SIGNAL",
+                        tint: gameState.actionMode == .street ? CombatTheme.accent : Color(hex: "FF8800"),
+                        action: { gameState.actionMode = (gameState.actionMode == .street) ? .signal : .street },
+                        compact: true
+                    )
+                    .accessibilityIdentifier("action_mode_toggle_button")
 
-                        // Room indicator
-                        Text(RoomManager.shared.currentRoom?.title ?? "")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundColor(CombatTheme.textMuted)
-                            .lineLimit(1)
+                    CombatUtilityButton(
+                        title: "LAY LOW",
+                        value: hasActedThisRound ? "USED" : "READY",
+                        tint: Color(hex: "B8BCC8"),
+                        action: onRecover,
+                        disabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled || hasActedThisRound || hasMovedThisTurn,
+                        compact: true
+                    )
+                    .accessibilityIdentifier("trace_recover_button")
 
-                        Spacer()
-
-                        // RIGHT arrow
-                        Button(action: navigateRoomRight) {
-                            HStack(spacing: 4) {
-                                Text("ROOM")
-                                    .font(.system(size: 8, weight: .black))
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 11, weight: .black))
-                            }
-                            .foregroundColor(currentRoomIndex < (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1 ? CombatTheme.accent : CombatTheme.textMuted)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(currentRoomIndex < (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1
-                                          ? CombatTheme.accent.opacity(0.12)
-                                          : Color.clear)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(currentRoomIndex < (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1
-                                                    ? CombatTheme.accent.opacity(0.4)
-                                                    : CombatTheme.secondary.opacity(0.3), lineWidth: 1)
-                                    )
-                            )
-                        }
-                        .disabled(arePlayerControlsDisabled || currentRoomIndex >= (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1)
-                        .opacity(currentRoomIndex >= (RoomManager.shared.currentMission?.rooms.count ?? 1) - 1 ? 0.4 : 1.0)
-                    }
-                    .padding(.horizontal, 6)
-                    .animation(.easeInOut(duration: 0.2), value: currentRoomIndex)
+                    CombatUtilityButton(
+                        title: "INTEL",
+                        value: showingMissionIntel ? "HIDE" : "SHOW",
+                        tint: CombatTheme.accent,
+                        action: { showingMissionIntel.toggle() },
+                        compact: true
+                    )
+                    .accessibilityIdentifier("toggle_intel_button")
                 }
 
-                // Compact status bar
-                HStack(alignment: .top, spacing: 8) {
-                    StatusDisplay(gameState: gameState)
-                    Spacer(minLength: 0)
-                    VStack(alignment: .trailing, spacing: 4) {
-                        HStack(spacing: 6) {
-                            IntelMetricBadge(label: "ROUND", value: "R\(gameState.roundNumber)", tint: CombatTheme.secondary)
-                            IntelMetricBadge(label: "ENEMY", value: "\(gameState.livingEnemies.count)", tint: CombatTheme.enemyColor)
-                            if gameState.missionRequiresData {
-                                IntelMetricBadge(
-                                    label: "DATA CORE",
-                                    value: gameState.dataAcquired ? "ACQUIRED" : "PENDING",
-                                    tint: gameState.dataAcquired ? CombatTheme.accent : Color(hex: "00D4FF")
-                                )
-                            }
-                            IntelMetricBadge(
-                                label: "TRACE",
-                                value: "\(gameState.traceLevel)/\(gameState.traceThreshold)",
-                                tint: gameState.traceTier >= 2 ? CombatTheme.enemyColor : CombatTheme.accent
-                            )
-                        }
-
-                        if gameState.currentMissionType == .stealth {
+                // Conditional status strip — renders only when at least one
+                // indicator is active. PROGRESS / RESISTING / MISSION OUTCOME
+                // need to be visible when they fire (game-state callouts).
+                // LOOT moved up to the line-1 chip row so it doesn't push the
+                // HUD's vertical layout around when it appears.
+                let showStealth = gameState.currentMissionType == .stealth
+                let showEscalation = gameState.traceEscalationLevel >= 1 && gameState.playerRole == .street
+                let showOutcome = gameState.isCombatResolvedOrBeyond
+                let showMoveSpent = hasMovedThisTurn && !hasActedThisRound && !isEnemyTurn
+                if showStealth || showEscalation || showOutcome {
+                    HStack(spacing: 8) {
+                        if showStealth {
                             Text("PROGRESS \(gameState.currentTurnCount)/\(gameState.missionTargetTurns)")
                                 .font(.system(size: 8, weight: .semibold, design: .monospaced))
                                 .foregroundColor(gameState.isMissionCompleteCompat ? CombatTheme.accent : CombatTheme.textMuted)
                         }
-
-                        if gameState.traceEscalationLevel >= 1 && gameState.playerRole == .street {
+                        if showEscalation {
                             Text("RESISTING ESCALATION")
                                 .font(.system(size: 8, weight: .bold, design: .monospaced))
                                 .foregroundColor(CombatTheme.accent.opacity(0.9))
                         }
-
-                        if gameState.isCombatResolvedOrBeyond {
+                        if showOutcome {
                             Text(gameState.isCombatVictoryLike ? "MISSION COMPLETE" : "MISSION FAILED")
                                 .font(.system(size: 9, weight: .black, design: .monospaced))
                                 .foregroundColor(gameState.isCombatVictoryLike ? CombatTheme.accent : CombatTheme.enemyColor)
                         }
-
-                        LootBadge(items: gameState.loot)
-                    }
-                }
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        CombatUtilityButton(
-                            title: "ROLE",
-                            value: gameState.playerRoleLabel,
-                            tint: Color(hex: "8C7BFF"),
-                            action: { gameState.cyclePlayerRole() }
-                        )
-                        .accessibilityIdentifier("cycle_role_button")
-
-                        CombatUtilityButton(
-                            title: "PRESET",
-                            value: gameState.missionPresetLabel,
-                            tint: Color(hex: "00D4FF"),
-                            action: { gameState.cycleMissionPreset() }
-                        )
-                        .accessibilityIdentifier("cycle_preset_button")
-
-                        CombatUtilityButton(
-                            title: "TYPE",
-                            value: gameState.missionTypeLabel,
-                            tint: Color(hex: "FFC857"),
-                            action: { gameState.cycleMissionType() }
-                        )
-                        .accessibilityIdentifier("cycle_type_button")
-
-                        CombatUtilityButton(
-                            title: "MODE",
-                            value: gameState.actionMode == .street ? "STREET" : "SIGNAL",
-                            tint: gameState.actionMode == .street ? CombatTheme.accent : Color(hex: "FF8800"),
-                            action: { gameState.actionMode = (gameState.actionMode == .street) ? .signal : .street }
-                        )
-                        .accessibilityIdentifier("action_mode_toggle_button")
-
-                        CombatUtilityButton(
-                            title: "LAY LOW",
-                            value: hasActedThisRound ? "USED" : "READY",
-                            tint: Color(hex: "B8BCC8"),
-                            action: onRecover,
-                            disabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled || hasActedThisRound || hasMovedThisTurn
-                        )
-                        .accessibilityIdentifier("trace_recover_button")
-
-                        CombatUtilityButton(
-                            title: "INTEL",
-                            value: showingMissionIntel ? "HIDE" : "SHOW",
-                            tint: CombatTheme.accent,
-                            action: { showingMissionIntel.toggle() }
-                        )
-                        .accessibilityIdentifier("toggle_intel_button")
-
-                        CombatUtilityButton(
-                            title: "DIAG",
-                            value: diagnosticsVisible ? "ON" : "OFF",
-                            tint: diagnosticsVisible ? CombatTheme.accent : CombatTheme.textMuted,
-                            action: onToggleDiagnostics
-                        )
-                        .accessibilityIdentifier("toggle_diagnostics_button")
+                        Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 2)
                 }
 
-                // Action buttons
+                // Action buttons. Street Samurai is melee-only — disable SHT
+                // so the player can't tap it for that runner.
+                let activeArchetype = (gameState.activeCharacter ?? gameState.currentCharacter)?.archetype
                 ActionBar(
                     onAttack: onAttack,
                     onShoot: onShoot,
@@ -1678,13 +2105,22 @@ struct CombatUI: View {
                     specialColor: specialAbilityColor,
                     onEndTurn: onEndTurn,
                     actionDisabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled || hasActedThisRound || hasMovedThisTurn,
-                    endTurnDisabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled
+                    endTurnDisabled: gameState.isCombatResolvedOrBeyond || arePlayerControlsDisabled,
+                    attackDisabledReason: attackDisabledReason,
+                    shootDisabledReason: shootDisabledReason,
+                    specialDisabledReason: specialDisabledReason,
+                    itemDisabledReason: itemDisabledReason,
+                    shootDisabled: activeArchetype == .streetSam
                 )
 
                 // Hit preview — shown when a target is selected
-                if let preview = gameState.hitPreview {
-                    HitPreviewCard(preview: preview)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                let previewRows = [gameState.attackPreview, gameState.shootPreview].compactMap { $0 }
+                if !previewRows.isEmpty || showMoveSpent {
+                    HitPreviewStrip(
+                        previews: previewRows,
+                        notice: showMoveSpent ? "MOVE USED - END TURN" : nil
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 // Combat log
@@ -1734,11 +2170,20 @@ struct CombatUI: View {
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+
+            // First-time tutorial cards (combat basics / doors / terminals)
+            // appear at the top of the screen. The overlay is non-blocking
+            // when no card is showing.
+            TutorialCoachOverlay()
         }
         .animation(.easeInOut(duration: 0.2), value: showingItemPicker)
         .animation(.easeInOut(duration: 0.2), value: showingSpellPicker)
         .animation(.easeInOut(duration: 0.22), value: showingMissionIntel)
         .animation(.easeInOut(duration: 0.25), value: isEnemyTurnDisplay)
+        .onAppear { enqueueTutorialTipsForCurrentRoom() }
+        .onChange(of: RoomManager.shared.currentRoomIndex) { _, _ in
+            enqueueTutorialTipsForCurrentRoom()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .enemyPhaseBegan)) { _ in
             guard !gameState.livingEnemies.isEmpty else { return }
             withAnimation { isEnemyTurnDisplay = true }
@@ -1749,6 +2194,40 @@ struct CombatUI: View {
         .onReceive(NotificationCenter.default.publisher(for: .enemyPhaseCompleted)) { _ in
             withAnimation { isEnemyTurnDisplay = false }
         }
+    }
+
+    /// Decide which first-time tutorial cards apply to the current scene
+    /// state. Called on combat-view appear and on each room transition so
+    /// the door / terminal cards land the first time the player can
+    /// actually see one. Each card auto-suppresses if its UserDefaults
+    /// flag is already set, so this is safe to call repeatedly.
+    private func enqueueTutorialTipsForCurrentRoom() {
+        // Combat basics + utility row HUD: always queue on first combat.
+        // The combat-basics card covers movement (2 tiles), targeting and
+        // the bottom action bar; the utility-row card covers the top row
+        // (MODE / LAY LOW / INTEL / DIAG). They show in that order so the
+        // player learns the inner loop first.
+        TutorialCoach.shared.enqueue(.combatBasics)
+        TutorialCoach.shared.enqueue(.utilityRow)
+
+        // Scan the active room's tile grid for terminals (cyan) and doors
+        // (yellow). Only enqueue the relevant cards if at least one of
+        // each tile is present so the cards land contextually — door tip
+        // when there's actually a door to use, terminal tip when there's
+        // actually a terminal on screen.
+        let tiles = gameState.currentMissionTiles
+        var hasTerminal = false
+        var hasDoor = false
+        for row in tiles {
+            for cell in row {
+                if cell == TileType.dataTerminal.rawValue { hasTerminal = true }
+                if cell == TileType.door.rawValue { hasDoor = true }
+                if hasTerminal && hasDoor { break }
+            }
+            if hasTerminal && hasDoor { break }
+        }
+        if hasDoor { TutorialCoach.shared.enqueue(.doors) }
+        if hasTerminal { TutorialCoach.shared.enqueue(.terminals) }
     }
 }
 

@@ -47,39 +47,132 @@ struct PathingAndAIHelpers {
         return tileType != 1
     }
 
+    /// Cube coordinates for an odd-q offset hex (matches TileMap layout).
+    private struct CubeCoord {
+        let x: Double, y: Double, z: Double
+    }
+
+    private static func offsetToCube(_ col: Int, _ row: Int) -> CubeCoord {
+        let x = Double(col)
+        let z = Double(row) - Double(col - (col & 1)) / 2.0
+        let y = -x - z
+        return CubeCoord(x: x, y: y, z: z)
+    }
+
+    private static func cubeRoundToOffset(_ c: CubeCoord) -> (Int, Int) {
+        var rx = (c.x).rounded()
+        var ry = (c.y).rounded()
+        var rz = (c.z).rounded()
+        let xDiff = abs(rx - c.x)
+        let yDiff = abs(ry - c.y)
+        let zDiff = abs(rz - c.z)
+        if xDiff > yDiff && xDiff > zDiff {
+            rx = -ry - rz
+        } else if yDiff > zDiff {
+            ry = -rx - rz
+        } else {
+            rz = -rx - ry
+        }
+        let col = Int(rx)
+        let row = Int(rz) + (col - (col & 1)) / 2
+        return (col, row)
+    }
+
+    /// Hex-aware line of sight check. Walks the actual hex line (cube-coord lerp,
+    /// round-to-nearest-hex) between source and target instead of using 2D
+    /// Bresenham — that earlier algorithm clipped corners of wall hexes and
+    /// reported false-positive blocks for shots that visually had a clear lane.
+    /// Only blocks if a wall hex (TileType.wall = 1) sits directly on the
+    /// straight hex line between source and target.
     static func isLineBlockedByWall(gameState: GameState, fromX sx: Int, fromY sy: Int, toX dx: Int, toY dy: Int) -> Bool {
-        var x0 = sx, y0 = sy
-        let x1 = dx, y1 = dy
-
-        let dx = abs(x1 - x0)
-        let dy = abs(y1 - y0)
-        let sx_ = x0 < x1 ? 1 : -1
-        let sy_ = y0 < y1 ? 1 : -1
-        var err = dx - dy
-
-        while true {
-            if !(x0 == sx && y0 == sy) && !(x0 == x1 && y0 == y1) {
-                guard x0 >= 0, x0 < TileMap.mapWidth, y0 >= 0 else { break }
-                let h = gameState.currentMissionTiles.isEmpty ? 14 : gameState.currentMissionTiles.count
-                guard y0 < h, x0 < gameState.currentMissionTiles[y0].count else { break }
-                let tileType = gameState.currentMissionTiles[y0][x0]
-                if tileType == 1 {
-                    return true
-                }
-            }
-
-            if x0 == x1 && y0 == y1 { break }
-            let e2 = 2 * err
-            if e2 > -dy {
-                err -= dy
-                x0 += sx_
-            }
-            if e2 < dx {
-                err += dx
-                y0 += sy_
+        if sx == dx && sy == dy { return false }
+        let a = offsetToCube(sx, sy)
+        let b = offsetToCube(dx, dy)
+        // Hex distance in cube coords = max of axial diffs
+        let hexDist = max(
+            abs(a.x - b.x),
+            abs(a.y - b.y),
+            abs(a.z - b.z)
+        )
+        let steps = max(1, Int(hexDist))
+        // Sample every 1/steps along the line, skipping endpoints
+        for i in 1..<steps {
+            let t = Double(i) / Double(steps)
+            // Slight nudge along the line so samples that fall exactly on a
+            // hex edge don't ambiguously snap to the wall side. This makes
+            // marginal "corner-clip" shots succeed instead of being blocked.
+            let nudgedT = t + 1e-6
+            let lerped = CubeCoord(
+                x: a.x * (1.0 - nudgedT) + b.x * nudgedT,
+                y: a.y * (1.0 - nudgedT) + b.y * nudgedT,
+                z: a.z * (1.0 - nudgedT) + b.z * nudgedT
+            )
+            let (cx, cy) = cubeRoundToOffset(lerped)
+            // Bounds check
+            guard cx >= 0, cx < TileMap.mapWidth, cy >= 0 else { continue }
+            let tiles = gameState.currentMissionTiles
+            guard cy < tiles.count, cx < tiles[cy].count else { continue }
+            // Skip endpoints — caller is checking if intermediate hexes block.
+            if cx == sx && cy == sy { continue }
+            if cx == dx && cy == dy { continue }
+            if tiles[cy][cx] == TileType.wall.rawValue {
+                return true
             }
         }
         return false
+    }
+
+    /// True "next-tile" BFS — returns the FIRST step from `enemy` toward
+    /// `target`, not the destination adjacent tile. Reconstructs the path via
+    /// parent tracking and returns path[1]. Used by boss pursuit AI so each
+    /// move-budget iteration steps the boss ONE tile (visible per-tile
+    /// pursuit) instead of teleporting straight to the player's elbow.
+    ///
+    /// Returns nil if the enemy is already adjacent or no path exists.
+    static func bfsNextStep(gameState: GameState, from enemy: Enemy, toward target: Character) -> (Int, Int)? {
+        let sx = enemy.positionX, sy = enemy.positionY
+        let gx = target.positionX, gy = target.positionY
+        if hexAdjacent(gameState: gameState, x1: sx, y1: sy, x2: gx, y2: gy) { return nil }
+
+        // BFS with parent map for path reconstruction.
+        var parent: [String: (Int, Int)] = [:]
+        var queue: [(Int, Int)] = [(sx, sy)]
+        var visited: Set<String> = ["\(sx),\(sy)"]
+        var i = 0
+        var goalAdjacent: (Int, Int)? = nil
+
+        while i < queue.count, goalAdjacent == nil {
+            let cur = queue[i]; i += 1
+            for (nx, ny) in hexNeighbors(gameState: gameState, x: cur.0, y: cur.1) {
+                let k = "\(nx),\(ny)"
+                guard !visited.contains(k) else { continue }
+                guard tileWalkable(gameState: gameState, x: nx, y: ny, excluding: enemy.id) else { continue }
+                visited.insert(k)
+                parent[k] = cur
+                if hexAdjacent(gameState: gameState, x1: nx, y1: ny, x2: gx, y2: gy) || (nx == gx && ny == gy) {
+                    goalAdjacent = (nx, ny)
+                    break
+                }
+                queue.append((nx, ny))
+            }
+        }
+
+        guard let goal = goalAdjacent else {
+            // No reachable tile adjacent to target — fall back to the best
+            // immediate neighbor by raw hex distance.
+            let neighbors = hexNeighbors(gameState: gameState, x: sx, y: sy)
+                .filter { tileWalkable(gameState: gameState, x: $0.0, y: $0.1, excluding: enemy.id) }
+                .sorted { hexDistance(gameState: gameState, x1: $0.0, y1: $0.1, x2: gx, y2: gy) <
+                          hexDistance(gameState: gameState, x1: $1.0, y1: $1.1, x2: gx, y2: gy) }
+            return neighbors.first
+        }
+
+        // Walk back from `goal` via parent map until we're one step from start.
+        var cur = goal
+        while let par = parent["\(cur.0),\(cur.1)"], par != (sx, sy) {
+            cur = par
+        }
+        return cur
     }
 
     static func bfsPathfind(gameState: GameState, from enemy: Enemy, toward target: Character) -> (Int, Int)? {

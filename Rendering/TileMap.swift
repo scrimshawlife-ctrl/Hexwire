@@ -104,7 +104,7 @@ final class TileMap {
         let floorVariants = [
             "tilesheet_3_r1c2.png",   // teal grid (cyberpunk industrial)
             "tilesheet_3_r4c2.png",   // cobblestone (alley / street)
-            "tilesheet_3_r1c0.png",   // server cables (tech / matrix)
+            "tilesheet_1_r5c1.png",   // dark stone (clean cyberpunk floor)
         ]
         var checksum: Int = tiles.count &* 31 &+ (tiles.first?.count ?? 0)
         for row in tiles {
@@ -197,13 +197,20 @@ final class TileMap {
     /// line up precisely with our hex grid, with no dark border gaps and no stretched art.
     ///
     /// Measurements from reference PNGs (341×256 flat-top hex faces):
-    ///   • Face region: x=0–282 (width 282), y=0–144 (height 144)
-    ///   • Face width occupies 282/341 ≈ 0.827 of PNG width
-    ///   • Face height occupies 144/256 ≈ 0.563 of PNG height
-    ///   • Face center: (≈141, ≈72) in PNG pixel coords
-    ///   • PNG midpoint: (170.5, 128) — face center is 29.5 px LEFT and 56 px ABOVE midpoint
-    ///   • Face aspect ≈ 282/144 ≈ 1.96, matching flat-top with isoSquash ≈ 0.577
-    ///     (2/(√3·0.577) ≈ 2.0) — the art is pre-squashed for isometric perspective.
+    ///   NEW ART (2026-05 sheet refresh): hex face is larger but its bottom 1/6
+    ///   is occupied by a bright V-shaped neon "platform side" glow that breaks
+    ///   floor continuity (every tile reads as a separate floating platform).
+    ///   We deliberately measure the FLOOR-PATTERN region only, excluding the
+    ///   bottom neon glow, so when the sprite is scaled and hex-masked the
+    ///   neon falls *outside* the hex shape and gets clipped.
+    ///   • Floor region (excluding bottom neon): x≈30–310 (width 280), y≈10–160 (height 150)
+    ///   • Face width occupies 280/341 ≈ 0.821 of PNG width
+    ///   • Face height occupies 150/256 ≈ 0.586 of PNG height
+    ///   • Face center: (≈170, ≈85) in PNG pixel coords
+    ///   • PNG midpoint: (170.5, 128) — face center is ~0 px horizontal offset
+    ///     and ~43 px ABOVE vertical midpoint (43/256 ≈ 0.168)
+    ///   • Below y=160: neon under-glow + 3-D platform side, then bleed-in
+    ///     of the next-row hex. The hex mask crops all of that away.
     ///
     /// Uniform scale is chosen so:
     ///   spriteW · faceFracW ≥ hexW   AND   spriteH · faceFracH ≥ hexH
@@ -216,9 +223,11 @@ final class TileMap {
         let hexW = R * 2.0                                           // 72 @ R=36
         let hexH = R * 1.7320508 * TileMap.isoSquash                 // 35.99 @ R=36, iso=0.577
 
-        // Face coverage fractions — flat-top art (measured above).
-        let faceFracW: CGFloat = 0.827
-        let faceFracH: CGFloat = 0.563
+        // Face coverage fractions — measured from the 2026-05 tile-sheet art,
+        // EXCLUDING the bottom neon-platform-side glow so adjacent tiles read as
+        // a continuous floor instead of separate floating hex platforms.
+        let faceFracW: CGFloat = 0.821
+        let faceFracH: CGFloat = 0.586
         // Native PNG aspect (tile sheets cells are 341×256).
         let imgAspect: CGFloat = 341.0 / 256.0                       // ≈1.333
 
@@ -232,13 +241,12 @@ final class TileMap {
 
         let sprite = SKSpriteNode(texture: texture)
         sprite.size = CGSize(width: spriteW, height: spriteH)
-        // Face center is 56/256 ≈ 0.219 of the PNG height ABOVE the vertical midpoint (in
-        // image coords → i.e. in SK coords with y+ up, ABOVE the sprite's SK midpoint).
-        // Shift sprite DOWN so face center lands at hex center (0,0).
-        // Face center is also 29.5/341 ≈ 0.087 of the PNG width LEFT of horizontal midpoint,
-        // so shift sprite RIGHT by that offset.
-        let faceOffsetY: CGFloat = spriteH * 0.219
-        let faceOffsetX: CGFloat = spriteW * 0.087
+        // Floor-region center is 43/256 ≈ 0.168 of the PNG height ABOVE the vertical
+        // midpoint (image y down → SK y up; ABOVE midpoint in SK = +y). Shift sprite
+        // DOWN (negative y) so the floor region lands at hex center (0,0). Horizontal
+        // offset is ~0 — face is centered horizontally.
+        let faceOffsetY: CGFloat = spriteH * 0.168
+        let faceOffsetX: CGFloat = 0
         sprite.position = CGPoint(x: faceOffsetX, y: -faceOffsetY)
         sprite.zPosition = 0
 
@@ -260,96 +268,63 @@ final class TileMap {
         let tileNode = SKNode()
         let R = TileMap.hexRadius
         let hPath = TileMap.hexPath(radius: R)
-        // Deterministic seed for per-tile texture variation
-        let seed = x &* 73856093 ^ y &* 19349663
 
         switch type {
 
-        // ─────────────────────────────────────────── WALL (dark void)
+        // ─────────────────────────────────────────── WALL (transparent, background paints it)
         case .wall:
-            // Wall tiles: dark near-black hex — the void between walkable tiles.
-            // Slightly visible so the boundary reads clearly vs the background.
-            let ghost = SKShapeNode(path: hPath)
-            ghost.fillColor = UIColor(red: 0.02, green: 0.02, blue: 0.04, alpha: 0.85)
-            ghost.strokeColor = UIColor(hex: "#0D1520").withAlphaComponent(0.40)
-            ghost.lineWidth = 1.0
-            ghost.zPosition = 0
-            tileNode.addChild(ghost)
-            // Very faint inner ring so walls don't look like empty holes
-            let wallInner = SKShapeNode(path: TileMap.hexPath(radius: R - 8))
-            wallInner.fillColor = .clear
-            wallInner.strokeColor = UIColor(hex: "#131F2E").withAlphaComponent(0.30)
-            wallInner.lineWidth = 0.5
-            wallInner.zPosition = 0.1
-            tileNode.addChild(wallInner)
+            // Walls are transparent: the room background image is expected to
+            // paint the actual wall structure (fence, concrete, machinery). The
+            // engine still treats this tile as impassable for pathfinding. We
+            // add a very faint dark tint just so the player can tell it from
+            // floor when no background image is loaded.
+            //
+            // If no background loads at runtime, the board backplate (zPos -40)
+            // shows through and the wall reads as a dark hex (acceptable fallback).
+            let tint = SKShapeNode(path: hPath)
+            tint.fillColor = UIColor.black.withAlphaComponent(0.18)
+            tint.strokeColor = .clear
+            tint.zPosition = 0
+            tileNode.addChild(tint)
 
         // ─────────────────────────────────────────── FLOOR
         case .floor:
-            // Use the SAME floor texture for every floor tile in the room so the
-            // rendered map reads as one cohesive environment (no random patchwork).
-            // floorTextureFile was picked once at init() from the tile grid's hash —
-            // different rooms deterministically pick different floors, so the
-            // areas still have visual identity without per-cell noise.
-            let floorFile = floorTextureFile
-            if let tex = SpriteManager.shared.loadTileTexture(named: floorFile),
-               let tileContainer = buildSpriteTileNode(texture: tex, R: R) {
-                // Dark hex fill underneath — covers the vertical aspect gap so the
-                // sprite looks framed on the hex rather than floating on empty space.
-                let bg = SKShapeNode(path: hPath)
-                bg.fillColor = UIColor(hex: "#0A0806")
-                bg.strokeColor = .clear
-                bg.zPosition = -0.5
-                tileNode.addChild(bg)
-                tileNode.addChild(tileContainer)
-            } else {
-                // Fallback — original procedural floor
-                let floorFace = SKShapeNode(path: hPath)
-                floorFace.fillColor = UIColor(hex: "#171410")
-                floorFace.strokeColor = .clear
-                floorFace.zPosition = 0
-                tileNode.addChild(floorFace)
-                addStoneTexture(to: tileNode, R: R, seed: seed)
-            }
-            addThinBorder(to: tileNode, R: R, borderColor: UIColor(white: 0.65, alpha: 0.50))
+            // Floor tiles are fully transparent so the per-room background image
+            // (drawn one layer below) reads through. The hex grid is implied by
+            // adjacent non-floor tiles (walls, cover) and by the room background
+            // art itself. Skip drawing anything here.
+            //
+            // If no background image is loaded, the dark board backplate at
+            // zPosition -40 still provides a black floor — playable but plain.
+            break
 
-        // ─────────────────────────────────────────── COVER (industrial crates / barrels)
+        // ─────────────────────────────────────────── COVER (transparent — props in BG)
         case .cover:
-            // Two tile art variants by column parity. Falls back to procedural + props.
-            let coverFile = (x % 2 == 0) ? "tilesheet_2_r1c0.png" : "tilesheet_2_r2c1.png"
-            if let tex = SpriteManager.shared.loadTileTexture(named: coverFile),
-               let tileContainer = buildSpriteTileNode(texture: tex, R: R) {
-                tileNode.addChild(tileContainer)
-            } else {
-                let coverFace = SKShapeNode(path: hPath)
-                coverFace.fillColor = UIColor(hex: "#1C1610")
-                coverFace.strokeColor = .clear
-                coverFace.zPosition = 0
-                tileNode.addChild(coverFace)
-                addStoneTexture(to: tileNode, R: R, seed: seed)
-                addCoverProps(to: tileNode, R: R, seed: seed)
-            }
-            addThinBorder(to: tileNode, R: R, borderColor: UIColor(hex: "#FF8800").withAlphaComponent(0.65))
+            // Cover props (crates, dumpsters, AC units) are painted into the
+            // room background image. The previous version laid a heavy amber
+            // fill + diagonal hatch + 6 corner pips on top, which read as
+            // "weird brown hex tiles" against the BG art. Now we just draw a
+            // very faint hex outline so the player can still confirm "this
+            // hex is cover" by glancing — no fill, no hatch, no pips.
+            let outline = SKShapeNode(path: hPath)
+            outline.fillColor = .clear
+            outline.strokeColor = UIColor(hex: "#FF8800").withAlphaComponent(0.25)
+            outline.lineWidth = 1.0
+            outline.zPosition = 1.0
+            tileNode.addChild(outline)
 
-        // ─────────────────────────────────────────── DOOR
+        // ─────────────────────────────────────────── DOOR (transparent — door art is in BG)
         case .door:
-            // Orange sliding door — tilesheet_1_r3c1.png
-            if let tex = SpriteManager.shared.loadTileTexture(named: "tilesheet_1_r3c1.png"),
-               let tileContainer = buildSpriteTileNode(texture: tex, R: R) {
-                tileNode.addChild(tileContainer)
-            } else {
-                let doorFace = SKShapeNode(path: hPath)
-                doorFace.fillColor = UIColor(hex: "#1A0800")
-                doorFace.strokeColor = .clear
-                doorFace.zPosition = 0
-                tileNode.addChild(doorFace)
-                addDoorProps(to: tileNode, R: R)
-            }
-            // Thin orange border + subtle pulse — marks this as interactive
-            addThinBorder(to: tileNode, R: R, borderColor: UIColor(hex: "#FF6600").withAlphaComponent(0.85))
+            // Door is painted into the room background image. The tile itself is
+            // transparent so the BG door art reads through. The "LOCKED" / "UNLOCKED"
+            // label that appears over the door is owned by BattleScene's
+            // addObjectiveMarker() and refreshed when the room is cleared.
+            // We do still add a faint pulse + thin border so the player can see
+            // *where* the interactive tile is even before they tap it.
             let doorPulse = SKShapeNode(path: TileMap.hexPath(radius: R))
             doorPulse.fillColor = .clear
-            doorPulse.strokeColor = UIColor(hex: "#FF6600").withAlphaComponent(0.50)
-            doorPulse.lineWidth = 2.0
+            doorPulse.strokeColor = UIColor(hex: "#FF6600").withAlphaComponent(0.45)
+            doorPulse.lineWidth = 1.6
             doorPulse.zPosition = 1.5
             tileNode.addChild(doorPulse)
             doorPulse.run(SKAction.repeatForever(SKAction.sequence([
@@ -357,98 +332,45 @@ final class TileMap {
                 SKAction.fadeAlpha(to: 0.55, duration: 0.7)
             ])))
 
-        // ─────────────────────────────────────────── EXTRACTION
+        // ─────────────────────────────────────────── EXTRACTION (transparent — H-pad in BG)
         case .extraction:
-            // Helipad / extraction point — tilesheet_2_r4c1.png
-            if let tex = SpriteManager.shared.loadTileTexture(named: "tilesheet_2_r4c1.png"),
-               let tileContainer = buildSpriteTileNode(texture: tex, R: R) {
-                tileNode.addChild(tileContainer)
-            } else {
-                let exFace = SKShapeNode(path: hPath)
-                exFace.fillColor = UIColor(hex: "#021408")
-                exFace.strokeColor = .clear
-                exFace.zPosition = 0
-                tileNode.addChild(exFace)
-                addExtractionProps(to: tileNode, R: R)
-            }
-            // Thin green border + pulse — makes extraction point obvious
-            addThinBorder(to: tileNode, R: R, borderColor: UIColor(hex: "#00FF88").withAlphaComponent(0.85))
+            // Helipad art is painted into the room background. The "EXTRACTION"
+            // pill label is drawn by BattleScene's addObjectiveMarker(). Keep
+            // a subtle green pulse here so the player can spot the tile bounds.
             let exPulse = SKShapeNode(path: TileMap.hexPath(radius: R))
             exPulse.fillColor = .clear
-            exPulse.strokeColor = UIColor(hex: "#00FF88").withAlphaComponent(0.50)
-            exPulse.lineWidth = 2.0
+            exPulse.strokeColor = UIColor(hex: "#00FF88").withAlphaComponent(0.45)
+            exPulse.lineWidth = 1.6
             exPulse.zPosition = 1.5
             tileNode.addChild(exPulse)
             exPulse.run(SKAction.repeatForever(SKAction.sequence([
-                SKAction.fadeAlpha(to: 0.10, duration: 0.9),
-                SKAction.fadeAlpha(to: 0.55, duration: 0.9)
+                SKAction.fadeAlpha(to: 0.15, duration: 0.7),
+                SKAction.fadeAlpha(to: 0.55, duration: 0.7)
             ])))
 
-        // ─────────────────────────────────────────── DATA TERMINAL (mission objective)
+        // ─────────────────────────────────────────── DATA TERMINAL
         case .dataTerminal:
-            // Floor underneath so the tile is walkable-looking; terminal prop on top.
-            let bg = SKShapeNode(path: hPath)
-            bg.fillColor = UIColor(hex: "#020812")
-            bg.strokeColor = .clear
-            bg.zPosition = 0
-            tileNode.addChild(bg)
-            // Server rack body (from cover variant 2)
-            let rack = SKShapeNode(rectOf: CGSize(width: R * 0.72, height: R * 0.92), cornerRadius: 3)
-            rack.fillColor = UIColor(hex: "#06122A")
-            rack.strokeColor = UIColor(hex: "#00CCFF")
-            rack.lineWidth = 1.8
-            rack.glowWidth = 4.0
-            rack.position = CGPoint(x: 0, y: R * 0.04)
-            rack.zPosition = 2
-            tileNode.addChild(rack)
-            // Screen
-            let screen = SKShapeNode(rectOf: CGSize(width: R * 0.50, height: R * 0.30), cornerRadius: 1)
-            screen.fillColor = UIColor(hex: "#001A2C")
-            screen.strokeColor = UIColor(hex: "#00FFCC")
-            screen.lineWidth = 0.8
-            screen.position = CGPoint(x: 0, y: R * 0.18)
-            screen.zPosition = 3
-            tileNode.addChild(screen)
-            // Scrolling code lines on screen
-            for i in 0..<3 {
-                let codeLine = SKShapeNode(rectOf: CGSize(width: R * 0.36, height: 1.2))
-                codeLine.fillColor = UIColor(hex: "#00FFCC").withAlphaComponent(0.7)
-                codeLine.strokeColor = .clear
-                codeLine.position = CGPoint(x: 0, y: R * 0.10 + CGFloat(i) * 4.5)
-                codeLine.zPosition = 3.2
-                tileNode.addChild(codeLine)
-                codeLine.run(SKAction.repeatForever(SKAction.sequence([
-                    SKAction.fadeAlpha(to: 0.2, duration: 0.4 + Double(i) * 0.1),
-                    SKAction.fadeAlpha(to: 0.9, duration: 0.4 + Double(i) * 0.1)
+            // Mission 003 (mage lair) renders a dedicated TERMINAL SPRITE on
+            // the tile (purple ritual computer) — no hex outline since the
+            // sprite itself reads as "interact here". The sprite cycles
+            // through 6 idle variants for subtle flicker.
+            // Other missions: BG already paints a terminal, so we just add
+            // a faint cyan hex pulse to mark the interactive tile.
+            let mid = MainActor.assumeIsolated({ RoomManager.shared.currentMission?.id })
+            if mid == "run003_multi" {
+                addTerminalSprite(to: tileNode, R: R)
+            } else {
+                let dtPulse = SKShapeNode(path: TileMap.hexPath(radius: R))
+                dtPulse.fillColor = .clear
+                dtPulse.strokeColor = UIColor(hex: "#00FFCC").withAlphaComponent(0.55)
+                dtPulse.lineWidth = 1.6
+                dtPulse.zPosition = 1.5
+                tileNode.addChild(dtPulse)
+                dtPulse.run(SKAction.repeatForever(SKAction.sequence([
+                    SKAction.fadeAlpha(to: 0.15, duration: 0.7),
+                    SKAction.fadeAlpha(to: 0.65, duration: 0.7)
                 ])))
             }
-            // Status LEDs
-            for i in 0..<2 {
-                let led = SKShapeNode(circleOfRadius: 1.8)
-                led.fillColor = UIColor(hex: i == 0 ? "#00FFCC" : "#FF0044")
-                led.strokeColor = .clear
-                led.glowWidth = 3.0
-                led.position = CGPoint(x: -R * 0.22 + CGFloat(i) * R * 0.44, y: -R * 0.12)
-                led.zPosition = 3.5
-                tileNode.addChild(led)
-                led.run(SKAction.repeatForever(SKAction.sequence([
-                    SKAction.fadeOut(withDuration: 0.35),
-                    SKAction.fadeIn(withDuration: 0.15),
-                    SKAction.wait(forDuration: 0.5 + Double(i) * 0.3)
-                ])))
-            }
-            // Pulsing cyan border to mark interactivity
-            addThinBorder(to: tileNode, R: R, borderColor: UIColor(hex: "#00CCFF").withAlphaComponent(0.85))
-            let dtPulse = SKShapeNode(path: TileMap.hexPath(radius: R))
-            dtPulse.fillColor = .clear
-            dtPulse.strokeColor = UIColor(hex: "#00FFCC").withAlphaComponent(0.55)
-            dtPulse.lineWidth = 2.0
-            dtPulse.zPosition = 1.5
-            tileNode.addChild(dtPulse)
-            dtPulse.run(SKAction.repeatForever(SKAction.sequence([
-                SKAction.fadeAlpha(to: 0.10, duration: 0.7),
-                SKAction.fadeAlpha(to: 0.65, duration: 0.7)
-            ])))
         }
 
         tileNode.position = TileMap.tileCenter(x: x, y: y)
@@ -467,6 +389,147 @@ final class TileMap {
 
     /// Adds a thin crisp border with a very subtle glow — matches the reference dark stone look.
     /// Used for floor and cover tiles where we want clean hex definition without heavy neon.
+    /// Mage-lair–themed terminal prop: low pentagram platform + floating
+    /// crystal orb. Used only on Mission 003 because that background doesn't
+    /// paint a terminal where the tile sits. Other missions keep the cleaner
+    /// "BG painted, hex outline only" look.
+    /// Render the M3 terminal sprite on the tile — replaces the old
+    /// procedural pentagram prop. Loads up to 6 idle frames from
+    /// Sprites/frames/data_terminal_*.png and cycles them as a slow flicker.
+    /// Falls back to the procedural pentagram if the sprite files are
+    /// missing (zero-impact safety net).
+    private func addTerminalSprite(to tileNode: SKNode, R: CGFloat) {
+        var frames: [SKTexture] = []
+        if let resourceURL = Bundle.main.resourceURL {
+            for i in 0..<6 {
+                let url = resourceURL.appendingPathComponent("Sprites/frames/data_terminal_\(i).png")
+                guard let img = UIImage(contentsOfFile: url.path) else { break }
+                frames.append(SKTexture(image: img))
+            }
+        }
+        guard let first = frames.first else {
+            // Sprite assets missing — fall back to the legacy procedural prop.
+            addMagicCircleTerminalProp(to: tileNode, R: R)
+            return
+        }
+        let spr = SKSpriteNode(texture: first)
+        // Scale to ~2.42× hex radius wide so the prop is unmistakable.
+        // 2026-05-10: 1.55 → 1.86 (+20%) so the M3R1 terminal reads clearly
+        // as a terminal at first glance — was getting confused with the floor
+        // pattern. 2026-05-13: bumped 1.86 → 2.42 (+30%) per playtest, the
+        // prop still wasn't reading large enough for a "go here" cue. Anchor
+        // at the bottom so base sits on tile floor.
+        let targetWidth: CGFloat = R * 2.42
+        let scale = targetWidth / max(1, spr.size.width)
+        spr.setScale(scale)
+        spr.anchorPoint = CGPoint(x: 0.5, y: 0.15)
+        spr.position = .zero
+        spr.zPosition = 1.6   // above the floor + faint hex but below characters (z=10+)
+        spr.name = "dataTerminalSprite"
+        tileNode.addChild(spr)
+
+        // Subtle flicker: cycle through frames over ~1.4s, looping. Multiple
+        // frames look like a flame/screen flicker; 1 frame is a static prop.
+        if frames.count >= 2 {
+            let cycle = SKAction.animate(with: frames,
+                                          timePerFrame: 0.22,
+                                          resize: false, restore: false)
+            spr.run(SKAction.repeatForever(cycle), withKey: "terminalFlicker")
+        }
+    }
+
+    private func addMagicCircleTerminalProp(to tileNode: SKNode, R: CGFloat) {
+        // Outer ritual ring — magenta/purple double circle.
+        let outer = SKShapeNode(circleOfRadius: R * 0.78)
+        outer.fillColor = .clear
+        outer.strokeColor = UIColor(hex: "#FF44CC")
+        outer.lineWidth = 2.0
+        outer.glowWidth = 4.0
+        outer.zPosition = 1.6
+        tileNode.addChild(outer)
+        outer.run(SKAction.repeatForever(SKAction.rotate(byAngle: -.pi * 2, duration: 6.0)))
+
+        let inner = SKShapeNode(circleOfRadius: R * 0.55)
+        inner.fillColor = .clear
+        inner.strokeColor = UIColor(hex: "#AA00FF").withAlphaComponent(0.85)
+        inner.lineWidth = 1.4
+        inner.glowWidth = 2.5
+        inner.zPosition = 1.7
+        tileNode.addChild(inner)
+        inner.run(SKAction.repeatForever(SKAction.rotate(byAngle: .pi * 2, duration: 4.5)))
+
+        // Pentagram inside the inner circle.
+        let starPath = UIBezierPath()
+        let starR = R * 0.50
+        let pts = 5
+        for i in 0..<pts * 2 + 1 {
+            let angle = -CGFloat.pi / 2 + CGFloat(i) * (.pi * 2 / CGFloat(pts))
+            let p = CGPoint(x: cos(angle) * starR, y: sin(angle) * starR)
+            if i == 0 { starPath.move(to: p) } else { starPath.addLine(to: p) }
+        }
+        let star = SKShapeNode(path: starPath.cgPath)
+        star.fillColor = .clear
+        star.strokeColor = UIColor(hex: "#FF66FF").withAlphaComponent(0.9)
+        star.lineWidth = 1.4
+        star.glowWidth = 3.0
+        star.zPosition = 1.8
+        tileNode.addChild(star)
+        star.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.45, duration: 0.9),
+            SKAction.fadeAlpha(to: 1.0,  duration: 0.9)
+        ])))
+
+        // 6 rune marks at outer ring positions.
+        let runeGlyphs = ["⛤", "✦", "⚝", "❉", "✧", "⛧"]
+        for i in 0..<6 {
+            let a = CGFloat(i) * (.pi * 2 / 6) - .pi / 2
+            let r = R * 0.65
+            let g = SKLabelNode(fontNamed: "AvenirNext-Bold")
+            g.text = runeGlyphs[i]
+            g.fontSize = 9
+            g.fontColor = UIColor(hex: "#FF99FF")
+            g.position = CGPoint(x: cos(a) * r, y: sin(a) * r - 2)
+            g.zPosition = 1.9
+            tileNode.addChild(g)
+        }
+
+        // Floating crystal orb hovering above the platform.
+        let orbBase = SKShapeNode(circleOfRadius: 5)
+        orbBase.fillColor = UIColor(hex: "#220044").withAlphaComponent(0.6)
+        orbBase.strokeColor = UIColor(hex: "#FF44CC")
+        orbBase.lineWidth = 1.0
+        orbBase.glowWidth = 6.0
+        orbBase.zPosition = 2.4
+        orbBase.position = CGPoint(x: 0, y: R * 0.10)
+        tileNode.addChild(orbBase)
+        // Inner highlight.
+        let orbHi = SKShapeNode(circleOfRadius: 2.5)
+        orbHi.fillColor = UIColor(hex: "#FFCCFF")
+        orbHi.strokeColor = .clear
+        orbHi.glowWidth = 3.0
+        orbHi.position = CGPoint(x: -1.5, y: 1.5)
+        orbHi.zPosition = 0.1
+        orbBase.addChild(orbHi)
+        // Float + pulse.
+        orbBase.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.moveBy(x: 0, y:  3, duration: 1.0),
+            SKAction.moveBy(x: 0, y: -3, duration: 1.0)
+        ])))
+
+        // Floating "RITUAL" label so it reads as the objective.
+        let label = SKLabelNode(fontNamed: "AvenirNext-Bold")
+        label.text = "RITUAL"
+        label.fontSize = 9
+        label.fontColor = UIColor(hex: "#FF99FF")
+        label.position = CGPoint(x: 0, y: R * 0.78)
+        label.zPosition = 2.8
+        tileNode.addChild(label)
+        label.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.45, duration: 0.8),
+            SKAction.fadeAlpha(to: 1.0,  duration: 0.8)
+        ])))
+    }
+
     private func addThinBorder(to node: SKNode, R: CGFloat, borderColor: UIColor) {
         // Very faint outer halo (barely visible — just softens the edge)
         let halo = SKShapeNode(path: TileMap.hexPath(radius: R + 2))

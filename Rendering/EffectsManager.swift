@@ -250,23 +250,35 @@ final class EffectsManager {
     // MARK: - Floating Damage Text
 
     /// Show a floating damage number at a world position with optional customizable color and font size.
+    ///
+    /// Z-ordering: 200/199 (label/shadow). Scanlines sit at z=85–100 and the
+    /// vignette ring at z=90 — the previous z=70 put damage popups BEHIND
+    /// both of those, which was the "sometimes the number doesn't show"
+    /// playtest report. Bumping to z=200 puts the popup above every
+    /// passive overlay but below the room-fade overlay (z=500).
+    ///
+    /// Font size also bumped on the assumption the popup was getting lost
+    /// in scene-glare; small numbers were too easy to miss next to the
+    /// flash + spark effect.
     func showCombatText(_ text: String, at position: CGPoint, in scene: SKScene, color: UIColor = .white, fontSize: CGFloat = 18) {
         let label = SKLabelNode(text: text)
         label.fontName = "Helvetica-Bold"
         label.fontSize = fontSize
         label.fontColor = color
         label.position = position
-        label.zPosition = 70
+        label.zPosition = 200
         label.alpha = 0
         scene.addChild(label)
 
-        // Add dark shadow/outline behind text for better readability
+        // Dark shadow/outline behind text for better readability against
+        // bright sprites + sparks. zPosition 199 keeps it directly under
+        // the label.
         let shadow = SKLabelNode(text: text)
         shadow.fontName = "Helvetica-Bold"
         shadow.fontSize = fontSize
-        shadow.fontColor = UIColor.black.withAlphaComponent(0.8)
+        shadow.fontColor = UIColor.black.withAlphaComponent(0.85)
         shadow.position = CGPoint(x: position.x + 1, y: position.y - 1)
-        shadow.zPosition = 69
+        shadow.zPosition = 199
         shadow.alpha = 0
         scene.addChild(shadow)
 
@@ -314,12 +326,17 @@ final class EffectsManager {
     }
 
     /// Show a damage burst (red) at position. Shows larger font and "CRIT!" prefix for critical hits (damage > 10).
+    /// Damage popups now spawn ABOVE the unit instead of dead-center on it
+    /// so they're not occluded by the unit's HP bar / sprite. Slight upward
+    /// offset (32pt) lets the rise animation read as "damage popping off
+    /// the head" rather than "number appearing on chest".
     func showDamageNumber(_ damage: Int, at position: CGPoint, in scene: SKScene) {
+        let spawnAt = CGPoint(x: position.x, y: position.y + 32)
         if damage > 10 {
             let text = "CRIT! \(damage)"
-            showCombatText(text, at: position, in: scene, color: UIColor(hex: "#FF0000"), fontSize: 22)
+            showCombatText(text, at: spawnAt, in: scene, color: UIColor(hex: "#FF0000"), fontSize: 28)
         } else {
-            showFloatingText("-\(damage)", at: position, in: scene, color: UIColor(hex: "#FF3333"))
+            showCombatText("-\(damage)", at: spawnAt, in: scene, color: UIColor(hex: "#FF3333"), fontSize: 24)
         }
     }
 
@@ -369,73 +386,6 @@ final class EffectsManager {
             ])
         ))
         scene.addChild(scanline2)
-    }
-
-    // MARK: - Muzzle Flash
-
-    /// Bright white/yellow flash burst for ranged attacks. Very brief (0.15s) with small radius.
-    func emitMuzzleFlash(at position: CGPoint, in scene: SKScene) {
-        let flash = SKShapeNode(circleOfRadius: 8)
-        flash.fillColor = UIColor.white
-        flash.strokeColor = UIColor(hex: "#FFFF00")
-        flash.lineWidth = 2
-        flash.position = position
-        flash.zPosition = 80
-        flash.alpha = 1.0
-        scene.addChild(flash)
-
-        let fadeOut = SKAction.fadeOut(withDuration: 0.15)
-        let remove = SKAction.removeFromParent()
-        flash.run(SKAction.sequence([fadeOut, remove]))
-
-        // Secondary yellow expanding flash
-        let expansionFlash = SKShapeNode(circleOfRadius: 6)
-        expansionFlash.fillColor = UIColor(hex: "#FFFF00")
-        expansionFlash.strokeColor = .clear
-        expansionFlash.position = position
-        expansionFlash.zPosition = 79
-        expansionFlash.alpha = 0.7
-        scene.addChild(expansionFlash)
-
-        let expand = SKAction.scale(to: 2.0, duration: 0.15)
-        let fade = SKAction.fadeOut(withDuration: 0.15)
-        let removeExpansion = SKAction.removeFromParent()
-        expansionFlash.run(SKAction.group([expand, fade, removeExpansion]))
-    }
-
-    // MARK: - Shield Block
-
-    /// Blue hexagonal flash when defending. Expanding hexagon shape that fades quickly.
-    func emitShieldBlock(at position: CGPoint, in scene: SKScene) {
-        // Create a hexagon approximation using a path
-        let hexPath = UIBezierPath()
-        let radius: CGFloat = 12
-        for i in 0..<6 {
-            let angle = CGFloat(i) * (CGFloat.pi * 2 / 6) - (CGFloat.pi / 2)
-            let x = radius * cos(angle)
-            let y = radius * sin(angle)
-            if i == 0 {
-                hexPath.move(to: CGPoint(x: x, y: y))
-            } else {
-                hexPath.addLine(to: CGPoint(x: x, y: y))
-            }
-        }
-        hexPath.close()
-
-        let hexagon = SKShapeNode(path: hexPath.cgPath)
-        hexagon.strokeColor = UIColor(hex: "#0088FF")
-        hexagon.lineWidth = 2
-        hexagon.fillColor = UIColor(hex: "#0088FF").withAlphaComponent(0.2)
-        hexagon.position = position
-        hexagon.zPosition = 75
-        hexagon.alpha = 1.0
-        scene.addChild(hexagon)
-
-        let expand = SKAction.scale(to: 2.5, duration: 0.3)
-        expand.timingMode = .easeOut
-        let fade = SKAction.fadeOut(withDuration: 0.3)
-        let remove = SKAction.removeFromParent()
-        hexagon.run(SKAction.group([expand, fade, remove]))
     }
 
     // MARK: - Cyber Glitch
@@ -509,5 +459,688 @@ final class EffectsManager {
         let pulseDown = SKAction.scale(to: 1.0, duration: 0.6)
         pulseDown.timingMode = .easeInEaseOut
         node.run(SKAction.repeatForever(SKAction.sequence([pulseUp, pulseDown])))
+    }
+
+    // MARK: - Spell / skill effects
+
+    /// Green particle bloom + rising "+N HP" text for the HEAL spell.
+    func emitHeal(at position: CGPoint, in scene: SKScene, amount: Int) {
+        let emitter = SKEmitterNode()
+        emitter.particleBirthRate = 0
+        emitter.numParticlesToEmit = 18
+        emitter.particleLifetime = 0.8
+        emitter.particleLifetimeRange = 0.3
+        emitter.particleSpeed = 60
+        emitter.particleSpeedRange = 30
+        emitter.emissionAngle = -.pi / 2          // upward
+        emitter.emissionAngleRange = .pi / 3
+        emitter.particleAlpha = 0.95
+        emitter.particleAlphaSpeed = -1.2
+        emitter.particleScale = 0.6
+        emitter.particleScaleRange = 0.3
+        emitter.particleScaleSpeed = -0.4
+        emitter.particleColorBlendFactor = 1.0
+        emitter.particleColorSequence = SKKeyframeSequence(
+            keyframeValues: [
+                UIColor(hex: "#88FFAA"),
+                UIColor(hex: "#44FF88"),
+                UIColor(hex: "#00CC55"),
+                UIColor.white
+            ] as [UIColor],
+            times: [0, 0.4, 0.7, 1.0]
+        )
+        emitter.position = position
+        emitter.zPosition = 50
+        scene.addChild(emitter)
+        emitter.run(SKAction.sequence([SKAction.wait(forDuration: 1.2),
+                                       SKAction.removeFromParent()]))
+
+        // Pulsing green ring
+        let ring = SKShapeNode(circleOfRadius: 8)
+        ring.strokeColor = UIColor(hex: "#44FF88")
+        ring.fillColor = .clear
+        ring.lineWidth = 2
+        ring.glowWidth = 4
+        ring.position = position
+        ring.zPosition = 49
+        scene.addChild(ring)
+        ring.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 4.0, duration: 0.55),
+                SKAction.fadeOut(withDuration: 0.55)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+
+        if amount > 0 {
+            showFloatingText("+\(amount) HP", at: position, in: scene,
+                             color: UIColor(hex: "#44FF88"))
+        }
+    }
+
+    /// Orange explosion + spark burst for FIREBALL — multi-tile AoE.
+    /// Beefier than before: an INCOMING flame ball travels in from a
+    /// random off-screen direction, then detonates with an expanding shock
+    /// ring + heavy particle splatter + screen shake.
+    func emitFireball(at position: CGPoint, in scene: SKScene) {
+        // Phase 1 — incoming flame ball arcs in from off-screen.
+        let originAngle = CGFloat.random(in: 0..<(2 * .pi))
+        let originDist: CGFloat = 220
+        let origin = CGPoint(x: position.x + cos(originAngle) * originDist,
+                             y: position.y + sin(originAngle) * originDist)
+        let ball = SKShapeNode(circleOfRadius: 14)
+        ball.fillColor = UIColor(hex: "#FF8822")
+        ball.strokeColor = UIColor(hex: "#FFEE88")
+        ball.lineWidth = 2
+        ball.glowWidth = 10
+        ball.position = origin
+        ball.zPosition = 52
+        scene.addChild(ball)
+        // Trailing ember emitter follows the ball
+        let trail = SKEmitterNode()
+        trail.particleBirthRate = 90
+        trail.particleLifetime = 0.4
+        trail.particleSpeed = 30
+        trail.particleSpeedRange = 20
+        trail.emissionAngleRange = .pi * 2
+        trail.particleAlpha = 0.8
+        trail.particleAlphaSpeed = -2.5
+        trail.particleScale = 0.5
+        trail.particleScaleSpeed = -1.2
+        trail.particleColorBlendFactor = 1.0
+        trail.particleColorSequence = SKKeyframeSequence(
+            keyframeValues: [UIColor(hex: "#FFEE88"), UIColor(hex: "#FF6600"), UIColor(hex: "#440000")] as [UIColor],
+            times: [0, 0.5, 1.0]
+        )
+        trail.zPosition = 51
+        ball.addChild(trail)
+
+        let arrive = SKAction.move(to: position, duration: 0.32)
+        arrive.timingMode = .easeIn
+        ball.run(SKAction.sequence([arrive, SKAction.run { [weak self] in
+            // Phase 2 — detonation at impact.
+            self?.detonateFireballAt(position, in: scene)
+            ball.removeFromParent()
+        }]))
+    }
+
+    /// The actual explosion at the impact site (shared so both the arrived-
+    /// ball and any tile-only call can trigger it).
+    private func detonateFireballAt(_ position: CGPoint, in scene: SKScene) {
+        // Bright core flash
+        let core = SKShapeNode(circleOfRadius: 8)
+        core.fillColor = UIColor.white
+        core.strokeColor = .clear
+        core.position = position
+        core.zPosition = 50
+        scene.addChild(core)
+        core.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 8.0, duration: 0.30),
+                SKAction.fadeOut(withDuration: 0.30)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+
+        // Outer shock ring (expanding outward)
+        let ring = SKShapeNode(circleOfRadius: 14)
+        ring.strokeColor = UIColor(hex: "#FF6600")
+        ring.fillColor = .clear
+        ring.lineWidth = 4
+        ring.glowWidth = 12
+        ring.position = position
+        ring.zPosition = 49
+        scene.addChild(ring)
+        ring.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 11.0, duration: 0.55),
+                SKAction.fadeOut(withDuration: 0.55)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+
+        // Inner burning cloud — slower expanding for a billowing look
+        let cloud = SKShapeNode(circleOfRadius: 18)
+        cloud.fillColor = UIColor(hex: "#FF6600").withAlphaComponent(0.6)
+        cloud.strokeColor = .clear
+        cloud.position = position
+        cloud.zPosition = 48
+        scene.addChild(cloud)
+        cloud.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 4.5, duration: 0.7),
+                SKAction.fadeOut(withDuration: 0.7)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+
+        // Heavy particle splatter — embers + sparks
+        let emitter = SKEmitterNode()
+        emitter.particleBirthRate = 0
+        emitter.numParticlesToEmit = 50      // was 28 — bigger blast
+        emitter.particleLifetime = 0.85
+        emitter.particleLifetimeRange = 0.4
+        emitter.particleSpeed = 260
+        emitter.particleSpeedRange = 130
+        emitter.emissionAngleRange = .pi * 2
+        emitter.particleAlpha = 1.0
+        emitter.particleAlphaSpeed = -1.4
+        emitter.particleScale = 0.9
+        emitter.particleScaleRange = 0.5
+        emitter.particleScaleSpeed = -0.9
+        emitter.particleColorBlendFactor = 1.0
+        emitter.particleColorSequence = SKKeyframeSequence(
+            keyframeValues: [
+                UIColor.white,
+                UIColor(hex: "#FFEE00"),
+                UIColor(hex: "#FF6600"),
+                UIColor(hex: "#440000")
+            ] as [UIColor],
+            times: [0, 0.2, 0.6, 1.0]
+        )
+        emitter.position = position
+        emitter.zPosition = 51
+        scene.addChild(emitter)
+        emitter.run(SKAction.sequence([SKAction.wait(forDuration: 1.2),
+                                       SKAction.removeFromParent()]))
+
+        screenShake(on: scene, intensity: 12, duration: 0.30)
+    }
+
+    /// A coloured bolt drawn from caster → target (used for MANABOLT).
+    /// Beefed up — three layered bolts (outer halo, mid stroke, bright
+    /// inner core) animate sequentially to give a "manabolt streak" look,
+    /// each with random control-point wobble. Plus a charge-up spark at
+    /// the caster, plus impact splatter at the target.
+    func emitMagicBolt(from origin: CGPoint, to target: CGPoint,
+                       color: UIColor, in scene: SKScene) {
+        // Charge-up halo at caster
+        let charge = SKShapeNode(circleOfRadius: 12)
+        charge.fillColor = color.withAlphaComponent(0.6)
+        charge.strokeColor = color
+        charge.lineWidth = 2
+        charge.glowWidth = 8
+        charge.position = origin
+        charge.zPosition = 51
+        scene.addChild(charge)
+        charge.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 0.3, duration: 0.18),
+                SKAction.fadeOut(withDuration: 0.18)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+
+        // Three layered bolts — outer wide halo, mid stroke, inner bright
+        // core. Each gets a slightly different mid-point so they read as
+        // intertwined streaks rather than a single line.
+        for (i, layer) in [(8, color.withAlphaComponent(0.35), 14.0),
+                           (4, color, 10.0),
+                           (2, UIColor.white, 6.0)].enumerated() {
+            let mid = CGPoint(x: (origin.x + target.x) / 2 + CGFloat.random(in: -12...12),
+                              y: (origin.y + target.y) / 2 + CGFloat.random(in: -12...12))
+            let cgPath = UIBezierPath()
+            cgPath.move(to: origin)
+            cgPath.addQuadCurve(to: target, controlPoint: mid)
+            let bolt = SKShapeNode(path: cgPath.cgPath)
+            bolt.strokeColor = layer.1
+            bolt.lineWidth = CGFloat(layer.0)
+            bolt.glowWidth = CGFloat(layer.2)
+            bolt.fillColor = .clear
+            bolt.zPosition = CGFloat(52 + i)
+            bolt.alpha = 0
+            scene.addChild(bolt)
+            let appear = SKAction.fadeIn(withDuration: 0.05)
+            let dwell  = SKAction.wait(forDuration: 0.12)
+            let fade   = SKAction.fadeOut(withDuration: 0.30)
+            bolt.run(SKAction.sequence([
+                SKAction.wait(forDuration: 0.18 + Double(i) * 0.04),  // staggered
+                appear, dwell, fade,
+                SKAction.removeFromParent()
+            ]))
+        }
+
+        // Impact splatter at target (delayed so it lines up with bolt arrival)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) { [weak self] in
+            guard let self = self else { return }
+            // Coloured impact ring
+            let ring = SKShapeNode(circleOfRadius: 10)
+            ring.strokeColor = color
+            ring.fillColor = .clear
+            ring.lineWidth = 2.5
+            ring.glowWidth = 8
+            ring.position = target
+            ring.zPosition = 50
+            scene.addChild(ring)
+            ring.run(SKAction.sequence([
+                SKAction.group([
+                    SKAction.scale(to: 4.0, duration: 0.4),
+                    SKAction.fadeOut(withDuration: 0.4)
+                ]),
+                SKAction.removeFromParent()
+            ]))
+            self.emitSparks(at: target, in: scene, count: 14)
+        }
+    }
+
+    /// Yellow zigzag lightning for the SHOCK spell.
+    /// Beefed up — 3 forked lightning strikes flash in rapid succession
+    /// (each with its own randomised zigzag), plus a bright impact flash
+    /// at the target and an electrified spark splatter.
+    func emitShockBolt(from origin: CGPoint, to target: CGPoint, in scene: SKScene) {
+        // Helper to build a single zigzag bolt path.
+        func makeBoltPath() -> CGPath {
+            let segments = 7
+            let dx = (target.x - origin.x) / CGFloat(segments)
+            let dy = (target.y - origin.y) / CGFloat(segments)
+            let normalLen = hypot(dx, dy)
+            let nx = -dy / max(0.01, normalLen)
+            let ny = dx / max(0.01, normalLen)
+            let path = UIBezierPath()
+            path.move(to: origin)
+            for i in 1..<segments {
+                let baseX = origin.x + dx * CGFloat(i)
+                let baseY = origin.y + dy * CGFloat(i)
+                let jitter: CGFloat = CGFloat.random(in: -16...16)
+                path.addLine(to: CGPoint(x: baseX + nx * jitter, y: baseY + ny * jitter))
+            }
+            path.addLine(to: target)
+            return path.cgPath
+        }
+
+        // Main strike: outer glow + bright inner core.
+        for (i, layer) in [(6, UIColor(hex: "#FFEE00").withAlphaComponent(0.4), 14.0),
+                           (3, UIColor(hex: "#FFEE00"), 10.0),
+                           (1.5, UIColor.white, 4.0)].enumerated() {
+            let bolt = SKShapeNode(path: makeBoltPath())
+            bolt.strokeColor = layer.1
+            bolt.lineWidth = CGFloat(layer.0)
+            bolt.glowWidth = CGFloat(layer.2)
+            bolt.fillColor = .clear
+            bolt.zPosition = CGFloat(52 + i)
+            bolt.alpha = 0
+            scene.addChild(bolt)
+            bolt.run(SKAction.sequence([
+                SKAction.fadeIn(withDuration: 0.04),
+                SKAction.wait(forDuration: 0.10),
+                SKAction.fadeOut(withDuration: 0.18),
+                SKAction.removeFromParent()
+            ]))
+        }
+
+        // Two "aftershock" forked bolts that flash slightly after the main
+        // strike — gives the shock a stuttering, electrical-arc rhythm.
+        for delay in [0.18, 0.32] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                let bolt = SKShapeNode(path: makeBoltPath())
+                bolt.strokeColor = UIColor(hex: "#FFEE00")
+                bolt.lineWidth = 2
+                bolt.glowWidth = 6
+                bolt.fillColor = .clear
+                bolt.zPosition = 52
+                bolt.alpha = 0
+                scene.addChild(bolt)
+                bolt.run(SKAction.sequence([
+                    SKAction.fadeIn(withDuration: 0.03),
+                    SKAction.wait(forDuration: 0.06),
+                    SKAction.fadeOut(withDuration: 0.10),
+                    SKAction.removeFromParent()
+                ]))
+            }
+        }
+
+        // Bright white impact flash at the target.
+        let flash = SKShapeNode(circleOfRadius: 12)
+        flash.fillColor = UIColor.white
+        flash.strokeColor = UIColor(hex: "#FFEE00")
+        flash.lineWidth = 2
+        flash.glowWidth = 14
+        flash.position = target
+        flash.zPosition = 51
+        scene.addChild(flash)
+        flash.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 2.5, duration: 0.18),
+                SKAction.fadeOut(withDuration: 0.20)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+
+        emitSparks(at: target, in: scene, count: 16)
+    }
+
+    /// Red slash-arc burst at the samurai's tile for BLITZ.
+    func emitSlashArc(at position: CGPoint, in scene: SKScene) {
+        // Multiple slash strokes rotated around the centre.
+        let radius: CGFloat = 30
+        for i in 0..<3 {
+            let angle = -CGFloat.pi/4 + CGFloat(i) * (.pi / 4.5)
+            let path = UIBezierPath()
+            let dx = cos(angle) * radius
+            let dy = sin(angle) * radius
+            path.move(to: CGPoint(x: position.x - dx, y: position.y - dy))
+            path.addLine(to: CGPoint(x: position.x + dx, y: position.y + dy))
+            let slash = SKShapeNode(path: path.cgPath)
+            slash.strokeColor = UIColor(hex: "#FF3322")
+            slash.lineWidth = 4
+            slash.glowWidth = 10
+            slash.lineCap = .round
+            slash.zPosition = 52
+            slash.alpha = 0
+            scene.addChild(slash)
+            let delay = SKAction.wait(forDuration: TimeInterval(i) * 0.05)
+            let appear = SKAction.fadeIn(withDuration: 0.04)
+            let dwell = SKAction.wait(forDuration: 0.10)
+            let fade = SKAction.fadeOut(withDuration: 0.18)
+            slash.run(SKAction.sequence([delay, appear, dwell, fade,
+                                         SKAction.removeFromParent()]))
+        }
+        screenShake(on: scene, intensity: 4, duration: 0.18)
+    }
+
+    /// Gun fire — muzzle flash at shooter + bullet tracer line shooter→target.
+    /// Quick, snappy, used every time a player shoots so it has to feel
+    /// punchy without being expensive.
+    func emitGunfire(from origin: CGPoint, to target: CGPoint, in scene: SKScene) {
+        // Muzzle flash — bright yellow burst at the shooter, fades fast.
+        let flash = SKShapeNode(circleOfRadius: 8)
+        flash.fillColor = UIColor.white
+        flash.strokeColor = UIColor(hex: "#FFCC44")
+        flash.lineWidth = 2
+        flash.glowWidth = 12
+        flash.position = origin
+        flash.zPosition = 51
+        scene.addChild(flash)
+        flash.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 2.4, duration: 0.10),
+                SKAction.fadeOut(withDuration: 0.12)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+
+        // Tracer line — thin yellow streak from shooter to target. Travels
+        // fast (0.10s) so the bullet feels supersonic.
+        let path = UIBezierPath()
+        path.move(to: origin)
+        path.addLine(to: target)
+        let tracer = SKShapeNode(path: path.cgPath)
+        tracer.strokeColor = UIColor(hex: "#FFEEAA")
+        tracer.lineWidth = 1.8
+        tracer.glowWidth = 4
+        tracer.lineCap = .round
+        tracer.fillColor = .clear
+        tracer.zPosition = 50
+        tracer.alpha = 0
+        scene.addChild(tracer)
+        tracer.run(SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.04),
+            SKAction.wait(forDuration: 0.08),
+            SKAction.fadeOut(withDuration: 0.10),
+            SKAction.removeFromParent()
+        ]))
+
+        // A small kick of cordite-style smoke at the muzzle.
+        let smoke = SKEmitterNode()
+        smoke.particleBirthRate = 0
+        smoke.numParticlesToEmit = 6
+        smoke.particleLifetime = 0.5
+        smoke.particleSpeed = 40
+        smoke.particleSpeedRange = 20
+        smoke.emissionAngleRange = .pi / 2
+        smoke.emissionAngle = atan2(target.y - origin.y, target.x - origin.x)
+        smoke.particleAlpha = 0.6
+        smoke.particleAlphaSpeed = -1.4
+        smoke.particleScale = 0.6
+        smoke.particleScaleSpeed = -0.7
+        smoke.particleColor = UIColor(white: 0.85, alpha: 1.0)
+        smoke.particleColorBlendFactor = 1.0
+        smoke.position = origin
+        smoke.zPosition = 49
+        scene.addChild(smoke)
+        smoke.run(SKAction.sequence([SKAction.wait(forDuration: 0.6),
+                                     SKAction.removeFromParent()]))
+    }
+
+    /// Melee strike — quick red slash arc at the target's tile + impact spark.
+    /// Used by the basic ATK action so a melee swing reads visually distinct
+    /// from a ranged shot.
+    func emitMeleeStrike(at position: CGPoint, in scene: SKScene) {
+        // Single bold slash drawn at a random angle.
+        let radius: CGFloat = 24
+        let angle = CGFloat.random(in: -.pi/3 ... .pi/3) - .pi/6
+        let path = UIBezierPath()
+        let dx = cos(angle) * radius
+        let dy = sin(angle) * radius
+        path.move(to: CGPoint(x: position.x - dx, y: position.y - dy))
+        path.addLine(to: CGPoint(x: position.x + dx, y: position.y + dy))
+        let slash = SKShapeNode(path: path.cgPath)
+        slash.strokeColor = UIColor(hex: "#FF5544")
+        slash.lineWidth = 4
+        slash.glowWidth = 9
+        slash.lineCap = .round
+        slash.zPosition = 52
+        slash.alpha = 0
+        scene.addChild(slash)
+        slash.run(SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.04),
+            SKAction.wait(forDuration: 0.08),
+            SKAction.fadeOut(withDuration: 0.16),
+            SKAction.removeFromParent()
+        ]))
+        emitSparks(at: position, in: scene, count: 8)
+    }
+
+    /// HACK — Decker → target ICE intrusion. A stream of "0/1" binary
+    /// glyphs flies from decker to target along a curved path, the target
+    /// briefly flashes with a circuit-pattern overlay, and electric sparks
+    /// burst at the impact point.
+    func emitHack(from origin: CGPoint, to target: CGPoint, in scene: SKScene) {
+        // Curved path of binary glyphs — they travel along the curve from
+        // origin → target with a stagger so they read as a moving stream.
+        let mid = CGPoint(x: (origin.x + target.x) / 2 + CGFloat.random(in: -10...10),
+                          y: (origin.y + target.y) / 2 - 16)   // slight upward arc
+        let glyphs = ["0", "1", "0", "1", "F", "7", "1", "0"]
+        for (i, g) in glyphs.enumerated() {
+            let label = SKLabelNode(text: g)
+            label.fontName = "Menlo-Bold"
+            label.fontSize = 13
+            label.fontColor = UIColor(hex: "#00FFCC")
+            label.position = origin
+            label.zPosition = 52
+            label.alpha = 0
+            scene.addChild(label)
+            // Bezier-ish travel: split path into 12 sub-points and animate
+            // through them.
+            let steps = 10
+            var actions: [SKAction] = [
+                SKAction.wait(forDuration: TimeInterval(i) * 0.05),
+                SKAction.fadeIn(withDuration: 0.04)
+            ]
+            for s in 1...steps {
+                let t = CGFloat(s) / CGFloat(steps)
+                // Quadratic bezier interpolation
+                let omt = 1 - t
+                let x = omt * omt * origin.x + 2 * omt * t * mid.x + t * t * target.x
+                let y = omt * omt * origin.y + 2 * omt * t * mid.y + t * t * target.y
+                actions.append(SKAction.move(to: CGPoint(x: x, y: y), duration: 0.04))
+            }
+            actions.append(SKAction.fadeOut(withDuration: 0.1))
+            actions.append(SKAction.removeFromParent())
+            label.run(SKAction.sequence(actions))
+        }
+
+        // Circuit-pattern impact at the target — a cyan ring + cross-hairs.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+            let ring = SKShapeNode(circleOfRadius: 14)
+            ring.strokeColor = UIColor(hex: "#00FFCC")
+            ring.fillColor = .clear
+            ring.lineWidth = 3
+            ring.glowWidth = 10
+            ring.position = target
+            ring.zPosition = 51
+            scene.addChild(ring)
+            ring.run(SKAction.sequence([
+                SKAction.group([
+                    SKAction.scale(to: 3.2, duration: 0.40),
+                    SKAction.fadeOut(withDuration: 0.40)
+                ]),
+                SKAction.removeFromParent()
+            ]))
+
+            // Cross-hair lines flashing on top (the "system breach" feel).
+            for angle in [0.0, .pi/2] as [CGFloat] {
+                let line = SKShapeNode(rectOf: CGSize(width: 36, height: 2))
+                line.fillColor = UIColor(hex: "#00FFCC")
+                line.strokeColor = .clear
+                line.glowWidth = 6
+                line.position = target
+                line.zRotation = angle
+                line.zPosition = 52
+                line.alpha = 0
+                scene.addChild(line)
+                line.run(SKAction.sequence([
+                    SKAction.fadeIn(withDuration: 0.04),
+                    SKAction.wait(forDuration: 0.10),
+                    SKAction.fadeOut(withDuration: 0.20),
+                    SKAction.removeFromParent()
+                ]))
+            }
+        }
+    }
+
+    // MARK: - Triggered VFX (one-shot, scoped to specific events)
+    //
+    // Lightweight transient effects that fire on actions, not ambient. Each
+    // is procedural (SKShapeNode + SKAction) so it composites cleanly with
+    // the existing scene without sprite-atlas blending issues.
+
+    /// 0.4s glitch flash + downward scan-line over an enemy node when hit by
+    /// a HACK. Wraps the enemy in a cyan haze, runs a horizontal scan-line
+    /// from top to bottom, and ticks 3 alpha-flicker pulses.
+    func emitHackGlitch(on enemyNode: SKNode) {
+        let bounds = enemyNode.calculateAccumulatedFrame().size
+        let w = max(bounds.width, 60)
+        let h = max(bounds.height, 90)
+
+        // Cyan tint over the enemy's bounding box
+        let tint = SKShapeNode(rectOf: CGSize(width: w, height: h), cornerRadius: 4)
+        tint.fillColor = UIColor(hex: "#00FFCC").withAlphaComponent(0.30)
+        tint.strokeColor = UIColor(hex: "#00FFCC")
+        tint.lineWidth = 1.0
+        tint.glowWidth = 3.0
+        tint.blendMode = .add
+        tint.alpha = 0.0
+        tint.zPosition = 50
+        tint.name = "hackGlitch_tint"
+        enemyNode.addChild(tint)
+
+        // Three quick alpha pulses then fade
+        tint.run(SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.85, duration: 0.05),
+            SKAction.fadeAlpha(to: 0.20, duration: 0.05),
+            SKAction.fadeAlpha(to: 0.75, duration: 0.05),
+            SKAction.fadeAlpha(to: 0.10, duration: 0.05),
+            SKAction.fadeAlpha(to: 0.65, duration: 0.05),
+            SKAction.fadeOut(withDuration: 0.15),
+            SKAction.removeFromParent()
+        ]))
+
+        // Scan-line band that sweeps top→bottom
+        let scan = SKShapeNode(rectOf: CGSize(width: w, height: 2.5))
+        scan.fillColor = UIColor(hex: "#00FFCC")
+        scan.strokeColor = .clear
+        scan.glowWidth = 4.0
+        scan.blendMode = .add
+        scan.alpha = 0.0
+        scan.position = CGPoint(x: 0, y: h / 2)
+        scan.zPosition = 51
+        scan.name = "hackGlitch_scan"
+        enemyNode.addChild(scan)
+        scan.run(SKAction.sequence([
+            SKAction.fadeIn(withDuration: 0.04),
+            SKAction.moveBy(x: 0, y: -h, duration: 0.32),
+            SKAction.fadeOut(withDuration: 0.04),
+            SKAction.removeFromParent()
+        ]))
+    }
+
+    /// ~1s falling-glyph code-rain burst centered behind a chopper. Spawns
+    /// a column of cyan glyphs that fall and fade. Used during extraction.
+    func emitChopperCodeRain(behind chopperNode: SKNode, in scene: SKScene) {
+        let chopperPos = chopperNode.position
+        // Spawn 3 columns slightly behind & beneath the chopper
+        let columnOffsets: [CGFloat] = [-32, 0, 32]
+        let glyphChars = ["0", "1", "ア", "イ", "ウ", "エ", "ナ", "ノ", "ル", "·"]
+        for col in columnOffsets {
+            // 6 glyphs per column, each delayed slightly so they stagger
+            for i in 0..<6 {
+                let label = SKLabelNode(fontNamed: "Menlo-Bold")
+                label.text = glyphChars.randomElement() ?? "0"
+                label.fontSize = 11
+                label.fontColor = UIColor(hex: "#00FFCC")
+                label.alpha = 0.0
+                label.blendMode = .add
+                label.position = CGPoint(x: chopperPos.x + col + CGFloat.random(in: -4...4),
+                                         y: chopperPos.y + 30)
+                label.zPosition = 58  // behind chopper at z=60
+                scene.addChild(label)
+                let delay = SKAction.wait(forDuration: TimeInterval(i) * 0.08)
+                let fall = SKAction.group([
+                    SKAction.moveBy(x: 0, y: -90, duration: 0.85),
+                    SKAction.sequence([
+                        SKAction.fadeAlpha(to: 0.85, duration: 0.18),
+                        SKAction.wait(forDuration: 0.40),
+                        SKAction.fadeOut(withDuration: 0.27)
+                    ])
+                ])
+                label.run(SKAction.sequence([delay, fall, SKAction.removeFromParent()]))
+            }
+        }
+    }
+
+    /// Single expanding floor ring at an objective tile (extraction or data
+    /// terminal) when a runner steps onto it. ~0.6s, fades out as it grows.
+    func emitObjectivePulse(at position: CGPoint,
+                            in scene: SKScene,
+                            color: UIColor = UIColor(hex: "#00FFCC")) {
+        for i in 0..<2 {
+            let ring = SKShapeNode(circleOfRadius: 14)
+            ring.strokeColor = color
+            ring.fillColor = .clear
+            ring.lineWidth = 2.0
+            ring.glowWidth = 5.0
+            ring.alpha = 0.85
+            ring.position = position
+            ring.zPosition = 4   // floor-level — under characters (z=10+)
+            scene.addChild(ring)
+            let delay = SKAction.wait(forDuration: TimeInterval(i) * 0.15)
+            let pulse = SKAction.group([
+                SKAction.scale(to: 4.0, duration: 0.6),
+                SKAction.fadeOut(withDuration: 0.6)
+            ])
+            ring.run(SKAction.sequence([delay, pulse, SKAction.removeFromParent()]))
+        }
+    }
+
+    /// Expanding red shockwave at Face's tile for INTIMIDATE.
+    func emitIntimidateWave(at position: CGPoint, in scene: SKScene) {
+        for i in 0..<3 {
+            let ring = SKShapeNode(circleOfRadius: 12)
+            ring.strokeColor = UIColor(hex: "#FF2244")
+            ring.fillColor = .clear
+            ring.lineWidth = 2
+            ring.glowWidth = 5
+            ring.position = position
+            ring.zPosition = 49
+            scene.addChild(ring)
+            let delay = SKAction.wait(forDuration: TimeInterval(i) * 0.10)
+            let group = SKAction.group([
+                SKAction.scale(to: 5.5, duration: 0.55),
+                SKAction.fadeOut(withDuration: 0.55)
+            ])
+            ring.run(SKAction.sequence([delay, group,
+                                        SKAction.removeFromParent()]))
+        }
     }
 }

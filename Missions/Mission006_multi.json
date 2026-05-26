@@ -1,109 +1,120 @@
 {
   "id": "run006_multi",
   "title": "Ghost Signal",
-  "description": "A corporate vault is leaking an impossible signal. Cut through the server room, pull the classified AI research from the core, and reach the extraction bay before the trace completes.",
+  "description": "A corporate vault is leaking an impossible signal. Cut through the server lanes, pull the classified AGI research from the core vault, and reach the extraction tunnel before the AI's countertrace completes.",
+  "briefing": "We've traced Specter back to its source — a black-budget AGI research facility buried under Mitsuhama Industries' Seattle annex. Six floors down, no corporate listing, no public access. They've been growing artificial general intelligences in there for years and Specter was one that escaped. Your job: breach the server lanes, hack the AI core vault for the original research files, exfil through the maintenance tunnel before the facility's countertrace pins your team in place. This is the deepest run we've ever pulled — drones, ICE, corp security, and the AI itself watching every move. Keep it fast. Keep it quiet. Don't get curious.",
+  "missionCompleteSummary": "AGI research files delivered. The leaked archive is going to rewrite what the public knows about megacorp AI development — every newsfeed, every Matrix forum, every government oversight committee will have a copy by sunrise. Mitsuhama's stock cratered the second the news broke. You're hot now — really hot. Take the payday, take six months off-grid, change your faces if you can afford it. You earned it.",
+  "extractionType": "door",
   "rooms": [
     {
       "id": "room_0",
-      "title": "Server Room",
+      "title": "Server Lanes",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 1, 1, 1, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 3, 2, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 2, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 1, "y": 10 },
+      "playerSpawn": { "x": 3, "y": 10 },
       "extractionPoint": null,
       "enemies": [
-        { "type": "drone", "x": 4, "y": 5, "delay": 2 },
-        { "type": "guard", "x": 2, "y": 3, "delay": 3 }
+        { "type": "drone", "x": 4, "y": 8, "delay": 0 },
+        { "type": "guard", "x": 2, "y": 5, "delay": 2 },
+        { "type": "drone", "x": 4, "y": 3, "delay": 4 }
       ],
       "connections": [
         {
           "targetRoomId": "room_1",
           "triggerTileX": 3,
-          "triggerTileY": 6,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 10
+          "targetSpawnY": 9
         }
       ]
     },
     {
       "id": "room_1",
-      "title": "AI Core",
+      "title": "AI Core Vault",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
+        [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 2, 0, 2, 0, 1],
         [1, 1, 0, 0, 0, 1, 1],
-        [1, 0, 0, 1, 0, 5, 1],
-        [1, 0, 2, 0, 2, 0, 1],
-        [1, 0, 0, 3, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 5, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 3, "y": 10 },
+      "playerSpawn": { "x": 3, "y": 9 },
       "extractionPoint": null,
       "enemies": [
-        { "type": "elite",  "x": 3, "y": 3, "delay": 3 },
-        { "type": "healer", "x": 1, "y": 5, "delay": 4 },
-        { "type": "mage",   "x": 5, "y": 2, "delay": 5 }
+        { "type": "elite",  "x": 3, "y": 3, "delay": 0 },
+        { "type": "mage",   "x": 1, "y": 5, "delay": 2 },
+        { "type": "healer", "x": 5, "y": 5, "delay": 3 }
       ],
       "connections": [
         {
           "targetRoomId": "room_0",
           "triggerTileX": 3,
-          "triggerTileY": 8,
+          "triggerTileY": 10,
           "targetSpawnX": 3,
-          "targetSpawnY": 6
+          "targetSpawnY": 2
         },
         {
           "targetRoomId": "room_2",
           "triggerTileX": 3,
-          "triggerTileY": 6,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 10
+          "targetSpawnY": 2
         }
       ]
     },
     {
       "id": "room_2",
-      "title": "Extraction Bay",
+      "title": "Extraction Tunnel",
       "map": [
         [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 4, 0, 0, 1],
-        [1, 0, 0, 0, 0, 2, 1],
-        [1, 0, 2, 0, 0, 0, 1],
-        [1, 0, 0, 0, 2, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 3, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
         [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 1, 0, 0, 0, 1, 1],
+        [1, 0, 0, 0, 0, 0, 1],
+        [1, 0, 0, 4, 0, 0, 1],
         [1, 1, 1, 1, 1, 1, 1]
       ],
-      "playerSpawn": { "x": 3, "y": 10 },
-      "extractionPoint": { "x": 3, "y": 1 },
-      "enemies": [],
+      "playerSpawn": { "x": 3, "y": 2 },
+      "extractionPoint": { "x": 3, "y": 10 },
+      "enemies": [
+        { "type": "guard",  "x": 2, "y": 5, "delay": 0 },
+        { "type": "guard",  "x": 4, "y": 5, "delay": 0 },
+        { "type": "elite",  "x": 3, "y": 7, "delay": 1 },
+        { "type": "mage",   "x": 3, "y": 9, "delay": 3 },
+        { "type": "healer", "x": 5, "y": 7, "delay": 4 }
+      ],
+      "bossSpawn": { "type": "agi", "x": 3, "y": 9 },
       "connections": [
         {
           "targetRoomId": "room_1",
           "triggerTileX": 3,
-          "triggerTileY": 8,
+          "triggerTileY": 1,
           "targetSpawnX": 3,
-          "targetSpawnY": 6
+          "targetSpawnY": 2
         }
       ]
     }

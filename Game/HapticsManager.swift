@@ -55,10 +55,36 @@ final class HapticsManager {
     
     func buttonTap() {
         light.impactOccurred()
+        SFXManager.shared.play("ui_tap", volume: 0.6)
     }
-    
+
     func selectionChanged() {
         medium.impactOccurred()
+        SFXManager.shared.play("ui_tap", volume: 0.54)   // −10% from 0.6
+    }
+
+    /// Affirmative commit-style button (NEW RUN, ACCEPT CONTRACT, mission row).
+    func selectAffirm() {
+        medium.impactOccurred()
+        SFXManager.shared.play("ui_select", volume: 0.63)  // −10% from 0.7
+    }
+
+    /// Back / cancel / abort / dismiss.
+    func back() {
+        light.impactOccurred()
+        SFXManager.shared.play("ui_back", volume: 0.6)
+    }
+
+    /// Invalid action — out of range, not enough mana, already moved, etc.
+    func error() {
+        rigid.impactOccurred()
+        SFXManager.shared.play("ui_error", volume: 0.7)
+    }
+
+    /// Lock release — door open, terminal unlock, mini-game success.
+    func unlock() {
+        soft.impactOccurred()
+        SFXManager.shared.play("ui_unlock", volume: 0.75)
     }
     
     func menuOpen() {
