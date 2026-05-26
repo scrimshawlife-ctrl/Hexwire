@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "intro_m6_beat2.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

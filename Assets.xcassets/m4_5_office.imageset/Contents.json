@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "m4_5_office.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
