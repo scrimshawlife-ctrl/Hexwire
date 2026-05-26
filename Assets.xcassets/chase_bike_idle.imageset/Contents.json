@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "chase_bike_idle.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
