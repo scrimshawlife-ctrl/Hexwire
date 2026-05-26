@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "prologue_lotus_interior.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "tool_decrypt_icon.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
