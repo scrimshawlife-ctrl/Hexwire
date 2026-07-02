@@ -1,6 +1,38 @@
 import Foundation
 import Combine
 
+/// One-time migration of persisted save data from the legacy "ShadowrunGame.*"
+/// UserDefaults keys to the "HexWire.*" keys used after the 2026 rebrand.
+/// Copies each old value to its new key (only if the new key is empty), so a
+/// player's roster / nuyen / ranks / NG+ carry across the rename instead of
+/// resetting. Flag-guarded — runs at most once, then no-ops forever.
+enum StorageMigration {
+    private static let flagKey = "HexWire.Migration.KeyRename.v1"
+    private static let keyPairs: [(old: String, new: String)] = [
+        ("ShadowrunGame.MissionStats.v1",           "HexWire.MissionStats.v1"),
+        ("ShadowrunGame.PlayerNuyen.v1",            "HexWire.PlayerNuyen.v1"),
+        ("ShadowrunGame.PaidThisRun.v1",            "HexWire.PaidThisRun.v1"),
+        ("ShadowrunGame.Migration.ChaseBackfill.v1","HexWire.Migration.ChaseBackfill.v1"),
+        ("ShadowrunGame.FactionAttention.v1",       "HexWire.FactionAttention.v1"),
+        ("ShadowrunGame.Roster.v1",                 "HexWire.Roster.v1"),
+        ("ShadowrunGame.Roster.v1.lastGood",        "HexWire.Roster.v1.lastGood"),
+        ("ShadowrunGame.NGPlusTier.v1",             "HexWire.NGPlusTier.v1"),
+    ]
+
+    /// Idempotent — safe to call from every store's init; the first caller
+    /// migrates, the rest see the flag and return immediately.
+    static func migrateLegacyKeysIfNeeded() {
+        let d = UserDefaults.standard
+        guard !d.bool(forKey: flagKey) else { return }
+        for pair in keyPairs {
+            if d.object(forKey: pair.new) == nil, let value = d.object(forKey: pair.old) {
+                d.set(value, forKey: pair.new)
+            }
+        }
+        d.set(true, forKey: flagKey)
+    }
+}
+
 /// Per-mission completion + best-score record for display on the mission menu.
 struct MissionRecord: Codable, Equatable {
     var bestScore: Int
@@ -36,9 +68,9 @@ final class MissionStatsStore: ObservableObject {
     /// so the next run-through can earn the full economy again.
     @Published private(set) var paidThisRun: Set<String> = []
 
-    private let storageKey = "ShadowrunGame.MissionStats.v1"
-    private let nuyenStorageKey = "ShadowrunGame.PlayerNuyen.v1"
-    private let paidThisRunKey = "ShadowrunGame.PaidThisRun.v1"
+    private let storageKey = "HexWire.MissionStats.v1"
+    private let nuyenStorageKey = "HexWire.PlayerNuyen.v1"
+    private let paidThisRunKey = "HexWire.PaidThisRun.v1"
 
     /// Per-mission base payout (matches the debrief screens). Bonus amounts
     /// (data / grimoire) live in `bonusFor(...)` below. Kept here as the
@@ -100,6 +132,7 @@ final class MissionStatsStore: ObservableObject {
     }
 
     private init() {
+        StorageMigration.migrateLegacyKeysIfNeeded()   // before load() reads the new keys
         load()
         runMigrations()
     }
@@ -119,7 +152,7 @@ final class MissionStatsStore: ObservableObject {
     /// played + won it. Detect that footprint — M1/M2/M3 done, M3.5 missing —
     /// and backfill a completion entry once. Flag persists, never replays.
     private func migrateBackfillChaseCompletion() {
-        let flagKey = "ShadowrunGame.Migration.ChaseBackfill.v1"
+        let flagKey = "HexWire.Migration.ChaseBackfill.v1"
         guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
 
         let m1Done = (records["Mission001"]?.completed ?? false)
@@ -309,7 +342,7 @@ final class MissionStatsStore: ObservableObject {
 
     // MARK: - Faction attention (campaign world-reaction state)
 
-    private static let factionAttentionKey = "ShadowrunGame.FactionAttention.v1"
+    private static let factionAttentionKey = "HexWire.FactionAttention.v1"
 
     /// Persist the campaign's faction-attention dict. Lives here next to the
     /// other campaign stores — it used to be memory-only, so force-quitting
@@ -367,8 +400,9 @@ final class MissionStatsStore: ObservableObject {
 /// full health but keep the levels you've earned.
 final class RosterStore {
     static let shared = RosterStore()
-    private let key = "ShadowrunGame.Roster.v1"
-    private let backupKey = "ShadowrunGame.Roster.v1.lastGood"
+    private let key = "HexWire.Roster.v1"
+    private let backupKey = "HexWire.Roster.v1.lastGood"
+    private init() { StorageMigration.migrateLegacyKeysIfNeeded() }
 
     /// Versioned envelope so future format changes can MIGRATE instead of
     /// silently wiping progression. The old bare-array format meant any
@@ -470,7 +504,8 @@ final class RosterStore {
 /// progression carries forward.
 final class NGPlusStore {
     static let shared = NGPlusStore()
-    private let key = "ShadowrunGame.NGPlusTier.v1"
+    private let key = "HexWire.NGPlusTier.v1"
+    private init() { StorageMigration.migrateLegacyKeysIfNeeded() }
 
     var tier: Int {
         get { UserDefaults.standard.integer(forKey: key) }
