@@ -10,25 +10,25 @@ Date: 2026-04-21
 
 High-confidence result from filtered comparison:
 - No nested-only source/project files were found after excluding `.git`, `.venv`, `build`, and `screenshots`.
-- The key runtime files that differ (`Game/GameState.swift`, `ShadowrunGameApp.swift`, `UI/CombatUI.swift`) are newer in root and contain the current feature set.
+- The key runtime files that differ (`Game/GameState.swift`, `HexwireApp.swift`, `UI/CombatUI.swift`) are newer in root and contain the current feature set.
 
 ## Unique Legacy Items
 
 | Path | Type | Classification | Recommendation | Reason |
 |---|---|---|---|---|
-| `ShadowrunGame/.git/**` | nested VCS metadata | DELETE_LATER | Remove in cleanup patch after archive snapshot | Causes source-of-truth ambiguity; not app content. |
-| `ShadowrunGame/.venv/**` | local Python environment | DELETE_LATER | Remove in cleanup patch | Machine-local tooling cache, reproducible. |
-| `ShadowrunGame/build/**` | generated build artifacts | DELETE_LATER | Remove in cleanup patch | Non-authoritative generated output. |
-| `ShadowrunGame/screenshots/**` | captures/debug outputs | ARCHIVE_REFERENCE | Keep only curated evidence subset, archive rest | Potentially useful for regression evidence; too large/noisy for active tree. |
-| `ShadowrunGame/screenshot-*.png` and `enemy_preview.png` | ad-hoc image artifacts | ARCHIVE_REFERENCE | Archive outside runtime tree | Debug history, not runtime source. |
-| `ShadowrunGame/ShadowrunGame.xcodeproj.backup-*` | backup project snapshots | ARCHIVE_REFERENCE | Keep until macOS validation complete, then archive/remove | Safety copies may still be useful during cleanup transition. |
+| `HexWire/.git/**` | nested VCS metadata | DELETE_LATER | Remove in cleanup patch after archive snapshot | Causes source-of-truth ambiguity; not app content. |
+| `HexWire/.venv/**` | local Python environment | DELETE_LATER | Remove in cleanup patch | Machine-local tooling cache, reproducible. |
+| `HexWire/build/**` | generated build artifacts | DELETE_LATER | Remove in cleanup patch | Non-authoritative generated output. |
+| `HexWire/screenshots/**` | captures/debug outputs | ARCHIVE_REFERENCE | Keep only curated evidence subset, archive rest | Potentially useful for regression evidence; too large/noisy for active tree. |
+| `HexWire/screenshot-*.png` and `enemy_preview.png` | ad-hoc image artifacts | ARCHIVE_REFERENCE | Archive outside runtime tree | Debug history, not runtime source. |
+| `HexWire/HexWire.xcodeproj.backup-*` | backup project snapshots | ARCHIVE_REFERENCE | Keep until macOS validation complete, then archive/remove | Safety copies may still be useful during cleanup transition. |
 
 ## Swift Source Diff Risks
 
 | File | Legacy differs? | Merge? | Reason |
 |---|---|---|---|
 | `Game/GameState.swift` | Yes | No | Root is ahead (trace/presets/mission type/objective diagnostics additions); legacy is older. |
-| `ShadowrunGameApp.swift` | Yes | No | Root is ahead (diagnostics panel/FPS wiring additions). |
+| `HexwireApp.swift` | Yes | No | Root is ahead (diagnostics panel/FPS wiring additions). |
 | `UI/CombatUI.swift` | Yes | No | Root is ahead (status/toggle/action wiring for current test knobs). |
 | all other mirrored Swift files | No meaningful diff detected in filtered scope | No | Already mirrored between trees. |
 

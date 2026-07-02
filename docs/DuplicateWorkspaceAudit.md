@@ -1,9 +1,9 @@
-# Duplicate Workspace Audit — nested `ShadowrunGame/`
+# Duplicate Workspace Audit — nested `HexWire/`
 
 Date: 2026-04-20
 
 ## Objective
-Assess whether untracked nested folder `ShadowrunGame/` contains unique source/assets/scripts compared to repository root.
+Assess whether untracked nested folder `HexWire/` contains unique source/assets/scripts compared to repository root.
 
 ## Method
 1. Confirmed nested directory exists.

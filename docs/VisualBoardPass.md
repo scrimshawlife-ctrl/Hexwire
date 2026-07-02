@@ -20,7 +20,7 @@ No gameplay rules were changed.
 - Backplate improves tile/sprite contrast but does not alter tile semantics.
 
 ## Verify in Xcode
-1. Open `ShadowrunGame.xcodeproj`.
+1. Open `HexWire.xcodeproj`.
 2. Launch combat mission.
 3. Confirm:
    - players are visible at spawn,

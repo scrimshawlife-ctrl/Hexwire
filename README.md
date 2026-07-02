@@ -1,4 +1,4 @@
-# Shadowrune
+# HexWire
 
 > Tactical cyberpunk-fantasy strategy prototype built in SwiftUI + SpriteKit  
 > A pressure-driven combat system where every action trades power for exposure.
@@ -36,7 +36,7 @@ Handoff updates should always include:
 
 ## 🎮 Core Loop
 
-![Loop](docs/assets/shadowrune-loop.svg)
+![Loop](docs/assets/hexwire-loop.svg)
 
 - Signal → gain power, increase trace  
 - Trace → builds toward escalation  
@@ -47,7 +47,7 @@ Handoff updates should always include:
 
 ## 🧠 Roles
 
-![Roles](docs/assets/shadowrune-roles.svg)
+![Roles](docs/assets/hexwire-roles.svg)
 
 | Role | Identity | Effect |
 |------|--------|--------|
@@ -112,7 +112,7 @@ Handoff updates should always include:
 
 ## 🧱 Architecture
 
-![Architecture](docs/assets/shadowrune-architecture.svg)
+![Architecture](docs/assets/hexwire-architecture.svg)
 
 ---
 
@@ -136,8 +136,8 @@ Handoff updates should always include:
 │   ├── TraceSystem.md
 │   └── TurnAuthorityReport.md
 ├── Info.plist
-├── ShadowrunGameApp.swift
-└── Shadowrune.xcodeproj/
+├── HexwireApp.swift
+└── HexWire.xcodeproj/
 ```
 
 ---
@@ -145,13 +145,13 @@ Handoff updates should always include:
 ## ▶️ Run
 
 ### Xcode
-1. Open `Shadowrune.xcodeproj`
-2. Select scheme `ShadowrunGame`
+1. Open `HexWire.xcodeproj`
+2. Select scheme `HexWire`
 3. Run on an iOS simulator
 
 ### CLI
 ```bash
-xcodebuild -project Shadowrune.xcodeproj -scheme Shadowrune -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Note: iOS builds require macOS + Xcode.

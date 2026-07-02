@@ -1,4 +1,4 @@
-# ShadowRune codebase analysis — round 1 (2026-06-10)
+# HexWire codebase analysis — round 1 (2026-06-10)
 
 42 verified findings from four parallel sweeps: game mechanics, graphics/rendering, game feel, performance.
 
@@ -53,12 +53,12 @@
 - **Mini-games burn ~50 body-evaluations/sec** from 3-4 stacked cosmetic timers at 14-20 Hz (MatrixMiniGame.swift:979-1007 + 4 siblings). Replace pulse/glitch timers with `TimelineView(.animation)`.
 - **ChiptunePlayer synthesizes PCM sample-by-sample on the main actor 10×/sec** — up to 3 fresh buffers/tick, ~4,000-iteration fill loops, while the UI re-renders at 50 Hz (ChiptunePlayer.swift:259-350). The note set is static — precompute ~15 buffers.
 - **Unbounded image caches** — brawl + hoverbike caches hold tens of MB of decompressed 768×768 frames forever (BasementBrawlScene.swift:1175-1196, HoverbikeChase.swift:253-264). Use `NSCache` or flush on disappear.
-- **`BattleSceneView.Coordinator` leaks a notification observer per mission** — block-observer token discarded, no `deinit` (ShadowrunGameApp.swift:2876-2896). BattleScene itself does this correctly.
-- **Mission JSON parsed 2-3× per mission start, synchronously** — MissionSetupService, RoomManager, and BattleSceneView each re-parse; `MissionLoader` has no cache and the miss path does directory listings (MissionSetupService.swift:14, RoomManager.swift:78, ShadowrunGameApp.swift:2834/2861, MissionLoader.swift:172-211). Memoize per mission id.
+- **`BattleSceneView.Coordinator` leaks a notification observer per mission** — block-observer token discarded, no `deinit` (HexwireApp.swift:2876-2896). BattleScene itself does this correctly.
+- **Mission JSON parsed 2-3× per mission start, synchronously** — MissionSetupService, RoomManager, and BattleSceneView each re-parse; `MissionLoader` has no cache and the miss path does directory listings (MissionSetupService.swift:14, RoomManager.swift:78, HexwireApp.swift:2834/2861, MissionLoader.swift:172-211). Memoize per mission id.
 - **~270 SKShapeNode scanlines + per-tile glowWidth stacks** — `glowWidth` shapes each force an offscreen blur pass; doors/extraction/terminals also run `repeatForever` pulses (BattleScene.swift:177-198, 2431-2444; TileMap.swift:560-682). Bake static overlays to one texture via `SKView.texture(from:)`.
 - **Per-load disk decodes bypass every cache; no texture atlases anywhere** — `loadHeliTexture` does `UIImage(contentsOfFile:)` per call (4/room + 26/extraction); terminal sprites decode 6 PNGs per tile per room build (BattleScene.swift:968-988, 427-432, 494-500; TileMap.swift:405-413). Memoize in SpriteManager; move frame sets to atlases.
-- **Shop rows load icon PNGs from disk inside `body`** per row per re-render (ShadowrunGameApp.swift:212-222, 770).
-- **Title-screen Matrix rain** redraws the whole Canvas at 20 Hz and calls `UIScreen.main.bounds` per element per tick while the menu idles (ShadowrunGameApp.swift:1243-1254).
+- **Shop rows load icon PNGs from disk inside `body`** per row per re-render (HexwireApp.swift:212-222, 770).
+- **Title-screen Matrix rain** redraws the whole Canvas at 20 Hz and calls `UIScreen.main.bounds` per element per tick while the menu idles (HexwireApp.swift:1243-1254).
 - **Pathfinding nits (low — board is only 7×14):** string keys allocated per BFS node, walkability scans rosters linearly, boss AI re-runs full BFS per movement step, three near-identical BFS copies (Game/PathingAndAIHelpers.swift:28-38, 138-253; EnemyAI.swift:486-498). Int keys + occupied-set + one path per turn.
 - **Latent trap:** `loadTileTexture` (no cache, would re-decode a 1024×1536 sheet per call) is currently dead code — delete or cache before reviving (SpriteManager.swift:579-606, TileMap.swift:84-114, 180).
 - **Extraction safety timer never cancelled; `playerInputLocked` only reset by the 17s timer** ~3.6s after the animation ends — the door/ladder/rooftop variants do it correctly (BattleScene.swift:721-729, 757-762).

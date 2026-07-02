@@ -1,4 +1,4 @@
-# ShadowRune codebase analysis — round 4 (2026-06-10)
+# HexWire codebase analysis — round 4 (2026-06-10)
 
 Coverage: audio stack (MusicManager/SFXManager/HapticsManager/ChiptunePlayer), SpriteManager animation system (~2,700 lines), persistence layer (RosterStore/NGPlusStore/MissionStatsStore, Character Codable, UserDefaults).
 

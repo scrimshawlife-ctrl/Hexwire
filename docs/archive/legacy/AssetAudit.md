@@ -1,6 +1,6 @@
 # Legacy Asset Audit v1
 ## Scope
-- Scanned `ShadowrunGame/` for non-code files excluding `.git`, `.venv`, build artifacts, and `*.swift`.
+- Scanned `HexWire/` for non-code files excluding `.git`, `.venv`, build artifacts, and `*.swift`.
 - Compared each legacy asset path against the root workspace equivalent.
 ## Results
 - Legacy non-code assets scanned: **293**.

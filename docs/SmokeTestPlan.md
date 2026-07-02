@@ -1,12 +1,12 @@
 # Smoke Test Plan — Boot to Combat
 
 Date: 2026-04-20  
-Scope: Minimal manual smoke test because no UI test target exists in `ShadowrunGame.xcodeproj`.
+Scope: Minimal manual smoke test because no UI test target exists in `HexWire.xcodeproj`.
 
 ## Preconditions
 - macOS with Xcode installed.
-- Open `ShadowrunGame.xcodeproj`.
-- Select scheme `ShadowrunGame`.
+- Open `HexWire.xcodeproj`.
+- Select scheme `HexWire`.
 - Select an iPhone simulator (iOS 17+).
 
 ## Steps

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="880" height="360" viewBox="0 0 880 360" role="img" aria-labelledby="t d">
-  <title id="t">Shadowrune Architecture</title>
+  <title id="t">HexWire Architecture</title>
   <desc id="d">SwiftUI App flows into GameState, with UI and BattleScene as projections around authority.</desc>
   <defs>
     <style>

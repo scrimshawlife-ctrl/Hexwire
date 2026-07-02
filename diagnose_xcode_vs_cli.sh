@@ -3,7 +3,7 @@
 # Also builds with the EXACT destination Xcode uses (iPhone 17 Pro) so we rule
 # out generic/device differences.
 
-PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/Shadowrune"
+PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/HexWire"
 cd "$PROJECT_DIR"
 
 echo "=== 1. Check what's in DerivedData right now ==="
@@ -11,7 +11,7 @@ ls -la ~/Library/Developer/Xcode/DerivedData/ 2>&1 | grep -i shadow
 
 echo
 echo "=== 2. Find + decode the most recent Xcode build log ==="
-LATEST_LOG=$(find ~/Library/Developer/Xcode/DerivedData/ShadowrunGame-*/Logs/Build -name "*.xcactivitylog" 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+LATEST_LOG=$(find ~/Library/Developer/Xcode/DerivedData/HexWire-*/Logs/Build -name "*.xcactivitylog" 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
 if [ -n "$LATEST_LOG" ]; then
     echo "Found Xcode build log: $LATEST_LOG"
     echo
@@ -25,15 +25,15 @@ fi
 echo
 echo "=== 3. Build CLI with EXACT iPhone 17 Pro destination ==="
 xcodebuild \
-    -project Shadowrune.xcodeproj \
-    -scheme Shadowrune \
+    -project HexWire.xcodeproj \
+    -scheme HexWire \
     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
     -configuration Debug \
     clean build 2>&1 | grep -aE "error:|BUILD " | head -20
 
 echo
 echo "=== 4. What's the scheme pointing to? ==="
-SCHEME=$(find . -name "ShadowrunGame.xcscheme" 2>/dev/null | head -1)
+SCHEME=$(find . -name "HexWire.xcscheme" 2>/dev/null | head -1)
 if [ -n "$SCHEME" ]; then
     echo "Scheme file: $SCHEME"
     grep -E "BuildConfiguration|Runnable|BlueprintName" "$SCHEME" | head -10

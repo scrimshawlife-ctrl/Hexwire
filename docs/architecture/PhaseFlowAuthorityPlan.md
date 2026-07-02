@@ -8,7 +8,7 @@ Current phase/state-flow responsibility is split across three co-located loci:
    - Owns combat runtime truth (`combatEnded`, `combatWon`, turn/round state, mission/runtime flags) and emits combat completion through existing outcome flow.
    - Still contains phase machine types (`GamePhase`, `StateTransition`, `GameStateManager`) at file bottom as co-located non-runtime flow logic.
 
-2. **UI navigation authority (`PhaseManager` in `ShadowrunGameApp.swift`)**
+2. **UI navigation authority (`PhaseManager` in `HexwireApp.swift`)**
    - Drives top-level app phase rendering (`title`, `missionSelect`, `briefing`, `combat`, `debrief`) and screen routing.
    - Owns selected mission id and debrief result used by app views.
 
@@ -25,15 +25,15 @@ Current phase/state-flow responsibility is split across three co-located loci:
 | `GamePhase` | enum | `Game/GameState.swift` and used by app manager | `ContentView` phase switch; diagnostics panel phase label | A (extract authority type) |
 | `StateTransition` | enum | `Game/GameState.swift` and used by app manager | Title/mission/briefing/combat/debrief buttons and flow events | A |
 | `GameStateManager` | class | `Game/GameState.swift` | No active app wiring observed in current app flow | D (bridge/legacy) |
-| `PhaseManager` | class | `ShadowrunGameApp.swift` | `ContentView`, `TitleView`, `MissionSelectView`, `BriefingView`, `CombatView`, `DebriefView` | C (UI-layer flow) |
-| `PhaseManager.transition(to:)` | method | `ShadowrunGameApp.swift` | All top-level phase navigation events | C |
-| `PhaseManager.computeNext(...)` | method | `ShadowrunGameApp.swift` | internal from `transition(to:)` | A (logic), currently UI-owned |
+| `PhaseManager` | class | `HexwireApp.swift` | `ContentView`, `TitleView`, `MissionSelectView`, `BriefingView`, `CombatView`, `DebriefView` | C (UI-layer flow) |
+| `PhaseManager.transition(to:)` | method | `HexwireApp.swift` | All top-level phase navigation events | C |
+| `PhaseManager.computeNext(...)` | method | `HexwireApp.swift` | internal from `transition(to:)` | A (logic), currently UI-owned |
 | `GameStateManager.transition(to:)` | method | `Game/GameState.swift` | internal/legacy; not current app router | D |
 | `GameStateManager.computeNext(...)` | method | `Game/GameState.swift` | internal from `transition(to:)` | D |
 | `gameState.combatEnded` | runtime flow field | `Game/GameState.swift` | Combat overlay gating in `CombatView`; extraction/outcome guards | B (must remain runtime) |
 | `gameState.combatWon` | runtime flow field | `Game/GameState.swift` | Combat end overlay text and handoff into debrief event payload | B |
-| `manager.selectedMissionId` | flow field | `ShadowrunGameApp.swift` | mission load/briefing/debrief context | C |
-| `manager.combatWon` | flow field | `ShadowrunGameApp.swift` | debrief rendering decisions | C |
+| `manager.selectedMissionId` | flow field | `HexwireApp.swift` | mission load/briefing/debrief context | C |
+| `manager.combatWon` | flow field | `HexwireApp.swift` | debrief rendering decisions | C |
 
 ### Classification key
 - **A**: PhaseFlowAuthority candidate

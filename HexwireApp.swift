@@ -2464,7 +2464,7 @@ struct CombatView: View {
             }
 
             // Long-press info sheet — surfaces character/enemy dossier (stats
-            // + archetype + lore from SHADOWRUN-LORE.md). Triggered by a
+            // + archetype + lore from HEXWIRE-LORE.md). Triggered by a
             // 0.45s press on a character or enemy tile in BattleScene.
             if let payload = infoSheetPayload {
                 CharacterInfoSheet(payload: payload, onDismiss: {

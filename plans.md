@@ -34,7 +34,7 @@ Stabilize authority seams and eliminate workspace ambiguity so collaborators can
 - Fresh iPhone simulator/device visual pass from Xcode to confirm the larger board framing and actor silhouettes on Aaron's Mission 1 extraction screenshot path.
 
 **Blocked:**
-- `xcodebuild -project Shadowrune.xcodeproj -scheme Shadowrune -destination 'platform=iOS Simulator,name=iPhone 16' -derivedDataPath /tmp/ShadowrunGameDerivedData build` is `NOT_COMPUTABLE` here: CoreSimulator is unavailable and no iPhone 16 simulator destination exists in this environment.
+- `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' -derivedDataPath /tmp/HexWireDerivedData build` is `NOT_COMPUTABLE` here: CoreSimulator is unavailable and no iPhone 16 simulator destination exists in this environment.
 
 **Next:**
 - Run Mission 1 on a local iPhone 16/17 simulator and verify the board stays fixed while selecting, moving, ending turns, and enemy phase animations run.
@@ -52,14 +52,14 @@ Stabilize authority seams and eliminate workspace ambiguity so collaborators can
 - Fresh simulator/device visual pass to confirm runner art and camera placement on the target tall-phone viewport.
 
 **Blocked:**
-- `xcodebuild -project Shadowrune.xcodeproj -scheme Shadowrune -destination 'platform=iOS Simulator,name=iPhone 16' build` is `NOT_COMPUTABLE` here: the named simulator is unavailable and CoreSimulator/actool report no available simulator runtimes.
+- `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build` is `NOT_COMPUTABLE` here: the named simulator is unavailable and CoreSimulator/actool report no available simulator runtimes.
 
 **Next:**
 - Run a manual iPhone 16/17 simulator playtest in a local Xcode environment with working simulator runtimes and compare the DEBUG overlay values against the visible HUD corridor.
 
 ## Handoff (2026-04-23 evening — open to Danny)
 
-**Branch:** `fix/combat-first-turn` — PR open against `main` on `scrimshawlife-ctrl/ShadowrunGame`.
+**Branch:** `fix/combat-first-turn` — PR open against `main` on `scrimshawlife-ctrl/HexWire`.
 
 **Playtest status (iPhone 17 Pro simulator, iOS 26.4) after `d041228` + camera-inset patch:**
 - P1 — Hex grid renders, but **character and enemy sprites are not visibly identifiable on their tiles**. Only partial colored glyphs read as runners. Root cause not fully isolated; likely interaction between the new board backplate / scanline layer, `SpriteManager.createCharacter`'s presence-badge hierarchy, and container `zPosition = 40`.
@@ -81,7 +81,7 @@ Stabilize authority seams and eliminate workspace ambiguity so collaborators can
 ## Current State Snapshot (2026-04-23)
 - `GameState` remains gameplay authority for turn/missions/outcomes.
 - Rendering/UI are functional projections, but `BattleScene` still contains broad direct writes into authority state.
-- Duplicate nested workspace (`./ShadowrunGame/`) is still present and is the highest operational hygiene risk.
+- Duplicate nested workspace (`./HexWire/`) is still present and is the highest operational hygiene risk.
 - Container validation remains constrained: no `swift` or `xcodebuild` toolchains.
 
 ## Priority Queue
@@ -149,7 +149,7 @@ Create a focused hygiene PR that formally marks the canonical workspace and prev
    - Document before/after authority ownership in a short audit note under `docs/`.
 3. **Run 3 — P2 Validation artifact (third):**
    - On macOS, run:
-     - `xcodebuild -project ShadowrunGame.xcodeproj -scheme ShadowrunGame -destination 'platform=iOS Simulator,name=iPhone 16' build`
+     - `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build`
    - Execute Survive + Eliminate smoke checks from `docs/SmokeTestPlan.md`.
    - Save dated evidence to `docs/audit/SimulatorValidationReport.md`.
 4. **Run 4 — Handoff closeout:**
@@ -172,7 +172,7 @@ After Run 1, post a complete status block using this exact shape so collaborator
 Use this as the canonical payload when updating the Notion project tracker so repo state and planning state stay aligned.
 
 ### Notion Fields
-- **Title:** Shadowrune — Execution Ladder (P0→P2)
+- **Title:** HexWire — Execution Ladder (P0→P2)
 - **Date:** 2026-04-24
 - **Status:** In Progress
 - **Current Run:** Run 1 (P0 Hygiene)

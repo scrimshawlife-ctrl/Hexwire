@@ -1,6 +1,6 @@
-# ShadowRune codebase analysis — round 2 (2026-06-10)
+# HexWire codebase analysis — round 2 (2026-06-10)
 
-Coverage: app shell (ShadowrunGameApp.swift), missions/flow (Missions/, ExtractionController, OutcomePipeline, ConsequenceEngine, ReinforcementService, MissionStatsStore), progression/entities (Character, Weapon/Armor/Spell, loot, damage model), plus an adversarial review of the round-1 fixes.
+Coverage: app shell (HexwireApp.swift), missions/flow (Missions/, ExtractionController, OutcomePipeline, ConsequenceEngine, ReinforcementService, MissionStatsStore), progression/entities (Character, Weapon/Armor/Spell, loot, damage model), plus an adversarial review of the round-1 fixes.
 
 ## Fix review verdict (round-1 changes)
 
@@ -16,9 +16,9 @@ Known cosmetic change: overwatch misses now render like deliberate-attack misses
 2. **M4 boss fight skippable.** Boss door-lock checks `bossmage|bossmech|bossagi` but omits `bosscorp` (Vera Koss) — walk out, re-enter (boss never rebuilds), re-clear regulars, mission completes bossless (RoomManager.swift:202). Fix: `arch.hasPrefix("boss")`.
 3. **Permanent stun-lock exploit.** AI stun recovery sets `.wounded` without venting `currentStun`; any subsequent hit re-stuns instantly (`takeDamage`'s `currentStun >= maxStun` check). One Shock + ordinary attacks locks a boss out indefinitely (EnemyAI.swift:135-138 + TurnManager.swift:342-343). Fix: vent the track on recovery, or only set `.stunned` when stun damage was applied.
 4. **Heal crit-glitch still kills the mage without the death pipeline** (SpellResolver.swift castHeal crit-glitch branch — fireball/single-target have the guard, heal doesn't). Fix: add the same `if !mage.isAlive { handlePlayerKilled }`.
-5. **Shop consumables never deplete.** Purchases live in `runner.inventory`; `seedLootFromRoster` re-seeds them into combat loot every mission; consumption only drains the loot pool. One ¥1,500 medkit = infinite supply. `Item.uses` is never read; seed bonuses (10/5/7) contradict item descriptions (ShadowrunGameApp.swift:699 + MissionSetupService.swift:612-625).
-6. **Mission unlock gating disabled** — leftover `devUnlockAllMissions = true` (ShadowrunGameApp.swift:1611); the entire unlock rule is dead code on fresh installs.
-7. **Victory/briefing economy is pre-rebalance fiction.** "RUN COMPLETE" overlay reports ¥15k–¥500k vs actual 9k–80k payouts and appends the bonus line even on missed objectives ("✗ DATA MISSED (+¥7,500 bonus)"); BriefingView quotes the same stale numbers (ShadowrunGameApp.swift:2191-2215, 1944-1953). Fix: derive both from MissionStatsStore like DebriefView.rewardText already does.
+5. **Shop consumables never deplete.** Purchases live in `runner.inventory`; `seedLootFromRoster` re-seeds them into combat loot every mission; consumption only drains the loot pool. One ¥1,500 medkit = infinite supply. `Item.uses` is never read; seed bonuses (10/5/7) contradict item descriptions (HexwireApp.swift:699 + MissionSetupService.swift:612-625).
+6. **Mission unlock gating disabled** — leftover `devUnlockAllMissions = true` (HexwireApp.swift:1611); the entire unlock rule is dead code on fresh installs.
+7. **Victory/briefing economy is pre-rebalance fiction.** "RUN COMPLETE" overlay reports ¥15k–¥500k vs actual 9k–80k payouts and appends the bonus line even on missed objectives ("✗ DATA MISSED (+¥7,500 bonus)"); BriefingView quotes the same stale numbers (HexwireApp.swift:2191-2215, 1944-1953). Fix: derive both from MissionStatsStore like DebriefView.rewardText already does.
 
 ## MEDIUM
 
@@ -33,9 +33,9 @@ Known cosmetic change: overwatch misses now render like deliberate-attack misses
 - **Loot drop weights are dead** — `randomElement()` ignores the `chance` column; permanent gear drops as often as medkits (GameState.swift:303-322).
 - **M3 boss Sato's Bloodbolt is stun damage** — typed `.unarmed` so `isStunDamage` infers stun; the finale boss's opener can't kill (TurnManager.swift:411-412).
 - **Enemy stun not in CodingKeys** — save/load wipes enemy stun progress; saved-stunned enemies reload recovered (TurnManager.swift:268-273).
-- **Replays display "¥X earned" but credit ¥0** (pay-once-per-campaign is correct, the display isn't); **end-of-run RANK shows historical best, not this run's** (ShadowrunGameApp.swift:2944-2947). Fix both by passing actuals from OutcomePipeline.
-- **BriefingView has no back button** — ACCEPT CONTRACT is the only exit (ShadowrunGameApp.swift:1985-2122).
-- **Weapon purchases destroy the displaced gun** — no owned-gear list; switching back costs full price (ShadowrunGameApp.swift:658-688).
+- **Replays display "¥X earned" but credit ¥0** (pay-once-per-campaign is correct, the display isn't); **end-of-run RANK shows historical best, not this run's** (HexwireApp.swift:2944-2947). Fix both by passing actuals from OutcomePipeline.
+- **BriefingView has no back button** — ACCEPT CONTRACT is the only exit (HexwireApp.swift:1985-2122).
+- **Weapon purchases destroy the displaced gun** — no owned-gear list; switching back costs full price (HexwireApp.swift:658-688).
 
 ## LOW
 

@@ -8,18 +8,18 @@
 
 ## Project Discovery
 - Project artifacts discovered:
-  - `ShadowrunGame.xcodeproj`
-  - `ShadowrunGame.xcodeproj/project.xcworkspace`
+  - `HexWire.xcodeproj`
+  - `HexWire.xcodeproj/project.xcworkspace`
 - Backup workspace artifacts also exist under:
-  - `ShadowrunGame.xcodeproj.backup-20260420-111140/project.xcworkspace`
-  - `ShadowrunGame.xcodeproj.backup-20260420-104412/project.xcworkspace`
-  - `ShadowrunGame.xcodeproj.backup-20260420-104343/project.xcworkspace`
+  - `HexWire.xcodeproj.backup-20260420-111140/project.xcworkspace`
+  - `HexWire.xcodeproj.backup-20260420-104412/project.xcworkspace`
+  - `HexWire.xcodeproj.backup-20260420-104343/project.xcworkspace`
 - No `Package.swift` was discovered within `-maxdepth 3`.
 
 ## Scheme Discovery
 - Attempted:
-  - `xcodebuild -list -project ShadowrunGame.xcodeproj`
-  - `xcodebuild -list -workspace ShadowrunGame.xcodeproj/project.xcworkspace`
+  - `xcodebuild -list -project HexWire.xcodeproj`
+  - `xcodebuild -list -workspace HexWire.xcodeproj/project.xcworkspace`
 - Result: **NOT_COMPUTABLE** because `xcodebuild` is not installed in this container.
 
 ## Simulator Build Result

@@ -1,10 +1,10 @@
 #!/bin/bash
-# ShadowrunGame stale folder cleanup
+# HexWire stale folder cleanup
 # Run this in Terminal with Xcode QUIT first.
 set -u
 
-LIVE="$HOME/.openclaw/workspace/workspace-coding/Shadowrune"
-OLD="$HOME/.openclaw/workspace-coding/Shadowrune"
+LIVE="$HOME/.openclaw/workspace/workspace-coding/HexWire"
+OLD="$HOME/.openclaw/workspace-coding/HexWire"
 
 echo "=== 1. Sanity check: live project must exist ==="
 if [ ! -d "$LIVE" ]; then
@@ -29,15 +29,15 @@ else
     echo "(already gone)"
 fi
 
-# Also nuke the now-empty parent if it only held ShadowrunGame
+# Also nuke the now-empty parent if it only held HexWire
 if [ -d "$HOME/.openclaw/workspace-coding" ] && [ -z "$(ls -A "$HOME/.openclaw/workspace-coding" 2>/dev/null)" ]; then
     rmdir "$HOME/.openclaw/workspace-coding"
     echo "removed empty parent ~/.openclaw/workspace-coding"
 fi
 
 echo
-echo "=== 4. Delete ALL Xcode DerivedData for ShadowrunGame ==="
-rm -rfv ~/Library/Developer/Xcode/DerivedData/ShadowrunGame-* 2>/dev/null || true
+echo "=== 4. Delete ALL Xcode DerivedData for HexWire ==="
+rm -rfv ~/Library/Developer/Xcode/DerivedData/HexWire-* 2>/dev/null || true
 
 echo
 echo "=== 5. Clear Xcode's Recent Projects list ==="
@@ -56,5 +56,5 @@ echo "zPosition = 50:    $(grep -c 'zPosition = 50' "$LIVE/Rendering/BattleScene
 
 echo
 echo "=== DONE ==="
-echo "Now open Xcode ONLY from: $LIVE/Shadowrune.xcodeproj"
+echo "Now open Xcode ONLY from: $LIVE/HexWire.xcodeproj"
 echo "Then: Product → Clean Build Folder (⇧⌘K), then Run."

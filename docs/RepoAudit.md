@@ -27,8 +27,8 @@ This full read pass covered:
 - Architecture and handoff docs are present and mostly current for collaborator onboarding.
 
 ### Risks
-- Nested duplicate workspace/repo exists at `./ShadowrunGame/` with its own `.git`, scripts, docs, and build artifacts.
-- Root contains multiple backup Xcode project directories (`ShadowrunGame.xcodeproj.backup-*`) and large artifact trees (`build/`, `screenshots/`).
+- Nested duplicate workspace/repo exists at `./HexWire/` with its own `.git`, scripts, docs, and build artifacts.
+- Root contains multiple backup Xcode project directories (`HexWire.xcodeproj.backup-*`) and large artifact trees (`build/`, `screenshots/`).
 - Current branch is `work`, which does not match preferred branch naming convention (`feature/*`, `fix/*`, `docs/*`, `chore/*`).
 
 ## Authority Boundary Audit
@@ -62,7 +62,7 @@ Interpretation:
 
 ## Risk Register (Current)
 
-1. **High** — Nested repo/workspace (`./ShadowrunGame/`) can cause accidental edits, stale commits, and handoff confusion.
+1. **High** — Nested repo/workspace (`./HexWire/`) can cause accidental edits, stale commits, and handoff confusion.
 2. **Medium** — Rendering writes directly into authority state through many call sites (harder to guarantee deterministic turn semantics during visual changes).
 3. **Medium** — Dormant `TurnManager` model remains in tree, preserving conceptual duplication risk.
 4. **Low/Medium** — Toolchain absence in this environment blocks compile-level verification; static review only.
@@ -76,7 +76,7 @@ Interpretation:
    - Introduce explicit, minimal `GameState` façade methods for scene-driven mutations.
    - Replace direct `GameState.shared.<field>` writes in `BattleScene` incrementally with intent-level calls.
 3. **Runtime truth validation (third, macOS required)**
-   - Run `xcodebuild -project ShadowrunGame.xcodeproj -scheme ShadowrunGame -destination 'platform=iOS Simulator,name=iPhone 16' build`.
+   - Run `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build`.
    - Execute smoke checklist and mission matrix validation in simulator.
 
 ## Handoff Standard
@@ -95,5 +95,5 @@ Interpretation:
 - `wc -l Game/GameState.swift Game/CombatFlowController.swift Game/TurnManager.swift Rendering/BattleScene.swift UI/CombatUI.swift README.md docs/README.md plans.md docs/RepoAudit.md`
 - `rg -n "GameState\.shared|missionComplete|combatWon|combatEnded|endTurn\(|requestExtraction\(" Game Rendering UI`
 - `rg -n "TurnManager" Game Rendering UI README.md docs`
-- `rg -n "runtime-architecture\.svg|turn-flow\.svg|shadowrune-loop\.svg|shadowrune-architecture\.svg|shadowrune-roles\.svg" README.md docs/README.md docs -g'*.md'`
+- `rg -n "runtime-architecture\.svg|turn-flow\.svg|hexwire-loop\.svg|hexwire-architecture\.svg|hexwire-roles\.svg" README.md docs/README.md docs -g'*.md'`
 - `bash scripts/repo_audit_first_pass.sh`

@@ -1,6 +1,6 @@
 # Forge Onboarding
 
-Short pointer doc for Forge (Codex Cloud) picking up Shadowrune from the prabu-openclaw side of the handoff. Read in this order:
+Short pointer doc for Forge (Codex Cloud) picking up HexWire from the prabu-openclaw side of the handoff. Read in this order:
 
 1. `../AGENTS.md` — branch naming, commit format, validation ladder.
 2. `../plans.md` — active priorities and decision history.
@@ -9,17 +9,17 @@ Short pointer doc for Forge (Codex Cloud) picking up Shadowrune from the prabu-o
 
 ## Repo facts
 
-- Canonical remote: `https://github.com/scrimshawlife-ctrl/ShadowrunGame`. The prabu-openclaw URL redirects here.
+- Canonical remote: `https://github.com/scrimshawlife-ctrl/HexWire`. The prabu-openclaw URL redirects here.
 - Default branch: `main`. Feature work lands via `codex/<topic>` or `feature/<scope>` branches + PR.
-- Xcode 26.4 (Swift 6 toolchain) is the local build target. `project.yml` drives `ShadowrunGame.xcodeproj` via xcodegen.
+- Xcode 26.4 (Swift 6 toolchain) is the local build target. `project.yml` drives `HexWire.xcodeproj` via xcodegen.
 
 ## Local build recipe (for the prabu-openclaw mini)
 
 ```
-cd /Users/prabu/.openclaw/workspace/workspace-coding/ShadowrunGame
+cd /Users/prabu/.openclaw/workspace/workspace-coding/HexWire
 xcodegen generate
-xcodebuild -project ShadowrunGame.xcodeproj \
-  -scheme ShadowrunGame \
+xcodebuild -project HexWire.xcodeproj \
+  -scheme HexWire \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   build
 ```
@@ -36,8 +36,8 @@ xcodebuild -project ShadowrunGame.xcodeproj \
 
 ## Known cleanup items (good first picks)
 
-- No `.gitignore` in the repo. `build/` and multiple `ShadowrunGame.xcodeproj.backup-*` directories are committed. A `chore(repo)` PR to add a Swift/Xcode `.gitignore` and stop tracking these would be high-value.
-- `tests/test_consequence_engine.swift` uses `XCTest` but there's no test target — currently excluded from the app target. A real `ShadowrunGameTests` target in `project.yml` would unlock CI validation.
+- No `.gitignore` in the repo. `build/` and multiple `HexWire.xcodeproj.backup-*` directories are committed. A `chore(repo)` PR to add a Swift/Xcode `.gitignore` and stop tracking these would be high-value.
+- `tests/test_consequence_engine.swift` uses `XCTest` but there's no test target — currently excluded from the app target. A real `HexWireTests` target in `project.yml` would unlock CI validation.
 - `screenshots/` ships a lot of PNGs; not referenced at runtime but not gitignored either.
 
 ## Validation before PR

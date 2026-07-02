@@ -1,4 +1,4 @@
-# ShadowRune codebase analysis — round 3 (2026-06-10)
+# HexWire codebase analysis — round 3 (2026-06-10)
 
 Coverage: mini-game gameplay logic, concurrency/timing in combat flow, adversarial review of the day's six big fixes (all HOLD; three adjacent drain-death gaps found and fixed same-day: hack/blitz/grenade crit-glitches now route through handlePlayerKilled).
 

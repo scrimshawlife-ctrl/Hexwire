@@ -5,7 +5,7 @@ import SwiftUI
 // Long-press a runner or enemy on the board to surface this sheet:
 //   • Portrait / archetype glyph
 //   • Stats (HP/Stun/Mana, attributes, equipped weapon/armor)
-//   • Lore blurb (from SHADOWRUN-LORE.md for runners; archetype briefs for enemies)
+//   • Lore blurb (from HEXWIRE-LORE.md for runners; archetype briefs for enemies)
 //
 // Triggered from BattleScene.handleLongPress, which posts
 // `.entityInfoRequested` with one of two payloads:
@@ -479,7 +479,7 @@ struct CharacterInfoSheet: View {
     }
 }
 
-// MARK: - Runner Lore (sourced from SHADOWRUN-LORE.md)
+// MARK: - Runner Lore (sourced from HEXWIRE-LORE.md)
 
 enum RunnerLore {
     static func dossier(for char: Character) -> String {

@@ -52,7 +52,7 @@ Reasoning:
 
 - `UI/CombatUI.swift`
   - Reads `gameState.roundNumber`, `isPlayerTurn`, `isPlayerInputBlocked`, selected/active actor, combat log.
-- `ShadowrunGameApp.swift` (`CombatView` diagnostics)
+- `HexwireApp.swift` (`CombatView` diagnostics)
   - Reads phase from `PhaseManager`, reads turn state summary from `GameState` (diagnostic only).
 - `Rendering/BattleScene.swift`
   - Reads turn/input state to gate touches and visual transitions.
@@ -92,7 +92,7 @@ Turn/render synchronization is notification-driven:
 
 Build command requested:
 ```bash
-xcodebuild -project ShadowrunGame.xcodeproj -scheme ShadowrunGame -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build
 ```
 
 Result: **NOT_COMPUTABLE** in this environment because `xcodebuild` is unavailable (`command not found`).

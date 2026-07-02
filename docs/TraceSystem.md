@@ -154,6 +154,6 @@ Telemetry snapshot string:
 ## Validation
 
 Requested command:
-`xcodebuild -project ShadowrunGame.xcodeproj -scheme ShadowrunGame -destination 'platform=iOS Simulator,name=iPhone 16' build`
+`xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build`
 
 Result in this environment: **NOT_COMPUTABLE** (`xcodebuild: command not found`).

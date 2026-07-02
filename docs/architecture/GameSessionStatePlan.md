@@ -90,15 +90,15 @@ Legend:
 
 | Field | Evidence (read/write + UI + module mutation) | Class | Extraction risk |
 |---|---|---:|---|
-| `playerTeam` | UI/App/Scene reads in `ShadowrunGameApp.swift`, `Rendering/BattleScene.swift`; writes in `MissionSetupService`; read/write in `CombatFlowController`. | B | High |
-| `enemies` | UI/App/Scene reads in `ShadowrunGameApp.swift`, `Rendering/BattleScene.swift`; writes in `MissionSetupService`; reads in `CombatFlowController`. | B | High |
+| `playerTeam` | UI/App/Scene reads in `HexwireApp.swift`, `Rendering/BattleScene.swift`; writes in `MissionSetupService`; read/write in `CombatFlowController`. | B | High |
+| `enemies` | UI/App/Scene reads in `HexwireApp.swift`, `Rendering/BattleScene.swift`; writes in `MissionSetupService`; reads in `CombatFlowController`. | B | High |
 | `loot` | UI reads in `UI/CombatUI.swift`; writes in `GameState.generateLoot` and `CombatFlowController.performUseItem`. | B | Med |
 | `currentTurnIndex` | Used in turn progression + UI/App display; writes in `MissionSetupService` and `CombatFlowController`. | B | High |
 | `roundNumber` | UI/App display and turn/event sequencing; writes in `MissionSetupService` and `CombatFlowController`. | B | High |
 | `isPlayerTurn` | UI gating in `UI/CombatUI.swift`, scene flow in `Rendering/BattleScene.swift`; writes in `MissionSetupService` and `CombatFlowController`. | C | High |
 | `isPlayerInputBlocked` | UI/Scene input lock surface (`Rendering/BattleScene.swift`, `UI/CombatUI.swift`); writes in `MissionSetupService` and `CombatFlowController`. | C | High |
 | `actionMode` | Direct UI binding/toggle in `UI/CombatUI.swift`; writes in UI and reset in `MissionSetupService`; consumed in `CombatFlowController`. | B | High |
-| `playerRole` | UI/App display (`UI/CombatUI.swift`, `ShadowrunGameApp.swift`); policy reads in `GameState`. | B | Med |
+| `playerRole` | UI/App display (`UI/CombatUI.swift`, `HexwireApp.swift`); policy reads in `GameState`. | B | Med |
 | `selectedMissionPreset` | Policy/control surface in `GameState` (trace cadence). No direct extracted-module writes observed. | D | Med |
 | `traceLevel` | App/summary reads; writes in `MissionSetupService` and `GameState` trace methods. | B | Med |
 | `traceEscalationLevel` | App/UI reads; writes in `MissionSetupService` and `GameState` trace methods. | B | Med |
@@ -107,7 +107,7 @@ Legend:
 | `activeCharacterId` | Scene/UI selection/turn targeting; writes in `MissionSetupService` and `CombatFlowController`. | C | High |
 | `selectedCharacterId` | Scene/UI selection surface; writes in `MissionSetupService` and `CombatFlowController`. | C | High |
 | `targetCharacterId` | Targeting flow in `Rendering/BattleScene.swift`, `GameState`, and `CombatFlowController`. | C | High |
-| `combatWon` | Debrief/UI state in `ShadowrunGameApp.swift`; write in `OutcomePipeline`. | B | Med |
+| `combatWon` | Debrief/UI state in `HexwireApp.swift`; write in `OutcomePipeline`. | B | Med |
 | `combatEnded` | Combat/debrief gate in app + extraction/outcome flow; writes in `OutcomePipeline`; reads in `CombatFlowController`/`ExtractionController`. | C | High |
 | `currentMissionType` | Objective/UI text + core combat/extraction/outcome branching; writes in `MissionSetupService`; reads in `CombatFlowController`, `OutcomePipeline`, `ExtractionController`. | C | High |
 | `currentMapSituation` | Mission map-shaping policy in `MissionSetupService`; label reads in `GameState`. | B | Med |

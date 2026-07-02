@@ -1,8 +1,8 @@
-# Shadowrun: One Shot — iOS Game Spec
+# HexWire: One Shot — iOS Game Spec
 
 ## 1. Concept & Vision
 
-A single-mission, turn-based tactical RPG for iPhone, built on Shadowrun's core dice mechanics. Player leads a 4-person runner team through one corporate infiltration job. Old-school pixel art aesthetic with a dark cyberpunk palette. Think FTL meets Shadowrun — tight, tense, tactical.
+A single-mission, turn-based tactical RPG for iPhone, built on HexWire's core dice mechanics. Player leads a 4-person runner team through one corporate infiltration job. Old-school pixel art aesthetic with a dark cyberpunk palette. Think FTL meets HexWire — tight, tense, tactical.
 
 **Scope:** One playable mission. 4 pre-built characters. Core combat + basic gear. No Matrix, no full character creation, no permadeath across sessions.
 
@@ -10,7 +10,7 @@ A single-mission, turn-based tactical RPG for iPhone, built on Shadowrun's core 
 
 ## 2. Core Game Systems
 
-### 2.1 Dice System (Shadowrun TN)
+### 2.1 Dice System (HexWire TN)
 - Roll Xd6, count hits (5 or 6 = 1 hit)
 - **Exploding 6s:** reroll 6s, add to count
 - Net hits = hits - TNs failed (for opposed rolls)
@@ -154,7 +154,7 @@ Title Screen → Mission Select → Mission Briefing → Combat Arena → Missio
 
 ### 4.3 Color Palette
 - **Background:** #0D0D0D (near black)
-- **Primary accent:** #00FF88 (neon green — Shadowrun classic)
+- **Primary accent:** #00FF88 (neon green — HexWire classic)
 - **Secondary accent:** #FF6600 (orange — damage, alerts)
 - **Panel BG:** #1A1A2E (dark blue-grey)
 - **Text:** #E0E0E0 (light grey)
@@ -185,7 +185,7 @@ Title Screen → Mission Select → Mission Briefing → Combat Arena → Missio
 
 ### 5.3 Key Files
 ```
-/ShadowrunGame/
+/HexWire/
   /Game/
     GameState.swift         — state machine
     DiceEngine.swift        — TN dice, exploding, glitch

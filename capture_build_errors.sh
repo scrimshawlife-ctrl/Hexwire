@@ -6,14 +6,14 @@
 # Run with Xcode CLOSED for a clean build.
 set -u
 
-PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/Shadowrune"
+PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/HexWire"
 cd "$PROJECT_DIR"
 
 LOG="build.log"
 echo "=== Running xcodebuild (this will take 30-60 seconds) ==="
 xcodebuild \
-    -project Shadowrune.xcodeproj \
-    -scheme Shadowrune \
+    -project HexWire.xcodeproj \
+    -scheme HexWire \
     -destination 'generic/platform=iOS Simulator' \
     -configuration Debug \
     clean build 2>&1 | tee "$LOG"

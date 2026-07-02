@@ -5,7 +5,7 @@
 set -u
 
 echo "=== 1. DerivedData (build outputs + index) ==="
-rm -rfv ~/Library/Developer/Xcode/DerivedData/ShadowrunGame-* 2>/dev/null || echo "  (none)"
+rm -rfv ~/Library/Developer/Xcode/DerivedData/HexWire-* 2>/dev/null || echo "  (none)"
 
 echo
 echo "=== 2. Swift module cache ==="
@@ -22,10 +22,10 @@ rm -rfv ~/Library/Saved\ Application\ State/com.apple.dt.Xcode.savedState 2>/dev
 
 echo
 echo "=== 5. Re-run the build from CLI to confirm code compiles ==="
-cd "$HOME/.openclaw/workspace/workspace-coding/Shadowrune"
+cd "$HOME/.openclaw/workspace/workspace-coding/HexWire"
 xcodebuild \
-    -project Shadowrune.xcodeproj \
-    -scheme Shadowrune \
+    -project HexWire.xcodeproj \
+    -scheme HexWire \
     -destination 'generic/platform=iOS Simulator' \
     -configuration Debug \
     clean build 2>&1 | tail -5
@@ -33,5 +33,5 @@ xcodebuild \
 echo
 echo "=== DONE ==="
 echo "Now open Xcode FRESH:"
-echo "  open ~/.openclaw/workspace/workspace-coding/Shadowrune/Shadowrune.xcodeproj"
+echo "  open ~/.openclaw/workspace/workspace-coding/HexWire/HexWire.xcodeproj"
 echo "Wait ~30s for indexing (status bar top center). Then ⌘R."

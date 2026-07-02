@@ -4,8 +4,8 @@ Date: 2026-04-21
 
 ## High Risk Items
 
-- Duplicate nested repo/workspace at `./ShadowrunGame/` (contains its own `.git`, `.venv`, scripts, build, screenshots, and mirrored source).
-- Root backup project folders (`./ShadowrunGame.xcodeproj.backup-*`) that can confuse source-of-truth.
+- Duplicate nested repo/workspace at `./HexWire/` (contains its own `.git`, `.venv`, scripts, build, screenshots, and mirrored source).
+- Root backup project folders (`./HexWire.xcodeproj.backup-*`) that can confuse source-of-truth.
 - Large generated/runtime artifact directories (`./build`, `./screenshots`) checked into working tree context.
 - Legacy but valid docs assets (`docs/assets/runtime-architecture.svg`, `docs/assets/turn-flow.svg`) currently unreferenced from active docs index/README.
 
@@ -13,14 +13,14 @@ Date: 2026-04-21
 
 | Path | Category | Recommendation | Reason |
 |---|---|---|---|
-| `ShadowrunGame/` | Duplicate workspace/repo | REVIEW | Large mirrored tree (~323MB) with tooling/runtime artifacts; must confirm no unique files before deletion. |
-| `ShadowrunGame/.git` | Nested VCS metadata | REMOVE LATER | Nested git history is high confusion risk; remove only in dedicated cleanup patch after archive/confirmation. |
-| `ShadowrunGame/.venv` | Local tooling env | REMOVE LATER | Environment-specific and reproducible; not source of truth. |
-| `ShadowrunGame/build` | Generated artifacts | REMOVE LATER | Build outputs are machine-local and high-churn. |
-| `ShadowrunGame/screenshots` | Runtime captures | REVIEW | Likely non-authoritative; preserve only explicitly referenced artifacts if any. |
-| `ShadowrunGame.xcodeproj.backup-20260420-104343` | Project backup | REVIEW | Keep until macOS validation confirms current project is stable; then archive/remove. |
-| `ShadowrunGame.xcodeproj.backup-20260420-104412` | Project backup | REVIEW | Same as above. |
-| `ShadowrunGame.xcodeproj.backup-20260420-111140` | Project backup | REVIEW | Same as above. |
+| `HexWire/` | Duplicate workspace/repo | REVIEW | Large mirrored tree (~323MB) with tooling/runtime artifacts; must confirm no unique files before deletion. |
+| `HexWire/.git` | Nested VCS metadata | REMOVE LATER | Nested git history is high confusion risk; remove only in dedicated cleanup patch after archive/confirmation. |
+| `HexWire/.venv` | Local tooling env | REMOVE LATER | Environment-specific and reproducible; not source of truth. |
+| `HexWire/build` | Generated artifacts | REMOVE LATER | Build outputs are machine-local and high-churn. |
+| `HexWire/screenshots` | Runtime captures | REVIEW | Likely non-authoritative; preserve only explicitly referenced artifacts if any. |
+| `HexWire.xcodeproj.backup-20260420-104343` | Project backup | REVIEW | Keep until macOS validation confirms current project is stable; then archive/remove. |
+| `HexWire.xcodeproj.backup-20260420-104412` | Project backup | REVIEW | Same as above. |
+| `HexWire.xcodeproj.backup-20260420-111140` | Project backup | REVIEW | Same as above. |
 | `build/` | Root generated artifacts | REMOVE LATER | High volume generated files (~137MB); not authoritative source. |
 | `screenshots/` | Root runtime captures | REVIEW | Useful for debugging evidence; keep only curated subset if needed. |
 | `docs/assets/runtime-architecture.svg` | Legacy docs asset | KEEP | Valid artifact; currently unreferenced but potentially useful historical diagram. |

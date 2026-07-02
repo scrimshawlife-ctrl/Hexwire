@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="980" height="520" viewBox="0 0 980 520" role="img" aria-labelledby="title desc">
-  <title id="title">Shadowrune Runtime Architecture</title>
+  <title id="title">HexWire Runtime Architecture</title>
   <desc id="desc">Diagram showing app phases, GameState authority, rendering and UI surfaces, and data domains.</desc>
   <defs>
     <style>
@@ -17,10 +17,10 @@
   </defs>
 
   <rect class="bg" x="0" y="0" width="980" height="520"/>
-  <text class="title" x="28" y="42">Shadowrune Runtime Architecture</text>
+  <text class="title" x="28" y="42">HexWire Runtime Architecture</text>
 
   <rect class="card" x="28" y="72" width="280" height="120"/>
-  <text class="label" x="44" y="103">ShadowrunGameApp / PhaseManager</text>
+  <text class="label" x="44" y="103">HexwireApp / PhaseManager</text>
   <text class="small" x="44" y="129">title → mission select → briefing → combat</text>
   <text class="small" x="44" y="151">High-level navigation authority</text>
 

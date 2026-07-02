@@ -4,44 +4,44 @@
 # Run with Xcode CLOSED.
 set -u
 
-PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/Shadowrune"
+PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/HexWire"
 cd "$PROJECT_DIR"
 
 echo "=== 1. Delete xcodeproj backup folder (pollutes pbxproj groups) ==="
-rm -rfv Shadowrune.xcodeproj.backup-* 2>/dev/null || echo "  (none)"
+rm -rfv HexWire.xcodeproj.backup-* 2>/dev/null || echo "  (none)"
 
 echo
 echo "=== 2. Regenerate pbxproj from updated project.yml ==="
 # stash xcuserdata so we keep breakpoints/windows
 USERDATA_BACKUP=""
-if [ -d "Shadowrune.xcodeproj/xcuserdata" ]; then
+if [ -d "HexWire.xcodeproj/xcuserdata" ]; then
     USERDATA_BACKUP=$(mktemp -d)
-    cp -a Shadowrune.xcodeproj/xcuserdata "$USERDATA_BACKUP/"
+    cp -a HexWire.xcodeproj/xcuserdata "$USERDATA_BACKUP/"
 fi
 
 xcodegen generate
 
 if [ -n "$USERDATA_BACKUP" ] && [ -d "$USERDATA_BACKUP/xcuserdata" ]; then
-    cp -a "$USERDATA_BACKUP/xcuserdata" Shadowrune.xcodeproj/
+    cp -a "$USERDATA_BACKUP/xcuserdata" HexWire.xcodeproj/
     rm -rf "$USERDATA_BACKUP"
 fi
 
 echo
 echo "=== 3. Nuke ALL Xcode caches for this project ==="
-rm -rfv ~/Library/Developer/Xcode/DerivedData/ShadowrunGame-* 2>/dev/null || true
+rm -rfv ~/Library/Developer/Xcode/DerivedData/HexWire-* 2>/dev/null || true
 rm -rf ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex 2>/dev/null || true
 
 echo
 echo "=== 4. Verify no group-duplication or backup-path warnings in new pbxproj ==="
-SWIFT_COUNT=$(grep -oE "[A-Za-z_]+\.swift in Sources" Shadowrune.xcodeproj/project.pbxproj | sort -u | wc -l | tr -d ' ')
+SWIFT_COUNT=$(grep -oE "[A-Za-z_]+\.swift in Sources" HexWire.xcodeproj/project.pbxproj | sort -u | wc -l | tr -d ' ')
 echo "  unique .swift files in pbxproj: $SWIFT_COUNT (want 19)"
-echo "  SWIFT_STRICT_CONCURRENCY: $(grep SWIFT_STRICT_CONCURRENCY Shadowrune.xcodeproj/project.pbxproj | head -1 | tr -d ' ;')"
+echo "  SWIFT_STRICT_CONCURRENCY: $(grep SWIFT_STRICT_CONCURRENCY HexWire.xcodeproj/project.pbxproj | head -1 | tr -d ' ;')"
 
 echo
 echo "=== 5. CLI build to confirm code compiles ==="
 xcodebuild \
-    -project Shadowrune.xcodeproj \
-    -scheme Shadowrune \
+    -project HexWire.xcodeproj \
+    -scheme HexWire \
     -destination 'generic/platform=iOS Simulator' \
     -configuration Debug \
     clean build 2>&1 | tail -15 | grep -E "error:|warning:|BUILD " | head -20
@@ -50,6 +50,6 @@ echo
 echo "=== DONE ==="
 echo "If you see 'BUILD SUCCEEDED' above with ~0 errors, code is fine."
 echo "Now open Xcode FRESH:"
-echo "  open ~/.openclaw/workspace/workspace-coding/Shadowrune/Shadowrune.xcodeproj"
+echo "  open ~/.openclaw/workspace/workspace-coding/HexWire/HexWire.xcodeproj"
 echo "WAIT ~30 seconds for indexing (watch top-center status bar)."
 echo "Then ⇧⌘K (Clean Build Folder), then ⌘R (Run)."

@@ -1,9 +1,9 @@
 #!/bin/bash
-# Regenerate Shadowrune.xcodeproj from project.yml.
+# Regenerate HexWire.xcodeproj from project.yml.
 # Run with Xcode CLOSED. Run from the project folder.
 set -eu
 
-PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/Shadowrune"
+PROJECT_DIR="$HOME/.openclaw/workspace/workspace-coding/HexWire"
 cd "$PROJECT_DIR"
 
 echo "=== 1. Ensure XcodeGen is installed ==="
@@ -21,18 +21,18 @@ fi
 echo
 echo "=== 2. Back up current .xcodeproj ==="
 STAMP=$(date +%Y%m%d-%H%M%S)
-BACKUP="Shadowrune.xcodeproj.backup-$STAMP"
-if [ -d "Shadowrune.xcodeproj" ]; then
-    cp -a Shadowrune.xcodeproj "$BACKUP"
+BACKUP="HexWire.xcodeproj.backup-$STAMP"
+if [ -d "HexWire.xcodeproj" ]; then
+    cp -a HexWire.xcodeproj "$BACKUP"
     echo "Backed up to: $BACKUP"
 fi
 
 echo
 echo "=== 3. Preserve user state (breakpoints, window layout) ==="
 USERDATA_BACKUP=""
-if [ -d "Shadowrune.xcodeproj/xcuserdata" ]; then
+if [ -d "HexWire.xcodeproj/xcuserdata" ]; then
     USERDATA_BACKUP=$(mktemp -d)
-    cp -a Shadowrune.xcodeproj/xcuserdata "$USERDATA_BACKUP/"
+    cp -a HexWire.xcodeproj/xcuserdata "$USERDATA_BACKUP/"
     echo "Stashed xcuserdata in $USERDATA_BACKUP"
 fi
 
@@ -43,28 +43,28 @@ xcodegen generate
 echo
 echo "=== 5. Restore user state ==="
 if [ -n "$USERDATA_BACKUP" ] && [ -d "$USERDATA_BACKUP/xcuserdata" ]; then
-    cp -a "$USERDATA_BACKUP/xcuserdata" Shadowrune.xcodeproj/
+    cp -a "$USERDATA_BACKUP/xcuserdata" HexWire.xcodeproj/
     rm -rf "$USERDATA_BACKUP"
     echo "Restored xcuserdata"
 fi
 
 echo
 echo "=== 6. Nuke DerivedData so Xcode does a clean index ==="
-rm -rfv ~/Library/Developer/Xcode/DerivedData/ShadowrunGame-* 2>/dev/null || true
+rm -rfv ~/Library/Developer/Xcode/DerivedData/HexWire-* 2>/dev/null || true
 
 echo
 echo "=== 7. Verify the new project looks healthy ==="
-if [ -f "Shadowrune.xcodeproj/project.pbxproj" ]; then
-    NFILES=$(grep -c "in Sources" Shadowrune.xcodeproj/project.pbxproj || echo 0)
+if [ -f "HexWire.xcodeproj/project.pbxproj" ]; then
+    NFILES=$(grep -c "in Sources" HexWire.xcodeproj/project.pbxproj || echo 0)
     echo "Swift sources in new pbxproj: $NFILES (expect ~19)"
-    echo "Swift version: $(grep SWIFT_VERSION Shadowrune.xcodeproj/project.pbxproj | head -1 | tr -d ' ;')"
-    echo "iOS deployment: $(grep IPHONEOS_DEPLOYMENT_TARGET Shadowrune.xcodeproj/project.pbxproj | head -1 | tr -d ' ;')"
+    echo "Swift version: $(grep SWIFT_VERSION HexWire.xcodeproj/project.pbxproj | head -1 | tr -d ' ;')"
+    echo "iOS deployment: $(grep IPHONEOS_DEPLOYMENT_TARGET HexWire.xcodeproj/project.pbxproj | head -1 | tr -d ' ;')"
 fi
 
 echo
 echo "=== DONE ==="
 echo "Open Xcode:"
-echo "  open $PROJECT_DIR/Shadowrune.xcodeproj"
+echo "  open $PROJECT_DIR/HexWire.xcodeproj"
 echo "Then Product → Build (⌘B). Should compile clean now."
 echo
 echo "If you want to delete the old .xcodeproj backup after confirming it works:"
