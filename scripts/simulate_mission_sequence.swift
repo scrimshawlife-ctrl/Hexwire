@@ -1,7 +1,7 @@
 import Foundation
 
-#if canImport(ShadowrunGame)
-import ShadowrunGame
+#if canImport(HexWire)
+import HexWire
 #endif
 
 struct MissionInput {
@@ -60,7 +60,7 @@ struct ScenarioSummary {
     let flags: [String]
 }
 
-#if canImport(ShadowrunGame)
+#if canImport(HexWire)
 typealias SimHeatTier = HeatTier
 #else
 enum SimHeatTier {
@@ -70,7 +70,7 @@ enum SimHeatTier {
 }
 #endif
 
-#if canImport(ShadowrunGame)
+#if canImport(HexWire)
 typealias SimRewardTier = RewardTier
 #else
 enum SimRewardTier {
@@ -82,7 +82,7 @@ enum SimRewardTier {
 
 enum SimConsequence {
     static func traceTier(traceLevel: Int, traceThreshold: Int) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.traceTier(traceLevel: traceLevel, traceThreshold: traceThreshold)
         #else
         if traceLevel >= traceThreshold * 2 { return 2 }
@@ -92,7 +92,7 @@ enum SimConsequence {
     }
 
     static func heatValue(fromTraceTier sourceTraceTier: Int) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.heatValue(fromTraceTier: sourceTraceTier)
         #else
         var derivedTier = sourceTraceTier
@@ -104,7 +104,7 @@ enum SimConsequence {
     }
 
     static func heatTier(fromHeatValue heatValue: Int) -> SimHeatTier {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.heatTier(fromHeatValue: heatValue)
         #else
         switch heatValue {
@@ -116,7 +116,7 @@ enum SimConsequence {
     }
 
     static func heatTierLabel(for heatTier: SimHeatTier) -> String {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.heatTierLabel(for: heatTier)
         #else
         switch heatTier {
@@ -128,7 +128,7 @@ enum SimConsequence {
     }
 
     static func corpAttentionIncrement(for heatTier: SimHeatTier) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.factionAttentionIncrement(for: heatTier).increment
         #else
         switch heatTier {
@@ -140,7 +140,7 @@ enum SimConsequence {
     }
 
     static func gangAttentionIncrement(for heatTier: SimHeatTier) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.gangAttentionIncrement(for: heatTier)
         #else
         switch heatTier {
@@ -151,7 +151,7 @@ enum SimConsequence {
     }
 
     static func corpModifier(corpAttention: Int) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.corpEnemyModifier(corpAttention: corpAttention)
         #else
         switch corpAttention {
@@ -163,7 +163,7 @@ enum SimConsequence {
     }
 
     static func gangRadius(gangAttention: Int) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.gangAmbushRadius(gangAttention: gangAttention)
         #else
         switch gangAttention {
@@ -176,7 +176,7 @@ enum SimConsequence {
     }
 
     static func combinedPressure(corpModifier: Int, gangRadius: Int) -> String {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.combinedPressurePreview(corpModifier: corpModifier, gangRadius: gangRadius)
         #else
         let gangNoBiasRadius = 999
@@ -199,7 +199,7 @@ enum SimConsequence {
     }
 
     static func attentionDecayAmount(for traceTier: Int) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.attentionDecayAmount(for: traceTier)
         #else
         switch traceTier {
@@ -212,7 +212,7 @@ enum SimConsequence {
     }
 
     static func highTraceCorpEscalationBonus(traceTier: Int) -> Int {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.highTraceCorpEscalationBonus(traceTier: traceTier)
         #else
         switch traceTier {
@@ -225,7 +225,7 @@ enum SimConsequence {
     }
 
     static func rewardTier(heatTier: Int, corpAttention: Int, gangAttention: Int) -> SimRewardTier {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.rewardTier(heatTier: heatTier, corpAttention: corpAttention, gangAttention: gangAttention)
         #else
         if heatTier >= 2 || corpAttention >= 4 || gangAttention >= 4 {
@@ -250,7 +250,7 @@ enum SimConsequence {
     }
 
     static func rewardMultiplier(for tier: SimRewardTier) -> Double {
-        #if canImport(ShadowrunGame)
+        #if canImport(HexWire)
         return ConsequenceEngine.rewardMultiplier(for: tier)
         #else
         switch tier {

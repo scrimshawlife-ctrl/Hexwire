@@ -467,7 +467,7 @@
 		916295E98D53202E202E5795 /* m2_a.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = D34DAF194FCA9725AD9392ED /* m2_a.mp3 */; };
 		91729E2EEEC993A9055AAA65 /* Mission006_room_1.png in Resources */ = {isa = PBXBuildFile; fileRef = C188934F6D7DCA23E0C7C272 /* Mission006_room_1.png */; };
 		91A456269FE17F4748B38030 /* vfx_aztech_gold_05.png in Resources */ = {isa = PBXBuildFile; fileRef = 716D01EE2E563408A3912D79 /* vfx_aztech_gold_05.png */; };
-		91E7BF0D06B44226BCD53410 /* ShadowrunGameApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676E8A4DEF459896B4C46A71 /* ShadowrunGameApp.swift */; };
+		91E7BF0D06B44226BCD53410 /* HexwireApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676E8A4DEF459896B4C46A71 /* HexwireApp.swift */; };
 		91FD2CFDFC5B0715F36A75CD /* sniffer_banish_0.png in Resources */ = {isa = PBXBuildFile; fileRef = A90E80810C7CCBA3D644A034 /* sniffer_banish_0.png */; };
 		9213A6245C668D7022DC770F /* brawler_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 2180595161D64F2365DD396E /* brawler_idle_0.png */; };
 		92468ECC0ECAF4D1D8F8CD79 /* vfx_arc_blue_05.png in Resources */ = {isa = PBXBuildFile; fileRef = 9CC839B79A1CC7E307C2B5CC /* vfx_arc_blue_05.png */; };
@@ -801,7 +801,7 @@
 			containerPortal = 903AE80F94098213E5310E1C /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 234CC8E6B78DC9FA287A04BB;
-			remoteInfo = Shadowrune;
+			remoteInfo = HexWire;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -1078,7 +1078,7 @@
 		543B2718391F494BB4F78402 /* takeoff_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = takeoff_0.png; sourceTree = "<group>"; };
 		545EB7126010DF3ECC9281F9 /* ui_select.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = ui_select.mp3; sourceTree = "<group>"; };
 		5519F4607E2BA984F4AAA773 /* m1_b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = m1_b.mp3; sourceTree = "<group>"; };
-		55273F2FDD2A333C261EAFD8 /* Shadowrune.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shadowrune.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		55273F2FDD2A333C261EAFD8 /* HexWire.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HexWire.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		55BFAFB42E70B053D3F97101 /* vfx_ash_08.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_ash_08.png; sourceTree = "<group>"; };
 		5614890B78DB144AA9B111D3 /* mage_attack_1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = mage_attack_1.png; sourceTree = "<group>"; };
 		566051F0C5343A6440F63488 /* bossmage_idle_3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bossmage_idle_3.png; sourceTree = "<group>"; };
@@ -1135,7 +1135,7 @@
 		6725B81CB143A60853ED0476 /* gunshot_rifle.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = gunshot_rifle.mp3; sourceTree = "<group>"; };
 		6754D5189E56C9027D2FF088 /* samurai_walk_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = samurai_walk_0.png; sourceTree = "<group>"; };
 		67655D6006BF093B2BE089FB /* corpmage_attack_1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = corpmage_attack_1.png; sourceTree = "<group>"; };
-		676E8A4DEF459896B4C46A71 /* ShadowrunGameApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadowrunGameApp.swift; sourceTree = "<group>"; };
+		676E8A4DEF459896B4C46A71 /* HexwireApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HexwireApp.swift; sourceTree = "<group>"; };
 		67E4EF2A7DCDDAC1FCA8D449 /* mech_grapple_swing.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = mech_grapple_swing.mp3; sourceTree = "<group>"; };
 		6889F07CD597D002892A8F22 /* tilesheet_2_r4c1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_2_r4c1.png; sourceTree = "<group>"; };
 		68ACDB37820944C6F372DAFB /* mech_engagement_radio.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = mech_engagement_radio.mp3; sourceTree = "<group>"; };
@@ -1380,7 +1380,7 @@
 		B41D1E63BC037FCB770E42CB /* bodyguard_block_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bodyguard_block_0.png; sourceTree = "<group>"; };
 		B4757336AD940FCC86026ADF /* step_metal_2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = step_metal_2.mp3; sourceTree = "<group>"; };
 		B4CE5215CB5E9185C18D6EE3 /* tilesheet_2_r3c2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_2_r3c2.png; sourceTree = "<group>"; };
-		B581669DE9D13C39F034CF2B /* ShadowruneTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ShadowruneTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B581669DE9D13C39F034CF2B /* HexWireTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HexWireTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B61CD5BBD78596D6B9FDE44E /* NeonLotusScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeonLotusScene.swift; sourceTree = "<group>"; };
 		B64C88D5EA1DE38FC98E7A9C /* raze_right_victory_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = raze_right_victory_0.png; sourceTree = "<group>"; };
 		B6C4BA56643F74284E6D6F9D /* tilesheet_3_r5c0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_3_r5c0.png; sourceTree = "<group>"; };
@@ -1617,8 +1617,8 @@
 		2B8701B3F8F0487D0B2933C9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				55273F2FDD2A333C261EAFD8 /* Shadowrune.app */,
-				B581669DE9D13C39F034CF2B /* ShadowruneTests.xctest */,
+				55273F2FDD2A333C261EAFD8 /* HexWire.app */,
+				B581669DE9D13C39F034CF2B /* HexWireTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1983,15 +1983,15 @@
 			path = Game;
 			sourceTree = "<group>";
 		};
-		2D90F9727B98F464ABF43D05 /* ShadowrunGame */ = {
+		2D90F9727B98F464ABF43D05 /* HexWire */ = {
 			isa = PBXGroup;
 			children = (
 				4F90B867B2B3900341CFDE9C /* Assets.xcassets */,
 				43175C1D91440DBE54DF8EDF /* Info.plist */,
 				518A10F857DECFEC8F388D4A /* LaunchScreen.storyboard */,
-				676E8A4DEF459896B4C46A71 /* ShadowrunGameApp.swift */,
+				676E8A4DEF459896B4C46A71 /* HexwireApp.swift */,
 			);
-			name = ShadowrunGame;
+			name = HexWire;
 			path = .;
 			sourceTree = "<group>";
 		};
@@ -2219,7 +2219,7 @@
 				2C9F4E18748A29C85DC48A81 /* Game */,
 				165993B7398BB597C6043140 /* Missions */,
 				964350316E77ED97BB5E0A5A /* Rendering */,
-				2D90F9727B98F464ABF43D05 /* ShadowrunGame */,
+				2D90F9727B98F464ABF43D05 /* HexWire */,
 				92B418D2FD38D5CC7A518A3B /* Sounds */,
 				BE9783117AAA4287B6BB4B6B /* Sprites */,
 				32ED5809D305A344D944BAEB /* tests */,
@@ -2541,9 +2541,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		234CC8E6B78DC9FA287A04BB /* Shadowrune */ = {
+		234CC8E6B78DC9FA287A04BB /* HexWire */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 746C044CEF74006BB1AF75B3 /* Build configuration list for PBXNativeTarget "Shadowrune" */;
+			buildConfigurationList = 746C044CEF74006BB1AF75B3 /* Build configuration list for PBXNativeTarget "HexWire" */;
 			buildPhases = (
 				AA77FF1EF89B43D7F93492AB /* Sources */,
 				21CED4C3C43234F0EC75A7DA /* Resources */,
@@ -2552,16 +2552,16 @@
 			);
 			dependencies = (
 			);
-			name = Shadowrune;
+			name = HexWire;
 			packageProductDependencies = (
 			);
-			productName = Shadowrune;
-			productReference = 55273F2FDD2A333C261EAFD8 /* Shadowrune.app */;
+			productName = HexWire;
+			productReference = 55273F2FDD2A333C261EAFD8 /* HexWire.app */;
 			productType = "com.apple.product-type.application";
 		};
-		77633622560624EF3CFF73CD /* ShadowruneTests */ = {
+		77633622560624EF3CFF73CD /* HexWireTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 3CB055B177823B97084DA839 /* Build configuration list for PBXNativeTarget "ShadowruneTests" */;
+			buildConfigurationList = 3CB055B177823B97084DA839 /* Build configuration list for PBXNativeTarget "HexWireTests" */;
 			buildPhases = (
 				F106E82405349553F9CF90F7 /* Sources */,
 			);
@@ -2570,11 +2570,11 @@
 			dependencies = (
 				BE8C9F410975665AE3CD495C /* PBXTargetDependency */,
 			);
-			name = ShadowruneTests;
+			name = HexWireTests;
 			packageProductDependencies = (
 			);
-			productName = ShadowruneTests;
-			productReference = B581669DE9D13C39F034CF2B /* ShadowruneTests.xctest */;
+			productName = HexWireTests;
+			productReference = B581669DE9D13C39F034CF2B /* HexWireTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -2595,7 +2595,7 @@
 					};
 				};
 			};
-			buildConfigurationList = F520AE3FDEDB07F4E645B893 /* Build configuration list for PBXProject "Shadowrune" */;
+			buildConfigurationList = F520AE3FDEDB07F4E645B893 /* Build configuration list for PBXProject "HexWire" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -2609,8 +2609,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				234CC8E6B78DC9FA287A04BB /* Shadowrune */,
-				77633622560624EF3CFF73CD /* ShadowruneTests */,
+				234CC8E6B78DC9FA287A04BB /* HexWire */,
+				77633622560624EF3CFF73CD /* HexWireTests */,
 			);
 		};
 /* End PBXProject section */
@@ -3405,7 +3405,7 @@
 				DDA33E835E66727E024177DF /* Room.swift in Sources */,
 				A3AEAF60D0CA73632CDE70B3 /* RoomManager.swift in Sources */,
 				B6F81B67C5AB30AB6137B27F /* SFXManager.swift in Sources */,
-				91E7BF0D06B44226BCD53410 /* ShadowrunGameApp.swift in Sources */,
+				91E7BF0D06B44226BCD53410 /* HexwireApp.swift in Sources */,
 				C59BD536FFB49161C5A12F03 /* Spell.swift in Sources */,
 				4605E7583EC862EEA16A4A3C /* SpellResolver.swift in Sources */,
 				AF388910B2F3E4659F3CEF73 /* SpriteManager.swift in Sources */,
@@ -3431,7 +3431,7 @@
 /* Begin PBXTargetDependency section */
 		BE8C9F410975665AE3CD495C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 234CC8E6B78DC9FA287A04BB /* Shadowrune */;
+			target = 234CC8E6B78DC9FA287A04BB /* HexWire */;
 			targetProxy = D86078C03C2C9D12FC2B23A6 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -3449,11 +3449,11 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.shadowrune.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hexwire.tests;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Shadowrune.app/Shadowrune";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HexWire.app/HexWire";
 			};
 			name = Release;
 		};
@@ -3576,11 +3576,11 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.shadowrune.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hexwire.tests;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Shadowrune.app/Shadowrune";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/HexWire.app/HexWire";
 			};
 			name = Debug;
 		};
@@ -3648,7 +3648,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		3CB055B177823B97084DA839 /* Build configuration list for PBXNativeTarget "ShadowruneTests" */ = {
+		3CB055B177823B97084DA839 /* Build configuration list for PBXNativeTarget "HexWireTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F51AD6B40DA1D0DAE3EC92DC /* Debug */,
@@ -3657,7 +3657,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		746C044CEF74006BB1AF75B3 /* Build configuration list for PBXNativeTarget "Shadowrune" */ = {
+		746C044CEF74006BB1AF75B3 /* Build configuration list for PBXNativeTarget "HexWire" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				73CA6C4ED0E1F41844BDAADB /* Debug */,
@@ -3666,7 +3666,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		F520AE3FDEDB07F4E645B893 /* Build configuration list for PBXProject "Shadowrune" */ = {
+		F520AE3FDEDB07F4E645B893 /* Build configuration list for PBXProject "HexWire" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EF9EF4EA6310D9C61E451BD5 /* Debug */,

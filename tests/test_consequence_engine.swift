@@ -1,6 +1,6 @@
 import XCTest
-#if canImport(Shadowrune)
-@testable import Shadowrune
+#if canImport(HexWire)
+@testable import HexWire
 
 final class ConsequenceEngineGoldenTests: XCTestCase {
 

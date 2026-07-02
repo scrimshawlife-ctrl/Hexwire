@@ -1,6 +1,6 @@
 import XCTest
-#if canImport(Shadowrune)
-@testable import Shadowrune
+#if canImport(HexWire)
+@testable import HexWire
 
 /// Deterministic tests for the stateless combat math. These avoid GameState /
 /// singletons so they run as fast logic tests with no game setup.

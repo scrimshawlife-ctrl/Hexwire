@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
-               BuildableName = "Shadowrune.app"
-               BlueprintName = "Shadowrune"
-               ReferencedContainer = "container:Shadowrune.xcodeproj">
+               BuildableName = "HexWire.app"
+               BlueprintName = "HexWire"
+               ReferencedContainer = "container:HexWire.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
-            BuildableName = "Shadowrune.app"
-            BlueprintName = "Shadowrune"
-            ReferencedContainer = "container:Shadowrune.xcodeproj">
+            BuildableName = "HexWire.app"
+            BlueprintName = "HexWire"
+            ReferencedContainer = "container:HexWire.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -45,9 +45,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "77633622560624EF3CFF73CD"
-               BuildableName = "ShadowruneTests.xctest"
-               BlueprintName = "ShadowruneTests"
-               ReferencedContainer = "container:Shadowrune.xcodeproj">
+               BuildableName = "HexWireTests.xctest"
+               BlueprintName = "HexWireTests"
+               ReferencedContainer = "container:HexWire.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -69,9 +69,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
-            BuildableName = "Shadowrune.app"
-            BlueprintName = "Shadowrune"
-            ReferencedContainer = "container:Shadowrune.xcodeproj">
+            BuildableName = "HexWire.app"
+            BlueprintName = "HexWire"
+            ReferencedContainer = "container:HexWire.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -88,9 +88,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
-            BuildableName = "Shadowrune.app"
-            BlueprintName = "Shadowrune"
-            ReferencedContainer = "container:Shadowrune.xcodeproj">
+            BuildableName = "HexWire.app"
+            BlueprintName = "HexWire"
+            ReferencedContainer = "container:HexWire.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>

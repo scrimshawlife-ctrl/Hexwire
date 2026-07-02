@@ -16,7 +16,7 @@ func contains(_ needle: String, in haystack: String) -> Bool {
 
 let cwd = FileManager.default.currentDirectoryPath
 let gameStatePath = cwd + "/Game/GameState.swift"
-let appPath = cwd + "/ShadowrunGameApp.swift"
+let appPath = cwd + "/HexwireApp.swift"
 let matrixPath = cwd + "/docs/architecture/PhaseFlowAuthorityMatrix.md"
 
 var checks: [Check] = []
@@ -26,7 +26,7 @@ let appExists = FileManager.default.fileExists(atPath: appPath)
 let matrixExists = FileManager.default.fileExists(atPath: matrixPath)
 
 checks.append(Check(name: "GameState file exists", pass: gameStateExists, detail: gameStatePath))
-checks.append(Check(name: "ShadowrunGameApp file exists", pass: appExists, detail: appPath))
+checks.append(Check(name: "HexwireApp file exists", pass: appExists, detail: appPath))
 checks.append(Check(name: "PhaseFlowAuthorityMatrix doc exists", pass: matrixExists, detail: matrixPath))
 
 guard gameStateExists, appExists, matrixExists else {
