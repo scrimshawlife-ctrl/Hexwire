@@ -8,6 +8,8 @@ import Combine
 /// resetting. Flag-guarded — runs at most once, then no-ops forever.
 enum StorageMigration {
     private static let flagKey = "HexWire.Migration.KeyRename.v1"
+    // (old legacy key, new key). The old column MUST stay "ShadowrunGame.*"
+    // literals — that's what existing installs actually wrote to disk.
     private static let keyPairs: [(old: String, new: String)] = [
         ("ShadowrunGame.MissionStats.v1",           "HexWire.MissionStats.v1"),
         ("ShadowrunGame.PlayerNuyen.v1",            "HexWire.PlayerNuyen.v1"),

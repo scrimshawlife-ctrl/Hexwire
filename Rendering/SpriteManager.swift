@@ -294,11 +294,11 @@ final class SpriteManager {
                 let tex = SKTexture(image: image); tex.filteringMode = .linear; return tex
             }
         }
-        // Path 3: #file relative — walks up from Rendering/ to ShadowrunGame/Sprites/
+        // Path 3: #file relative — walks up from Rendering/ to HexWire/Sprites/
         let sourceURL = URL(fileURLWithPath: #file)
         let url = sourceURL
             .deletingLastPathComponent()  // Rendering/
-            .deletingLastPathComponent()  // ShadowrunGame/
+            .deletingLastPathComponent()  // HexWire/
             .appendingPathComponent("Sprites")
             .appendingPathComponent(filename)
         if let image = UIImage(contentsOfFile: url.path) {
@@ -526,12 +526,12 @@ final class SpriteManager {
         }
 
         // ── Path 4: Project directory via #file (Xcode Simulator dev workflow) ────────
-        // SpriteManager.swift is at ShadowrunGame/Rendering/SpriteManager.swift
-        // Go up two directories: Rendering/ → ShadowrunGame/ → Sprites/frames/
+        // SpriteManager.swift is at HexWire/Rendering/SpriteManager.swift
+        // Go up two directories: Rendering/ → HexWire/ → Sprites/frames/
         let sourceURL = URL(fileURLWithPath: #file)
         let projectFramesURL = sourceURL
             .deletingLastPathComponent()  // Rendering/
-            .deletingLastPathComponent()  // ShadowrunGame/
+            .deletingLastPathComponent()  // HexWire/
             .appendingPathComponent("Sprites")
             .appendingPathComponent("frames")
             .appendingPathComponent(named)

@@ -47,7 +47,7 @@ struct Weapon: Codable, Equatable, Identifiable, Hashable {
     var stunOverride: Bool? = nil
 
     /// True if this weapon deals Stun damage (unarmed strikes, stun batons, etc.)
-    /// vs Physical damage (firearms, blades). Per Shadowrun 5e rules.
+    /// vs Physical damage (firearms, blades). Per HexWire 5e rules.
     var isStunDamage: Bool {
         if let stunOverride { return stunOverride }
         switch type {

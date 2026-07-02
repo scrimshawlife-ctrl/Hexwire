@@ -1100,7 +1100,7 @@ struct CombatFlowController {
         gameState.addLog("📡 TRACE +2 — jacking in lights up the host.")
         gameState.onTraceTierChanged(from: preCrackTier, to: gameState.traceTier)
         // Don't auto-acquire — launch the Matrix mini-game first.
-        // ShadowrunGameApp overlays MatrixMiniGameView when showMatrixMiniGame
+        // HexwireApp overlays MatrixMiniGameView when showMatrixMiniGame
         // becomes true; the mini-game's completion handler calls
         // resolveMatrixMiniGame(success:) below to finalise the pickup or bail.
         gameState.pendingHackTerminalX = x

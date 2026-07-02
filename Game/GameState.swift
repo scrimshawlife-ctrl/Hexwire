@@ -1697,7 +1697,7 @@ final class GameState: ObservableObject {
     }
 
     /// Decker HACK: Disables target enemy for 1 round (0 attack dice, can't move).
-    /// Uses LOG + spellcasting (hacking is logic-based in Shadowrun).
+    /// Uses LOG + spellcasting (hacking is logic-based in HexWire).
     func performHack() {
         CombatFlowController.performHack(gameState: self)
     }
@@ -2321,4 +2321,4 @@ enum StateTransition {
 
 // `GameStateManager` (legacy phase manager) was removed 2026-05 — was
 // declared "for compatibility" but had zero call sites. `PhaseManager` in
-// ShadowrunGameApp.swift is the canonical phase-flow authority.
+// HexwireApp.swift is the canonical phase-flow authority.

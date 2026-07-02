@@ -1,6 +1,6 @@
 import Foundation
 
-/// Shadowrun TN dice system engine
+/// HexWire TN dice system engine
 /// Rolls Xd6, counts hits (5 or 6), handles exploding 6s, detects glitches
 struct DiceEngine {
 
@@ -84,7 +84,7 @@ struct DiceEngine {
         // For simple hit-counting, netHits = hits when tn is the threshold
         let netHits = hits // Will be adjusted if we implement opposed rolls
 
-        // Glitch detection: MORE than half the dice show 1s (Shadowrun 5e
+        // Glitch detection: MORE than half the dice show 1s (HexWire 5e
         // rule). Was `>= pool/2` which fired on EXACTLY half — that made
         // small pools (4–6 dice) glitch 15–20% of the time, which felt
         // broken for chars like Sable using a sidearm with a 5-die pool.
