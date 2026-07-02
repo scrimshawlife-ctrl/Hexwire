@@ -1,0 +1,610 @@
+{
+  "id": "run005_multi",
+  "title": "Mekton Blues",
+  "description": "Saeder-Krupp industrial complex. Stolen military mech prototype telemetry is locked in the factory's data core. Get the data, clear resistance, and extract from the mech bay before reinforcements arrive.",
+  "difficulty": "Very Hard",
+  "briefing": "Saeder-Krupp lifted a Mitsuhama prototype mech and trucked it to one of their black-flag factories outside the Sprawl. Mitsuhama is paying TOP dollar for the telemetry \u2014 schematics, weapon specs, neural-link config. Hit the warehouse entry, push through the assembly floor to the data core, pull the files. Then exfil from the mech bay before SK gets a Spider squad on-site. Heavy industrial security: drones, mech techs cross-trained in combat, and a corp mage running ICE on the data core. Watch for the mech itself in the bay \u2014 it's not active, but if SK techs power it up mid-extraction, you're done.",
+  "missionCompleteSummary": "Mech telemetry delivered to Mitsuhama. SK is going to spend a year auditing how a Mitsuhama prototype ended up on their factory floor in the first place \u2014 that's their problem now. Big payday, lay low, the SK Spider squad will be looking for SOMEBODY to hang for this run.",
+  "extractionType": "door",
+  "rooms": [
+    {
+      "id": "room_0",
+      "title": "Warehouse Entry",
+      "_obstacleNote": "Player spawns at the TOP (warehouse entrance) and pushes DOWN the central corridor to the FACTORY FLOOR exit door at the bottom. Forklift, pallets, container, crates = WALLS at rows 3 & 7.",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 9
+      },
+      "extractionPoint": null,
+      "enemies": [
+        {
+          "type": "elite",
+          "x": 2,
+          "y": 5,
+          "delay": 0
+        },
+        {
+          "type": "drone",
+          "x": 4,
+          "y": 3,
+          "delay": 1
+        },
+        {
+          "type": "bruiser",
+          "x": 3,
+          "y": 3,
+          "delay": 2
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 9
+        }
+      ]
+    },
+    {
+      "id": "room_1",
+      "title": "Factory Floor",
+      "_obstacleNote": "Player enters at the TOP (WAREHOUSE door, back to room_0) and pushes DOWN past the data terminal (hex 5, center) to the MECH BAY door at the bottom (forward to room_2). Welding arms + press stations = WALLS at rows 3 & 7.",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          5,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 9
+      },
+      "extractionPoint": null,
+      "enemies": [
+        {
+          "type": "elite",
+          "x": 3,
+          "y": 7,
+          "delay": 0
+        },
+        {
+          "type": "sniper",
+          "x": 2,
+          "y": 3,
+          "delay": 3
+        },
+        {
+          "type": "juggernaut",
+          "x": 3,
+          "y": 6,
+          "delay": 1
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_0",
+          "triggerTileX": 3,
+          "triggerTileY": 10,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        },
+        {
+          "targetRoomId": "room_2",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        }
+      ]
+    },
+    {
+      "id": "room_2",
+      "title": "Mech Bay",
+      "_obstacleNote": "Player enters at the BOTTOM (MECH BAY door, back to room_1) and routes AROUND the parked mech (central WALLS at rows 6-8) via the x=1 or x=5 corridor to the extraction door at the TOP (forward to room_3 reactor). Diagnostic stations at row 5 sides = COVER.",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          1,
+          1,
+          1,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          1,
+          1,
+          1,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 2
+      },
+      "extractionPoint": null,
+      "enemies": [
+        {
+          "type": "elite",
+          "x": 1,
+          "y": 4,
+          "delay": 0
+        },
+        {
+          "type": "mage",
+          "x": 5,
+          "y": 7,
+          "delay": 2
+        },
+        {
+          "type": "spider",
+          "x": 2,
+          "y": 9,
+          "delay": 2
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        },
+        {
+          "targetRoomId": "room_3",
+          "triggerTileX": 3,
+          "triggerTileY": 10,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        }
+      ]
+    },
+    {
+      "id": "room_3",
+      "title": "Reactor Floor",
+      "_obstacleNote": "Boss arena. Player enters at the BOTTOM (door back to room_2). The boss mech spawns in the upper area and roams the open floor. Reactor cover pillars at rows 5 & 7. Extraction is the gate at the TOP \u2014 reachable only after the boss is down.",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          2,
+          0,
+          2,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          2,
+          0,
+          2,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          4,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 2
+      },
+      "extractionPoint": {
+        "x": 3,
+        "y": 10
+      },
+      "bossSpawn": {
+        "type": "mech",
+        "x": 3,
+        "y": 8
+      },
+      "enemies": [],
+      "connections": [
+        {
+          "targetRoomId": "room_2",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 9
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,465 @@
+{
+  "id": "run003_multi",
+  "title": "The Mage's Lair",
+  "description": "A blood mage has taken a Seattle tenement. Clear the building and eliminate the mage to claim his grimoire.",
+  "difficulty": "Hard",
+  "briefing": "Haruki Sato \u2014 blood mage, ex-Renraku, off the deep end. Holed up in a tenement on the outskirts of the Redmond Barrens. Word is he's running blood rituals to crack open a Matrix gate to a deep node. He's got hired guns on the lower floors and his ritual chamber's warded to hell. Get in, kill the mage, take whatever's on him, and torch the place on your way out.",
+  "missionCompleteSummary": "Sato is dead. The grimoire is yours. The Barrens precinct will look the other way for a few days; spend the heat down before your next run. The wards in his ritual chamber were dissipating already \u2014 whatever he was summoning, it's not coming through anymore.",
+  "extractionType": "ladder",
+  "rooms": [
+    {
+      "id": "room_0",
+      "title": "Back Alley",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 10
+      },
+      "extractionPoint": null,
+      "enemies": [
+        {
+          "type": "guard",
+          "x": 4,
+          "y": 7,
+          "delay": 0
+        },
+        {
+          "type": "sniper",
+          "x": 2,
+          "y": 4,
+          "delay": 2
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 9
+        }
+      ]
+    },
+    {
+      "id": "room_1",
+      "title": "Warded Corridor",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          2,
+          5,
+          2,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 9
+      },
+      "extractionPoint": null,
+      "enemies": [
+        {
+          "type": "bruiser",
+          "x": 1,
+          "y": 4,
+          "delay": 4
+        },
+        {
+          "type": "elite",
+          "x": 3,
+          "y": 5,
+          "delay": 0
+        },
+        {
+          "type": "healer",
+          "x": 4,
+          "y": 3,
+          "delay": 2
+        },
+        {
+          "type": "sprayer",
+          "x": 5,
+          "y": 6,
+          "delay": 2
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_0",
+          "triggerTileX": 3,
+          "triggerTileY": 10,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        },
+        {
+          "targetRoomId": "room_2",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        }
+      ]
+    },
+    {
+      "id": "room_2",
+      "title": "Ritual Chamber",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          2,
+          0,
+          2,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          4,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 2
+      },
+      "extractionPoint": {
+        "x": 3,
+        "y": 10
+      },
+      "enemies": [
+        {
+          "type": "mage",
+          "x": 3,
+          "y": 9,
+          "delay": 0
+        },
+        {
+          "type": "guard",
+          "x": 2,
+          "y": 6,
+          "delay": 0
+        },
+        {
+          "type": "guard",
+          "x": 4,
+          "y": 5,
+          "delay": 0
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 9
+        }
+      ]
+    }
+  ]
+}

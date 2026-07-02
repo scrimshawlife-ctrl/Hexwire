@@ -1,0 +1,476 @@
+{
+  "id": "run002_multi",
+  "title": "Ghost Protocol",
+  "description": "A rogue AI has locked down a corporate server farm. Navigate the facility, neutralize its security drones, and extract the core data.",
+  "difficulty": "Normal",
+  "briefing": "A rogue AI codenamed 'Specter' has seized control of a Renraku server farm. The corp wants it offline and the data pulled before it can spread. Security is fully automated \u2014 drones and mage-class ICE. Watch for overlapping fields of fire and don't let the mage lock you down. Get in, shut it down, get the core out.",
+  "missionCompleteSummary": "Specter is offline. Core data extracted and delivered to the megacorp client. The AI's spread was contained before it could breach the outer grid. Clean work \u2014 Renraku will remember this run.",
+  "rooms": [
+    {
+      "id": "room_0",
+      "title": "Loading Dock",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 10
+      },
+      "extractionPoint": null,
+      "enemies": [
+        {
+          "type": "guard",
+          "x": 2,
+          "y": 8,
+          "delay": 0
+        },
+        {
+          "type": "drone",
+          "x": 5,
+          "y": 4,
+          "delay": 2
+        },
+        {
+          "type": "rigger",
+          "x": 3,
+          "y": 2,
+          "delay": 0
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 9
+        }
+      ]
+    },
+    {
+      "id": "room_1",
+      "title": "AI Core Chamber",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          5,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 9
+      },
+      "extractionPoint": null,
+      "enemies": [
+        {
+          "type": "elite",
+          "x": 3,
+          "y": 5,
+          "delay": 0
+        },
+        {
+          "type": "mage",
+          "x": 2,
+          "y": 3,
+          "delay": 3
+        },
+        {
+          "type": "rigger",
+          "x": 4,
+          "y": 7,
+          "delay": 1
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_0",
+          "triggerTileX": 3,
+          "triggerTileY": 10,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        },
+        {
+          "targetRoomId": "room_2",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        }
+      ]
+    },
+    {
+      "id": "room_2",
+      "title": "Rooftop Helipad",
+      "map": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          3,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          2,
+          0,
+          0,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          2,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          2,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          4,
+          0,
+          0,
+          1
+        ],
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "playerSpawn": {
+        "x": 3,
+        "y": 2
+      },
+      "extractionPoint": {
+        "x": 3,
+        "y": 10
+      },
+      "enemies": [
+        {
+          "type": "bruiser",
+          "x": 5,
+          "y": 8,
+          "delay": 3
+        },
+        {
+          "type": "drone",
+          "x": 2,
+          "y": 5,
+          "delay": 0
+        },
+        {
+          "type": "drone",
+          "x": 5,
+          "y": 5,
+          "delay": 0
+        },
+        {
+          "type": "guard",
+          "x": 4,
+          "y": 8,
+          "delay": 2
+        },
+        {
+          "type": "repairdrone",
+          "x": 3,
+          "y": 3,
+          "delay": 1
+        }
+      ],
+      "connections": [
+        {
+          "targetRoomId": "room_1",
+          "triggerTileX": 3,
+          "triggerTileY": 1,
+          "targetSpawnX": 3,
+          "targetSpawnY": 2
+        }
+      ]
+    }
+  ]
+}
