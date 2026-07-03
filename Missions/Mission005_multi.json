@@ -122,8 +122,8 @@
         ]
       ],
       "playerSpawn": {
-        "x": 3,
-        "y": 9
+        "x": 2,
+        "y": 10
       },
       "extractionPoint": null,
       "enemies": [
