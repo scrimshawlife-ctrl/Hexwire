@@ -462,7 +462,12 @@ struct MissionSetupService {
     /// runner never lands on an enemy's hex.
     static func findGroupSpawnSlots(map: [[Int]], anchor: SpawnPoint, count: Int,
                                     occupied: Set<String> = []) -> [SpawnPoint] {
-        let walkable: Set<Int> = [0, 2, 3, 4, 5]
+        // Spawn-placeable tile types: floor(0), cover(2), dataTerminal(5).
+        // Doors(3) are deliberately EXCLUDED — a runner standing on a door
+        // reads wrong and sits on a transition trigger; the party straddles
+        // the door instead. Extraction(4) excluded so entry never lands a
+        // runner on the exit pad.
+        let walkable: Set<Int> = [0, 2, 5]
         func tile(_ x: Int, _ y: Int) -> Int? {
             guard y >= 0, y < map.count, x >= 0, x < map[y].count else { return nil }
             return map[y][x]

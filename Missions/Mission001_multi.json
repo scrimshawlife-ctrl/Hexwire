@@ -143,8 +143,8 @@
           "targetRoomId": "room_1",
           "triggerTileX": 3,
           "triggerTileY": 1,
-          "targetSpawnX": 3,
-          "targetSpawnY": 9
+          "targetSpawnX": 2,
+          "targetSpawnY": 10
         }
       ]
     },
