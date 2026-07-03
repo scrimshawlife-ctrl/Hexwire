@@ -1185,29 +1185,9 @@ final class BattleScene: SKScene {
             dlog("[BattleScene] room transition (arrow) target=\(targetRoom.id) using room.playerSpawn=(\(spawnX),\(spawnY))")
         }
 
-        // Set living character positions for this room entry. playerTeam keeps the
-        // whole squad roster, including downed runners, but only living runners are
-        // projected into the active room.
-        if spawnX >= 0 {
-            // Lay the squad out HORIZONTALLY along the entry row (the door's
-            // target-spawn row), walking right then left before ever dropping
-            // to another row — same helper the initial mission load uses.
-            // The old "spawnX + offset, walk right only" logic hit the right
-            // wall after 3 runners on a 5-wide row and ring-searched the 4th
-            // onto a DIFFERENT row, scattering the party vertically (two
-            // runners ending up pushed toward the barrier).
-            let livingIdx = GameState.shared.playerTeam.indices.filter { GameState.shared.playerTeam[$0].isAlive }
-            let slots = MissionSetupService.findGroupSpawnSlots(
-                map: targetRoom.map,
-                anchor: SpawnPoint(x: spawnX, y: spawnY),
-                count: livingIdx.count)
-            for (n, i) in livingIdx.enumerated() {
-                let p = slots[n]
-                GameState.shared.playerTeam[i].positionX = p.x
-                GameState.shared.playerTeam[i].positionY = p.y
-                dlog("Room transition: char=\(GameState.shared.playerTeam[i].name) x=\(p.x) y=\(p.y)")
-            }
-        }
+        // NOTE: player positions are assigned AFTER the enemy list is built
+        // (below) so the squad layout can avoid enemy-occupied tiles —
+        // otherwise a runner could spawn on an enemy's hex (Raze-on-enemy).
 
         // Mark room as entered (for future back-navigation)
         RoomManager.shared.markRoomEntered(targetRoom.id)
@@ -1274,13 +1254,36 @@ final class BattleScene: SKScene {
                 }
             }
         }
+        // Place the squad NOW that the on-board (delay-0) enemies exist: lay
+        // them HORIZONTALLY along the entry row (door target-spawn row),
+        // walking right then left, avoiding enemy hexes. Keeps them in a clean
+        // line on the back/entry row instead of scattering or overlapping.
+        if spawnX >= 0 {
+            let enemyTiles = Set(newEnemies.map { "\($0.positionX),\($0.positionY)" })
+            let livingIdx = GameState.shared.playerTeam.indices.filter { GameState.shared.playerTeam[$0].isAlive }
+            let slots = MissionSetupService.findGroupSpawnSlots(
+                map: targetRoom.map,
+                anchor: SpawnPoint(x: spawnX, y: spawnY),
+                count: livingIdx.count,
+                occupied: enemyTiles)
+            for (n, i) in livingIdx.enumerated() {
+                let p = slots[n]
+                GameState.shared.playerTeam[i].positionX = p.x
+                GameState.shared.playerTeam[i].positionY = p.y
+                dlog("Room transition: char=\(GameState.shared.playerTeam[i].name) x=\(p.x) y=\(p.y)")
+            }
+        }
+
         // New Game+ extra enemies for this room (placed on free floor tiles).
         // Only for uncleared rooms — a cleared room stays empty on re-entry.
         if !RoomManager.shared.isRoomCleared(targetRoom.id) {
+            // Avoid the delay-0 enemies, queued spawns, AND the runners'
+            // ACTUAL placed tiles (the old code only reserved the room's
+            // default playerSpawn, so an NG+ extra could land on a runner).
             let ngOccupied = Set(
                 newEnemies.map { "\($0.positionX),\($0.positionY)" }
                 + newPendingSpawns.map { "\($0.enemy.positionX),\($0.enemy.positionY)" }
-                + [ "\(targetRoom.playerSpawn.x),\(targetRoom.playerSpawn.y)" ]
+                + GameState.shared.playerTeam.filter { $0.isAlive }.map { "\($0.positionX),\($0.positionY)" }
             )
             newEnemies.append(contentsOf: MissionSetupService.ngPlusExtraEnemies(
                 gameState: GameState.shared, map: targetRoom.map, occupied: ngOccupied))

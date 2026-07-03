@@ -457,7 +457,11 @@ struct MissionSetupService {
     /// regardless of where the anchor sits relative to the room edges.
     /// Used to be the naive `(spawn.x + i, spawn.y)` which dumped char 4 on
     /// the right wall whenever the anchor sat in the middle of the room.
-    static func findGroupSpawnSlots(map: [[Int]], anchor: SpawnPoint, count: Int) -> [SpawnPoint] {
+    /// `occupied` = tiles the party must NOT spawn on (e.g. enemy positions).
+    /// Kept out of both the horizontal row-walk and the BFS fallback so a
+    /// runner never lands on an enemy's hex.
+    static func findGroupSpawnSlots(map: [[Int]], anchor: SpawnPoint, count: Int,
+                                    occupied: Set<String> = []) -> [SpawnPoint] {
         let walkable: Set<Int> = [0, 2, 3, 4, 5]
         func tile(_ x: Int, _ y: Int) -> Int? {
             guard y >= 0, y < map.count, x >= 0, x < map[y].count else { return nil }
@@ -465,7 +469,7 @@ struct MissionSetupService {
         }
         func isWalkable(_ x: Int, _ y: Int) -> Bool {
             guard let t = tile(x, y) else { return false }
-            return walkable.contains(t)
+            return walkable.contains(t) && !occupied.contains("\(x),\(y)")
         }
         // Hex distance — same odd-q axial conversion used in PathingAndAIHelpers.
         func hexDist(_ ax: Int, _ ay: Int, _ bx: Int, _ by: Int) -> Int {
