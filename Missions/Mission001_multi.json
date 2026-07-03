@@ -313,15 +313,15 @@
           "targetRoomId": "room_0",
           "triggerTileX": 3,
           "triggerTileY": 10,
-          "targetSpawnX": 3,
-          "targetSpawnY": 2
+          "targetSpawnX": 2,
+          "targetSpawnY": 1
         },
         {
           "targetRoomId": "room_2",
           "triggerTileX": 3,
           "triggerTileY": 1,
-          "targetSpawnX": 3,
-          "targetSpawnY": 2
+          "targetSpawnX": 2,
+          "targetSpawnY": 1
         }
       ]
     },
@@ -471,8 +471,8 @@
           "targetRoomId": "room_1",
           "triggerTileX": 3,
           "triggerTileY": 1,
-          "targetSpawnX": 3,
-          "targetSpawnY": 2
+          "targetSpawnX": 2,
+          "targetSpawnY": 1
         }
       ]
     }
