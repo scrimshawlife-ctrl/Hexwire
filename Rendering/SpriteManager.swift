@@ -1574,9 +1574,10 @@ final class SpriteManager {
                 // grunts (playtest 2026-06-12). Bump its target height to
                 // bring the figure up to peer size.
                 case "rigger":              targetH = 82
-                // Riot frames gained 16px of top padding (the helmet was flush
-                // against the canvas edge and read as "cut off"); scale up so
-                // the figure inside the now-148-tall canvas renders peer-sized.
+                // Riot art re-extracted 2026-07 from the enemy sheet with a
+                // FULL helmet (the old frames had the crown cropped flat).
+                // 264x200 canvas, figure ~0.85 of height → 79 renders it
+                // peer-sized (~67pt, matching the guards).
                 case "riot":                targetH = 79
                 default:
                     // Bossmage with no dedicated frames yet (placeholder path,
@@ -1603,7 +1604,7 @@ final class SpriteManager {
                 switch eKey {
                 case "corpmage": xNudge = -3
                 case "bruiser":  xNudge = -14  // -6 → -10 → -14: sprite kept drifting right, walking through the right edge of its hex
-                case "riot":     xNudge = -6   // shield on the figure's right → centroid ~12px right of canvas centre (×0.53)
+                case "riot":     xNudge = 0    // 2026-07 re-extracted art is feet-centered, no offset needed
                 case "sniper":   xNudge = -9   // rifle/firing stance biases the figure ~23px right of centre (×0.39)
                 case "spider":   xNudge = -2
                 default:         xNudge = 0
