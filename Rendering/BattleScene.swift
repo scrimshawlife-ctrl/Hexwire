@@ -1214,7 +1214,11 @@ final class BattleScene: SKScene {
         var newEnemies: [Enemy] = []
         var newPendingSpawns: [GameState.PendingSpawn] = []
         if !RoomManager.shared.isRoomCleared(targetRoom.id) {
-            for enemySpawn in targetRoom.enemies {
+            // Replay/gauntlet squad reroll — same budget-matched swap the
+            // opening room gets in setupMultiRoomMission. Seeded per
+            // (attempt, room), so backtracking and re-entering this room
+            // rebuilds the identical squad.
+            for enemySpawn in MissionSetupService.replaySquad(for: targetRoom, gameState: GameState.shared) {
             let enemy: Enemy
             switch enemySpawn.type {
             case "guard":   enemy = Enemy.corpGuard()

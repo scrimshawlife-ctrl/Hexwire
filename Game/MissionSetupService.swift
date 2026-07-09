@@ -253,7 +253,7 @@ struct MissionSetupService {
             gameState.missionCompleteSummaryText = summary
         }
 
-        for (spawnIndex, spawn) in firstRoom.enemies.enumerated() {
+        for (spawnIndex, spawn) in replaySquad(for: firstRoom, gameState: gameState).enumerated() {
             let archetype = archetypeForSpawnIndex(gameState: gameState, spawnIndex: spawnIndex)
             let enemy = makeEnemy(gameState: gameState, for: spawn.type, archetype: archetype)
             enemy.positionX = spawn.x
@@ -697,6 +697,83 @@ struct MissionSetupService {
     /// purchased stims (Character.inventory → the combat `loot` pool the ITM
     /// button actually reads). Maps the persisted Entities.Item types onto the
     /// runtime GameState.Item the combat UI uses, so shop stims are usable.
+    // MARK: - Replay squad reroll ("spawn budget")
+
+    /// Threat cost (squad points) per regular spawn `type`. Roughly
+    /// HP-and-lethality tiered: 3 = fodder, 4 = utility, 5 = specialist,
+    /// 6 = heavy, 8 = juggernaut. Boss types (mech/corp/agi/bossmage) are
+    /// deliberately ABSENT — a reroll must never conjure or replace a boss.
+    static let spawnCost: [String: Int] = [
+        "guard": 3, "drone": 3, "repairdrone": 3,
+        "healer": 4, "turret": 4, "netrunner": 4, "spider": 4,
+        "sniper": 5, "bruiser": 5, "riot": 5, "grenadier": 5,
+        "sprayer": 5, "infiltrator": 5,
+        "elite": 6, "mage": 6, "rigger": 6,
+        "juggernaut": 8,
+    ]
+
+    /// Seeded RNG for squad rerolls (SplitMix64 — same rationale as
+    /// ReinforcementService's: deterministic within an attempt, different
+    /// across attempts). Fileprivate duplicate of that service's generator;
+    /// both are 10 lines and neither wants a cross-file dependency for it.
+    private struct SquadRNG: RandomNumberGenerator {
+        var state: UInt64
+        init(seed: UInt64) { state = seed }
+        mutating func next() -> UInt64 {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            return z ^ (z >> 31)
+        }
+    }
+
+    /// "Spawn budget" reroll: on a REPLAY (mission already beaten once) or a
+    /// gauntlet floor, each authored enemy slot swaps to a random type of
+    /// comparable cost (±1 point) drawn from the pool of types this mission
+    /// actually ships — so difficulty stays inside the authored envelope,
+    /// theming holds (M1 never rolls a juggernaut it never shipped), and the
+    /// squad composition differs run to run. Positions and spawn delays are
+    /// authored SPATIAL design and are kept verbatim; only WHO stands there
+    /// changes. First clears (and failed first attempts) always get the
+    /// hand-authored squad — the story balance is the tuned experience.
+    ///
+    /// Seeded by (missionAttemptId, room id): re-entering an uncleared room
+    /// in the same attempt rebuilds the SAME squad (no reroll-scumming by
+    /// door-flapping), while every new attempt rolls fresh.
+    static func replaySquad(for room: Room, gameState: GameState) -> [EnemySpawn] {
+        let missionId = gameState.currentMissionDisplayId ?? ""
+        let isReplay = MissionStatsStore.shared.record(for: missionId).attempts > 0
+        guard isReplay || GauntletStore.shared.isActive else { return room.enemies }
+        guard let mission = RoomManager.shared.currentMission else { return room.enemies }
+
+        // Pool = union of costed types authored anywhere in this mission.
+        var pool = Set<String>()
+        for r in mission.rooms {
+            for s in r.enemies where spawnCost[s.type] != nil { pool.insert(s.type) }
+        }
+        guard pool.count > 1 else { return room.enemies }
+
+        // Launch-stable room hash (String.hashValue is salted per process).
+        var roomHash: UInt64 = 5381
+        for b in room.id.utf8 { roomHash = (roomHash << 5) &+ roomHash &+ UInt64(b) }
+        var rng = SquadRNG(seed: UInt64(bitPattern: Int64(gameState.missionAttemptId))
+                                &* 0x9E37_79B9_7F4A_7C15 &+ roomHash)
+
+        var rerolled = 0
+        let squad = room.enemies.map { s -> EnemySpawn in
+            guard let cost = spawnCost[s.type] else { return s }   // boss/unknown: keep
+            let candidates = pool.filter { abs(spawnCost[$0, default: 0] - cost) <= 1 }
+            guard let pick = candidates.sorted().randomElement(using: &rng), pick != s.type else { return s }
+            rerolled += 1
+            return EnemySpawn(type: pick, x: s.x, y: s.y, delay: s.delay)
+        }
+        if rerolled > 0 {
+            gameState.addLog("📡 SQUAD INTEL — opposition roster differs from the last run (\(rerolled) change\(rerolled == 1 ? "" : "s")).")
+        }
+        return squad
+    }
+
     static func seedLootFromRoster(_ team: [Character]) -> [GameState.Item] {
         var result: [GameState.Item] = []
         for member in team {
