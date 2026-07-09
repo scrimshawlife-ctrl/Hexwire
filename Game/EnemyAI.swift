@@ -69,6 +69,7 @@ extension GameState {
         enemy: Enemy, target: Character, melee: Bool,
         aimBonus: Int = 0, damageBonus: Int = 0,
         forceStun: Bool = false, venom: Bool = false,
+        knockdownChance: Double = 0,
         hitVerb: String = "strikes"
     ) {
         if !melee, let wt = enemy.equippedWeapon?.type, wt != .blade, wt != .unarmed {
@@ -112,8 +113,125 @@ extension GameState {
         let tag = isStun ? "S" : "P"
         let venomTag = venom ? " +VENOM" : ""
         addLog("→ \(enemy.name) \(hitVerb) \(target.name)! [\(pool)d6→\(atk.hits)] \(wd + net)\(tag)\(venomTag) - \(soak) = \(dmg) (HP \(target.currentHP)/\(target.maxHP))")
+        // KNOCKDOWN (riot point-blank blast): a survivor caught in the spread
+        // can be blown off their feet. Prone until the round tick — pinned in
+        // place and defending at -2 dice (Character.defensePool). Same
+        // Double.random convention as the boss ability rolls; no re-stack on
+        // an already-prone target, and corpses stay corpses.
+        if knockdownChance > 0, target.isAlive,
+           !target.statusEffects.contains(.prone),
+           Double.random(in: 0..<1) < knockdownChance {
+            target.statusEffects.append(.prone)
+            proneInflictedRound[target.id] = roundNumber
+            addLog("  🔻 \(target.name) is blasted off their feet — PRONE!")
+        }
         NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: ["playerId": target.id.uuidString, "damage": dmg, "enemyId": enemy.id.uuidString])
         if !target.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: target) }
+    }
+
+    /// One full CONFUSED turn (Sable's Confusion hex). The enemy never runs
+    /// its archetype logic: 50% of the time it attacks a random ADJACENT unit
+    /// — friend or foe, friendly fire very much allowed — otherwise it
+    /// stumbles to a random walkable neighbouring tile. Either way it does
+    /// nothing else this turn; the status ticks down in tickStatusEffects.
+    private func runConfusedTurn(enemy: Enemy) {
+        // Everything standing within arm's reach, both rosters. The pick is
+        // uniform across the combined pool, so a confused guard in a scrum is
+        // as likely to shoot its squadmate as the runner next to it.
+        let adjacentRunners = playerTeam.filter {
+            $0.isAlive && hexDistance(x1: $0.positionX, y1: $0.positionY,
+                                      x2: enemy.positionX, y2: enemy.positionY) <= 1
+        }
+        let adjacentAllies = enemies.filter {
+            $0.isAlive && $0.id != enemy.id
+                && hexDistance(x1: $0.positionX, y1: $0.positionY,
+                               x2: enemy.positionX, y2: enemy.positionY) <= 1
+        }
+        let totalAdjacent = adjacentRunners.count + adjacentAllies.count
+
+        // 50/50 lash-out vs stumble (same Double.random convention as the
+        // boss ability rolls). No one adjacent? The swing has nothing to
+        // connect with, so it degenerates into the stumble.
+        if totalAdjacent > 0 && Double.random(in: 0..<1) < 0.5 {
+            let pick = Int.random(in: 0..<totalAdjacent)
+            if pick < adjacentRunners.count {
+                // Swung at a runner — resolve exactly like a basic specialist
+                // strike so the dice conventions (and kill routing) match.
+                let victim = adjacentRunners[pick]
+                addLog("🌀 \(enemy.name) lashes out blindly!")
+                let isMeleeWeapon = enemy.equippedWeapon?.type == .blade
+                    || enemy.equippedWeapon?.type == .unarmed
+                resolveSpecialistStrike(enemy: enemy, target: victim, melee: isMeleeWeapon,
+                                        hitVerb: "wildly swings at")
+            } else {
+                // Swung at one of its OWN — the whole point of the spell.
+                let victim = adjacentAllies[pick - adjacentRunners.count]
+                addLog("🌀 \(enemy.name) lashes out blindly — at \(victim.name)!")
+                confusedFriendlyFire(from: enemy, on: victim)
+            }
+        } else {
+            // Stumble to a random walkable neighbour (same walkability/
+            // occupancy helpers the drone strafe uses). Boxed in? It just
+            // reels in place.
+            let spots = PathingAndAIHelpers.hexNeighbors(gameState: self, x: enemy.positionX, y: enemy.positionY)
+                .filter { PathingAndAIHelpers.tileWalkable(gameState: self, x: $0.0, y: $0.1, excluding: enemy.id) }
+            if let s = spots.randomElement() {
+                // A stumble is still movement — overwatch fires at the start
+                // position, same as every other AI move step.
+                for (attackerId, _) in overwatchers {
+                    fireOverwatchShot(atEnemy: enemy, attackerId: attackerId)
+                }
+                enemy.positionX = s.0; enemy.positionY = s.1
+                addLog("🌀 \(enemy.name) stumbles away, eyes unfocused…")
+                NotificationCenter.default.post(name: .enemyMoved, object: nil,
+                    userInfo: ["enemyId": enemy.id.uuidString, "x": s.0, "y": s.1])
+            } else {
+                addLog("🌀 \(enemy.name) reels in place, thoroughly scrambled.")
+            }
+        }
+    }
+
+    /// Confusion friendly fire — one enemy shooting/striking ANOTHER enemy.
+    /// Same dice shape as the enemy-vs-player paths (AGI + acc/2 + 1 attack,
+    /// REA+AGI defense, soak minus the weapon's AP). Deliberately does NOT
+    /// apply escalatedIncomingDamage — that escalation models TRACE pressure
+    /// on the PLAYERS, not corp-on-corp crossfire. A kill routes through the
+    /// environment-death pipeline: bounty pays, no runner XP (nobody landed
+    /// the shot), and room-clear/door logic advances normally.
+    private func confusedFriendlyFire(from enemy: Enemy, on victim: Enemy) {
+        if let wt = enemy.equippedWeapon?.type, wt != .blade, wt != .unarmed {
+            NotificationCenter.default.post(name: .gunfireEffect, object: nil, userInfo: [
+                "fromX": enemy.positionX, "fromY": enemy.positionY,
+                "toX": victim.positionX, "toY": victim.positionY,
+                "weaponType": wt.rawValue, "enemyArchetype": enemy.archetype])
+        }
+        let acc = enemy.equippedWeapon?.accuracy ?? 4
+        let atkPool = enemy.attributes.agi + acc / 2 + 1
+        let defPool = victim.attributes.rea + victim.attributes.agi
+        let net = max(0, DiceEngine.roll(pool: atkPool).hits - DiceEngine.roll(pool: defPool).hits)
+        if net == 0 {
+            addLog("→ \(victim.name) ducks the stray burst!")
+            NotificationCenter.default.post(name: .enemyHit, object: nil,
+                userInfo: ["enemyId": victim.id.uuidString, "damage": 0, "outcome": "miss"])
+            return
+        }
+        let wd = enemy.equippedWeapon?.damage ?? 5
+        let ap = enemy.equippedWeapon?.armorPiercing ?? 0
+        let soak = DiceEngine.roll(pool: max(0, victim.computeDerived().soak - ap)).hits
+        let dmg = max(0, wd + net - soak)
+        guard dmg > 0 else {
+            addLog("→ \(victim.name)'s armour holds against the crossfire!")
+            NotificationCenter.default.post(name: .enemyHit, object: nil,
+                userInfo: ["enemyId": victim.id.uuidString, "damage": 0, "outcome": "soak"])
+            return
+        }
+        victim.takeDamage(amount: dmg, isStun: enemy.equippedWeapon?.isStunDamage ?? false)
+        addLog("💥 FRIENDLY FIRE! \(enemy.name) hits \(victim.name) — \(dmg) dmg. (\(victim.currentHP)/\(victim.maxHP) HP)")
+        NotificationCenter.default.post(name: .enemyHit, object: nil,
+            userInfo: ["enemyId": victim.id.uuidString, "damage": dmg, "outcome": "hit"])
+        if !victim.isAlive {
+            handleEnemyKilledByEnvironment(victim, cause: "friendly fire")
+        }
     }
 
     /// Execute a single enemy's full AI turn synchronously (move + attack).
@@ -146,6 +264,58 @@ extension GameState {
         if enemy.status == .cowered {
             addLog("🫨 \(enemy.name) cowers — too rattled to act!")
             enemy.status = .wounded  // shakes it off after 1 round
+            return
+        }
+
+        // CONFUSED (Sable's Confusion hex): the enemy's sensorium is scrambled
+        // — it never runs its archetype logic this turn. 50/50 it lashes out
+        // at a random ADJACENT unit (friend or foe — friendly fire is the
+        // spell's whole payoff) or stumbles to a random neighbouring tile.
+        // Checked BEFORE prone: a confused unit doesn't have the presence of
+        // mind to "fight from the ground" tactically. Ticks down in
+        // tickStatusEffects like .burning.
+        if enemy.statusEffects.contains(where: { if case .confused = $0 { return true } else { return false } }) {
+            runConfusedTurn(enemy: enemy)
+            return
+        }
+
+        // PRONE (riot knockdown / samurai BLITZ sweep): the enemy spends the
+        // round on the deck — no archetype logic, no repositioning. It isn't
+        // helpless though: if a runner is already inside its weapon reach it
+        // fires from the ground; otherwise it just scrambles for purchase
+        // until tickStatusEffects stands it back up at the round tick.
+        if enemy.statusEffects.contains(.prone) {
+            // Weapon reach mirrors the default archetype path's range table
+            // (mage 5 / rifle 6 / pistol-smg 4 / melee 1 / fallback 3).
+            let proneWeaponType = enemy.equippedWeapon?.type
+            let proneReach: Int
+            if enemy.archetype == "mage" {
+                proneReach = 5
+            } else if proneWeaponType == .rifle {
+                proneReach = 6
+            } else if proneWeaponType == .pistol || proneWeaponType == .smg {
+                proneReach = 4
+            } else if proneWeaponType == .blade || proneWeaponType == .unarmed {
+                proneReach = 1
+            } else {
+                proneReach = 3
+            }
+            let inReach = livingPlayers.min(by: {
+                hexDistance(x1: $0.positionX, y1: $0.positionY, x2: enemy.positionX, y2: enemy.positionY) <
+                hexDistance(x1: $1.positionX, y1: $1.positionY, x2: enemy.positionX, y2: enemy.positionY)
+            })
+            if let target = inReach,
+               hexDistance(x1: target.positionX, y1: target.positionY,
+                           x2: enemy.positionX, y2: enemy.positionY) <= proneReach {
+                addLog("🔻 \(enemy.name) fights from the ground!")
+                let isMeleeWeapon = enemy.equippedWeapon?.type == .blade
+                    || enemy.equippedWeapon?.type == .unarmed
+                resolveSpecialistStrike(enemy: enemy, target: target, melee: isMeleeWeapon,
+                                        hitVerb: isMeleeWeapon ? "swipes from the ground at"
+                                                               : "fires from the deck at")
+            } else {
+                addLog("🔻 \(enemy.name) is down — struggles behind cover!")
+            }
             return
         }
 
@@ -1296,8 +1466,12 @@ extension GameState {
             if enemyMovedThisTurn() { return }
             if rdist(rTarget) <= shotgunRange {
                 let pointBlank = rdist(rTarget) <= 2
+                // Point-blank spread can also KNOCK THE TARGET DOWN (~35% on
+                // a damaging hit) — prone until the round tick: pinned in
+                // place, -2 defense dice. See resolveSpecialistStrike.
                 resolveSpecialistStrike(enemy: enemy, target: rTarget, melee: false,
                     aimBonus: pointBlank ? 2 : 0, damageBonus: pointBlank ? 2 : 0,
+                    knockdownChance: pointBlank ? 0.35 : 0,
                     hitVerb: pointBlank ? "blasts point-blank" : "fires on")
             }
 

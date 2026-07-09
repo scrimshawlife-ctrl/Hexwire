@@ -277,10 +277,13 @@ struct CombatMechanics {
                                       fromX: attacker.positionX, fromY: attacker.positionY,
                                       toX: target.positionX, toY: target.positionY)
         let coverBonus  = coverDefenseBonus(count: coverCount)
-        // Match performAttack: stunned enemies take a flat -2 defense penalty.
+        // Match performAttack: stunned enemies take a flat -2 defense penalty,
+        // and PRONE enemies (riot knockdown / BLITZ sweep) another stacking -2.
         let baseDefense = target.attributes.rea + target.attributes.agi + coverBonus
-        let defensePool = (target.status == .stunned)
-            ? max(1, baseDefense - 2)
+        let statusPenalty = ((target.status == .stunned) ? 2 : 0)
+            + (target.statusEffects.contains(.prone) ? 2 : 0)
+        let defensePool = statusPenalty > 0
+            ? max(1, baseDefense - statusPenalty)
             : baseDefense
         let hitsPerDie  = 1.0 / 3.0
         let atkExp      = Double(attackPool)  * hitsPerDie

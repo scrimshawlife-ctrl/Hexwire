@@ -143,6 +143,11 @@ enum StatusEffect: Codable, Equatable {
     /// behind cover, still dodging), so it doesn't grant attackers the
     /// stun "free hit" bonus. Softer crowd-control than a hack/stun lock.
     case cowered
+    /// Sable's CONFUSION hex: the target's sensorium is scrambled for
+    /// `roundsLeft` rounds. On its turn it either lashes out at a random
+    /// ADJACENT unit — friend or foe — or stumbles to a random tile, then
+    /// does nothing else. Ticks down in tickStatusEffects like `.burning`.
+    case confused(roundsLeft: Int)
 
     var displayName: String {
         switch self {
@@ -152,6 +157,7 @@ enum StatusEffect: Codable, Equatable {
         case .wounded:            return "Wounded"
         case .dead:               return "Dead"
         case .burning(let r):     return "Burning·\(r)"
+        case .confused(let r):    return "Confused·\(r)"
         }
     }
 }
@@ -438,9 +444,16 @@ final class Character: ObservableObject, Identifiable, Codable {
         return attributes[skillToAttr(skill)] + skills[skill] + cyberAccuracyDice
     }
 
-    /// Dice pool for a defense (dodge/parry)
+    /// Dice pool for a defense (dodge/parry).
+    /// PRONE (riot-shotgun knockdown) shaves 2 dice — you can't dive for
+    /// cover from the floor. Applied here rather than at each call site
+    /// because this is the single computation point every enemy attack path
+    /// (guards, drones, specialists, bosses) reads for the player's defense.
+    /// The enemy-side mirror of this penalty lives in
+    /// CombatFlowController.performAttack, next to the .stunned check.
     func defensePool() -> Int {
-        return attributes.rea + attributes.agi + cyberDefenseDice
+        let pronePenalty = statusEffects.contains(.prone) ? 2 : 0
+        return max(0, attributes.rea + attributes.agi + cyberDefenseDice - pronePenalty)
     }
 
     private func skillToAttr(_ skill: SkillKey) -> AttributeKey {
@@ -584,7 +597,10 @@ extension Character {
             maxHP: 14,
             maxMana: 10
         )
-        character.spells = ["Firestorm", "Confusion", "Increase Attribute"]
+        // Flavor list kept in sync with the REAL castable kit (knownSpells /
+        // SpellType) — it used to advertise spells that never existed
+        // (Firestorm, Increase Attribute). Confusion is real now.
+        character.spells = ["Fireball", "Confusion", "Heal"]
         return character
     }
 

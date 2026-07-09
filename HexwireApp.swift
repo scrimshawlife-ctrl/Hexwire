@@ -1610,6 +1610,14 @@ struct MissionSelectView: View {
                     )
             )
 
+            // Faction heat — corp/gang attention has driven spawns since the
+            // consequence layer shipped (extra patrols at corp 1+, tighter
+            // ambushes from gangs) but the only readout was buried in the
+            // combat log, so the extra enemies read as random difficulty.
+            // Surfacing it here closes the loop: play clean (trace 0) to cool
+            // off, or lean into a hot run for the risk-pay multiplier.
+            factionHeatRow
+
             // Black-market shop — spend nuyen on gear/cyberware/spells between runs.
             Button(action: { HapticsManager.shared.buttonTap(); showShop = true }) {
                 HStack(spacing: 8) {
@@ -1716,6 +1724,61 @@ struct MissionSelectView: View {
         .fullScreenCover(isPresented: $showRoster) {
             RosterView(onDismiss: { showRoster = false })
         }
+    }
+
+    /// Compact corp/gang heat readout + pre-mission risk-pay estimate.
+    /// Attention only changes at mission boundaries and this view re-renders
+    /// on every `stats` publish (wallet/score move on each victory), so a
+    /// direct persisted read stays current without its own publisher.
+    /// The pay estimate uses heatTier 0 (this mission's trace heat isn't
+    /// known yet), so it can only UNDER-promise — the debrief may pay more.
+    private var factionHeatRow: some View {
+        let attention = stats.loadFactionAttention()
+        let corp = attention[.corp, default: 0]
+        let gang = attention[.gang, default: 0]
+        let tier = ConsequenceEngine.rewardTier(heatTier: 0, corpAttention: corp, gangAttention: gang)
+        let payMult = ConsequenceEngine.rewardMultiplier(for: tier)
+        // Mirrors ConsequenceEngine.corpEnemyModifier (1-3 → +1, 4+ → +2) so
+        // the warning matches what setup will actually spawn.
+        let extraPatrols = ConsequenceEngine.corpEnemyModifier(corpAttention: corp)
+        func heatColor(_ v: Int) -> Color {
+            switch v {
+            case 0:      return Color.gray.opacity(0.55)
+            case 1...3:  return Color(hex: "FFB020")
+            default:     return Color(hex: "FF4466")
+            }
+        }
+        return HStack(spacing: 10) {
+            Text("HEAT")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundColor(Color(hex: "FF4466").opacity(0.75))
+                .tracking(2)
+            Text("CORP \(corp)")
+                .font(.system(size: 11, weight: .black, design: .monospaced))
+                .foregroundColor(heatColor(corp))
+            Text("GANG \(gang)")
+                .font(.system(size: 11, weight: .black, design: .monospaced))
+                .foregroundColor(heatColor(gang))
+            if extraPatrols > 0 {
+                Text("+\(extraPatrols) PATROL\(extraPatrols > 1 ? "S" : "")")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color(hex: "FFB020").opacity(0.85))
+            }
+            Spacer()
+            Text(payMult > 1.0 ? "RISK PAY ×\(String(format: "%.2f", payMult))" : "COLD — LOW PROFILE")
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .foregroundColor(payMult > 1.0 ? Color(hex: "FFCC00") : Color.gray.opacity(0.6))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke((corp + gang > 0 ? Color(hex: "FF4466") : Color.gray).opacity(0.25), lineWidth: 1)
+                )
+        )
     }
 }
 
@@ -2004,6 +2067,14 @@ struct BriefingView: View {
         var text = "¥\(srYen(base))"
         if dataB > 0 { text += " + ¥\(srYen(dataB)) objective bonus" }
         if grimB > 0 { text += " + ¥\(srYen(grimB)) grimoire bonus" }
+        // The quote is the C-rank base — rank and faction heat multiply the
+        // actual credit (see recordVictory), and an already-paid replay drops
+        // to the 25% residual rate. Flag both so the debrief number never
+        // reads as a broken promise.
+        if MissionStatsStore.shared.paidThisRun.contains(mid) {
+            text += "  ·  REPLAY 25% RATE"
+        }
+        text += "  ·  RANK & HEAT SCALE PAY"
         return text
     }
 
@@ -2272,28 +2343,29 @@ struct CombatView: View {
         let missionId = manager.selectedMissionId ?? ""
         let dataB = MissionStatsStore.dataBonus(missionId: missionId)
         let grimB = MissionStatsStore.grimoireBonus(missionId: missionId)
-        // What recordVictory ACTUALLY banked — 0 on a replay of an
-        // already-paid mission, where the wallet visibly doesn't move.
-        let credited = MissionStatsStore.shared.lastWalletCredit
+        let stats = MissionStatsStore.shared
+        // What recordVictory ACTUALLY banked this victory (replays pay the
+        // 25% residual contract rate since the 2026-07 economy pass).
+        let credited = stats.lastWalletCredit
 
         var lines: [String] = []
         if dataB > 0 {
-            if gameState.dataAcquired {
-                lines.append(credited > 0 ? "✓ DATA RECOVERED  (+¥\(srYen(dataB)))" : "✓ DATA RECOVERED")
-            } else {
-                lines.append("✗ DATA MISSED")
-            }
+            lines.append(gameState.dataAcquired ? "✓ DATA RECOVERED  (+¥\(srYen(dataB)))" : "✗ DATA MISSED")
         }
         if grimB > 0 {
-            if gameState.grimoireAcquired {
-                lines.append(credited > 0 ? "✓ GRIMOIRE ACQUIRED  (+¥\(srYen(grimB)))" : "✓ GRIMOIRE ACQUIRED")
-            } else {
-                lines.append("✗ GRIMOIRE LEFT BEHIND")
-            }
+            lines.append(gameState.grimoireAcquired ? "✓ GRIMOIRE ACQUIRED  (+¥\(srYen(grimB)))" : "✗ GRIMOIRE LEFT BEHIND")
         }
-        var result = credited > 0
-            ? "¥\(srYen(credited)) earned"
-            : "¥0 earned — contract already paid this run"
+        // Payout factors — only the ones that actually moved the number.
+        if stats.lastRankMultiplier > 1.0 {
+            lines.append("✓ RANK BONUS ×\(String(format: "%.2f", stats.lastRankMultiplier))")
+        }
+        if stats.lastRiskMultiplier > 1.0 {
+            lines.append("✓ HEAT PAY ×\(String(format: "%.2f", stats.lastRiskMultiplier))")
+        }
+        if stats.lastRunFactor < 1.0 {
+            lines.append("◦ REPLAY CONTRACT — \(Int(stats.lastRunFactor * 100))% RATE")
+        }
+        var result = "¥\(srYen(credited)) earned"
         if !lines.isEmpty { result += "\n" + lines.joined(separator: "\n") }
         return result
     }
@@ -3170,11 +3242,11 @@ struct DebriefView: View {
     }
 
     /// Per-mission reward summary. Mirrors `MissionStatsStore.recordVictory`
-    /// EXACTLY: base payout is always earned on a win; the data / grimoire
-    /// bonuses are added — and shown — ONLY when that objective was actually
-    /// recovered. (Previously the bonus amounts were hardcoded onto every line,
-    /// so a "✗ GRIMOIRE LEFT BEHIND" line still read "(+¥10,000)" and the total
-    /// ignored the bonuses entirely.)
+    /// EXACTLY: the credited total is (base + earned bonuses) × rank × heat
+    /// risk × run factor, so alongside the objective lines we show the payout
+    /// FACTORS — otherwise the total wouldn't match the base+bonus arithmetic
+    /// a player would do in their head. Replays pay a 25% residual contract
+    /// rate (was ¥0 before the 2026-07 economy pass).
     private var rewardText: String {
         guard manager.combatWon == true else { return "No payout — mission failed" }
         let missionId = manager.selectedMissionId ?? ""
@@ -3183,30 +3255,30 @@ struct DebriefView: View {
 
         let dataB = MissionStatsStore.dataBonus(missionId: missionId)
         let grimB = MissionStatsStore.grimoireBonus(missionId: missionId)
-        // What recordVictory ACTUALLY banked — 0 on a replay of an
-        // already-paid mission, where the wallet visibly doesn't move.
-        let credited = MissionStatsStore.shared.lastWalletCredit
+        let stats = MissionStatsStore.shared
+        // What recordVictory ACTUALLY banked this victory.
+        let credited = stats.lastWalletCredit
 
         var lines: [String] = []
 
         if dataB > 0 {
-            if data {
-                lines.append(credited > 0 ? "✓ DATA RECOVERED  (+¥\(yen(dataB)))" : "✓ DATA RECOVERED")
-            } else {
-                lines.append("✗ DATA MISSED")
-            }
+            lines.append(data ? "✓ DATA RECOVERED  (+¥\(yen(dataB)))" : "✗ DATA MISSED")
         }
         if grimB > 0 {
-            if grimoire {
-                lines.append(credited > 0 ? "✓ GRIMOIRE ACQUIRED  (+¥\(yen(grimB)))" : "✓ GRIMOIRE ACQUIRED")
-            } else {
-                lines.append("✗ GRIMOIRE LEFT BEHIND")
-            }
+            lines.append(grimoire ? "✓ GRIMOIRE ACQUIRED  (+¥\(yen(grimB)))" : "✗ GRIMOIRE LEFT BEHIND")
+        }
+        // Payout factors — only the ones that actually moved the number.
+        if stats.lastRankMultiplier > 1.0 {
+            lines.append("✓ RANK BONUS ×\(String(format: "%.2f", stats.lastRankMultiplier))")
+        }
+        if stats.lastRiskMultiplier > 1.0 {
+            lines.append("✓ HEAT PAY ×\(String(format: "%.2f", stats.lastRiskMultiplier))")
+        }
+        if stats.lastRunFactor < 1.0 {
+            lines.append("◦ REPLAY CONTRACT — \(Int(stats.lastRunFactor * 100))% RATE")
         }
 
-        var result = credited > 0
-            ? "¥\(yen(credited)) earned"
-            : "¥0 earned — contract already paid this run"
+        var result = "¥\(yen(credited)) earned"
         if !lines.isEmpty { result += "\n" + lines.joined(separator: "\n") }
         return result
     }

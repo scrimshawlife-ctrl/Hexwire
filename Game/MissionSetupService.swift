@@ -131,6 +131,12 @@ struct MissionSetupService {
         gameState.lastRewardTier = .low
         gameState.lastRewardMultiplier = 1.0
         gameState.missionTypeBonusMultiplier = 0.0
+        // Seed the debrief's Base/Risk/Total payout preview with the REAL
+        // contract value. baseMissionPayout was never assigned before, so the
+        // reward summary showed a meaningless "Base 100 / Total 125"
+        // placeholder next to a wallet that moved by thousands.
+        gameState.baseMissionPayout = MissionStatsStore.basePayout(
+            missionId: gameState.currentMissionDisplayId ?? "Mission001")
         gameState.missionHeat = 0
         gameState.missionHeatTier = .low
         gameState.currentTurnCount = 0
@@ -197,14 +203,32 @@ struct MissionSetupService {
         gameState.pendingSpawns = []
         assignMissionTypeForCurrentLoad(gameState: gameState)
         // Multi-room missions are structured around door progression to a final
-        // extraction tile. Allowing .stealth (turn-survival win) or .assault
-        // (room-clear win) would let the player win in room_0 without ever
-        // entering rooms 1+. Force .extraction so completion only fires when a
-        // runner stands on the designated extraction point in the final room.
-        if gameState.currentMissionType != .extraction {
+        // extraction tile. The FIRST clear of any mission always plays the
+        // authored .extraction contract. On REPLAYS of boss-less missions
+        // (M1/M2) the rolled variant is allowed to stand — the multi-room win
+        // checks in CombatFlowController were hardened since this override
+        // was written (stealth requires areAllRoomsCleared, assault requires
+        // isLastRoom + room cleared), so neither can complete in room_0.
+        // Variants give replays a different playstyle contract: stealth pays
+        // +25% for a trace-0 run, assault pays +25% for going loud, and both
+        // reroll the enemy archetype pattern. Boss missions stay
+        // extraction-only (M3's scripted Sato phase-2 and the M4-6 bossSpawn
+        // door seals assume the extraction flow).
+        let missionId = gameState.currentMissionDisplayId ?? ""
+        let variantEligible = ["Mission001", "Mission002"].contains(missionId)
+            && MissionStatsStore.shared.record(for: missionId).attempts > 0
+        if gameState.currentMissionType != .extraction && !variantEligible {
             gameState.currentMissionType = .extraction
             gameState.currentMapSituation = .chokepoint
             gameState.addLog("MISSION TYPE — \(gameState.missionTypeLabel) (multi-room override)")
+        }
+        if gameState.currentMissionType == .stealth {
+            // The 6-turn default window is tuned for single-room skirmishes; a
+            // multi-room crawl needs room to breathe. currentTurnCount ticks
+            // once per PLAYER turn (4 runners ≈ 4 ticks/round), so 12 per
+            // room ≈ 3 rounds a room — tight enough to matter, loose enough
+            // to be winnable.
+            gameState.missionTargetTurns = mission.rooms.count * 12
         }
 
         // Load mission story/briefing text from JSON
@@ -275,6 +299,12 @@ struct MissionSetupService {
         gameState.lastRewardTier = .low
         gameState.lastRewardMultiplier = 1.0
         gameState.missionTypeBonusMultiplier = 0.0
+        // Seed the debrief's Base/Risk/Total payout preview with the REAL
+        // contract value. baseMissionPayout was never assigned before, so the
+        // reward summary showed a meaningless "Base 100 / Total 125"
+        // placeholder next to a wallet that moved by thousands.
+        gameState.baseMissionPayout = MissionStatsStore.basePayout(
+            missionId: gameState.currentMissionDisplayId ?? "Mission001")
         gameState.missionHeat = 0
         gameState.missionHeatTier = .low
         gameState.currentTurnCount = 0

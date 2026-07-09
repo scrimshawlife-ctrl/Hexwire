@@ -200,10 +200,16 @@ final class MissionStatsStore: ObservableObject {
     ///
     /// Optionally credit nuyen to the persistent wallet based on what the
     /// runner actually recovered this run (`dataAcquired` / `grimoireAcquired`).
-    /// Wallet credits are per-attempt, not per-best — repeating a mission re-pays.
+    ///
+    /// `rewardMultiplier` is the faction-heat risk multiplier from
+    /// `ConsequenceEngine.rewardMultiplier` (+ any mission-type bonus) computed
+    /// by `OutcomePipeline.finalizeRewardLayer` — high corp/gang attention
+    /// means harder spawns, so the contract pays more. Callers without a
+    /// consequence layer (interstitial scenes) omit it and pay flat rate.
     func recordVictory(missionId: String, score: Int,
                        dataAcquired: Bool = false,
-                       grimoireAcquired: Bool = false) {
+                       grimoireAcquired: Bool = false,
+                       rewardMultiplier: Double = 1.0) {
         var rec = records[missionId] ?? .empty
         rec.attempts += 1
         rec.bestScore = max(rec.bestScore, score)
@@ -212,19 +218,29 @@ final class MissionStatsStore: ObservableObject {
         // THIS run's score — the end-of-run RANK reads it so a C-grade replay
         // shows C, not the historical bestScore merged via max() above.
         lastRunScore = score
-        // Credit the wallet — base payout always paid on victory; bonus
-        // payouts only paid when the corresponding objective was hit.
-        // Pay each mission ONCE per campaign run-through. A replay (for a better
-        // score/rank) banks no nuyen — otherwise an early mission could be
-        // farmed to buy out the shop. Cleared on finale completion (new run).
-        var credit = 0
-        if !paidThisRun.contains(missionId) {
-            credit = MissionStatsStore.basePayout(missionId: missionId)
-            if dataAcquired     { credit += MissionStatsStore.dataBonus(missionId: missionId) }
-            if grimoireAcquired { credit += MissionStatsStore.grimoireBonus(missionId: missionId) }
-            paidThisRun.insert(missionId)
-        }
+        // Credit the wallet — the contract value scales with performance:
+        //   (base + earned bonuses) × rank × risk (faction heat) × run factor.
+        // Rank makes the letter grade PAY (an S-rank clear banks 60% more than
+        // a C), so replaying for a better rank is a real economic decision,
+        // not a cosmetic one. First clear this campaign run-through pays full
+        // rate; replays pay a 25% "residual contract" — enough to make a
+        // replay worthwhile without letting an early mission be farmed to buy
+        // out the shop. `paidThisRun` clears on finale completion (new run).
+        var contract = MissionStatsStore.basePayout(missionId: missionId)
+        if dataAcquired     { contract += MissionStatsStore.dataBonus(missionId: missionId) }
+        if grimoireAcquired { contract += MissionStatsStore.grimoireBonus(missionId: missionId) }
+        let rankMult   = MissionStatsStore.rankPayoutMultiplier(forScore: score)
+        let firstClear = !paidThisRun.contains(missionId)
+        let runFactor  = firstClear ? 1.0 : 0.25
+        if firstClear { paidThisRun.insert(missionId) }
+        let credit = Int((Double(contract) * rankMult * rewardMultiplier * runFactor).rounded())
         playerNuyen += credit
+        // Expose the factors so the debrief can show WHY the number is what
+        // it is ("RANK S ×1.6 · HEAT ×1.25 · REPLAY 25%") instead of a bare
+        // total that doesn't match the mission-select preview.
+        lastRankMultiplier = rankMult
+        lastRiskMultiplier = rewardMultiplier
+        lastRunFactor      = runFactor
         // What THIS victory actually banked — the victory/debrief screens
         // read it so a replay shows "¥0 (already paid this run)" instead of
         // claiming the full payout next to a wallet that didn't move.
@@ -232,9 +248,16 @@ final class MissionStatsStore: ObservableObject {
         save()
     }
 
-    /// Nuyen credited by the most recent recordVictory (0 on a replay of an
-    /// already-paid mission). Display-only; not persisted.
+    /// Nuyen credited by the most recent recordVictory (reduced to the 25%
+    /// residual rate on a replay of an already-paid mission). Display-only;
+    /// not persisted.
     @Published private(set) var lastWalletCredit: Int = 0
+
+    /// Payout factors from the most recent recordVictory — the debrief screen
+    /// shows these so the credited total is explainable. Display-only.
+    @Published private(set) var lastRankMultiplier: Double = 1.0
+    @Published private(set) var lastRiskMultiplier: Double = 1.0
+    @Published private(set) var lastRunFactor: Double = 1.0
 
     /// Score of the most recent recordVictory (THIS run, not the historical
     /// best). Display-only; not persisted.
@@ -282,6 +305,19 @@ final class MissionStatsStore: ObservableObject {
         case 1500..<2100:  return "B"
         case 1...1499:     return "C"
         default:           return "—"
+        }
+    }
+
+    /// Contract payout multiplier for a mission rank — makes the letter grade
+    /// an economic outcome, not a cosmetic one. Steps are deliberately gentle
+    /// (C→S is +60%) so a flawless run feels rewarded without doubling the
+    /// tuned economy.
+    static func rankPayoutMultiplier(forScore score: Int) -> Double {
+        switch rank(forScore: score) {
+        case "S": return 1.6
+        case "A": return 1.35
+        case "B": return 1.15
+        default:  return 1.0
         }
     }
 

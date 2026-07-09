@@ -70,11 +70,17 @@ struct OutcomePipeline {
             )
             // Credit the wallet alongside the score record. Bonus credits
             // (data, grimoire) only apply if the runner actually grabbed them.
+            // finalRewardMultiplier is the faction-heat risk multiplier + any
+            // mission-type bonus — finalizeRewardLayer (step 9 above) has
+            // already run by this point, so the value is fresh for THIS
+            // mission. High heat means harder spawns, so the contract pays
+            // out proportionally more.
             MissionStatsStore.shared.recordVictory(
                 missionId: missionId,
                 score: score,
                 dataAcquired: gameState.dataAcquired,
-                grimoireAcquired: gameState.grimoireAcquired
+                grimoireAcquired: gameState.grimoireAcquired,
+                rewardMultiplier: gameState.finalRewardMultiplier
             )
             gameState.addLog("Mission Score: \(score)  (Best: \(MissionStatsStore.shared.record(for: missionId).bestScore))")
             gameState.addLog("Wallet: ¥\(MissionStatsStore.shared.playerNuyen)")

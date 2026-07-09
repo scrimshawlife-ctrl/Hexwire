@@ -235,6 +235,32 @@ struct CombatFlowController {
                         // tracking still treated them as a participant.
                         CombatFlowController.handlePlayerKilled(gameState: gameState, char: char)
                     }
+                case .prone:
+                    // Knockdown lasts the round it was inflicted, then clears.
+                    // The round-stamp guard matters for PLAYERS: this tick
+                    // fires right after the enemy phase, so a riot knockdown
+                    // landed moments ago must survive it to actually pin the
+                    // runner through their upcoming input phase.
+                    if let inflicted = gameState.proneInflictedRound[char.id],
+                       inflicted >= gameState.roundNumber {
+                        break
+                    }
+                    toRemove.append(i)
+                    gameState.proneInflictedRound.removeValue(forKey: char.id)
+                    gameState.addLog("🔻 \(char.name) gets back up.")
+                case .confused(let rounds):
+                    // Same countdown shape as .burning (no per-tick damage —
+                    // the payoff happens on the confused unit's own turn).
+                    // Players can't currently BE confused (the spell targets
+                    // enemies), but tick symmetrically so a future source
+                    // can't leave the status stuck forever.
+                    let newRounds = rounds - 1
+                    if newRounds <= 0 {
+                        toRemove.append(i)
+                        gameState.addLog("🌀 \(char.name) shakes off the confusion.")
+                    } else {
+                        char.statusEffects[i] = .confused(roundsLeft: newRounds)
+                    }
                 default:
                     break
                 }
@@ -267,6 +293,30 @@ struct CombatFlowController {
                         // them as dead. Symptom: ATK said "no enemies in
                         // range" while the player could clearly see them.
                         gameState.handleEnemyKilledByEnvironment(enemy)
+                    }
+                case .prone:
+                    // Knockdown (BLITZ sweep) clears at the round tick — the
+                    // enemy spent its grounded turn, now it stands. The
+                    // round-stamp guard is a no-op for enemies today (BLITZ
+                    // lands in the player phase, and roundNumber has always
+                    // advanced by this tick) but keeps the rule symmetric
+                    // with the player loop above.
+                    if let inflicted = gameState.proneInflictedRound[enemy.id],
+                       inflicted >= gameState.roundNumber {
+                        break
+                    }
+                    toRemove.append(i)
+                    gameState.proneInflictedRound.removeValue(forKey: enemy.id)
+                    gameState.addLog("🔻 \(enemy.name) gets back up.")
+                case .confused(let rounds):
+                    // Countdown mirrors .burning; the scrambled turn itself is
+                    // handled at the top of runEnemyAI.
+                    let newRounds = rounds - 1
+                    if newRounds <= 0 {
+                        toRemove.append(i)
+                        gameState.addLog("🌀 \(enemy.name) shakes off the confusion.")
+                    } else {
+                        enemy.statusEffects[i] = .confused(roundsLeft: newRounds)
                     }
                 default:
                     break
@@ -413,8 +463,14 @@ struct CombatFlowController {
         // (~33% smaller defense pool against a typical 6d enemy) without
         // making everything an instant kill.
         let baseDefense = targetEnemy.attributes.rea + targetEnemy.attributes.agi + coverBonus
-        let defensePool: Int = (targetEnemy.status == .stunned)
-            ? max(1, baseDefense - 2)
+        // Prone enemies (riot knockdown / BLITZ sweep) defend at -2 dice too —
+        // no diving for cover from the floor. STACKS with the stun penalty
+        // (a hacked target that's ALSO flat on its back is nearly helpless,
+        // which is exactly the hack→Blitz combo payoff). Same min-1 clamp.
+        let statusPenalty = ((targetEnemy.status == .stunned) ? 2 : 0)
+            + (targetEnemy.statusEffects.contains(.prone) ? 2 : 0)
+        let defensePool: Int = statusPenalty > 0
+            ? max(1, baseDefense - statusPenalty)
             : baseDefense
 
         // Roll attack
@@ -662,6 +718,10 @@ struct CombatFlowController {
             // All single-target damage/stun spells share the resolver; their
             // own manaCost/baseDamage/isStunDamage drive the numbers.
             gameState.castSingleTarget(type: type, targetId: targetId ?? gameState.targetCharacterId, by: mage)
+        case .confusion:
+            // Control hex — no damage, so it has its own resolver (opposed
+            // WIL resist instead of a soak roll).
+            gameState.castConfusion(by: mage, targetId: targetId ?? gameState.targetCharacterId)
         case .heal:
             gameState.castHeal(by: mage, targetId: targetId)
         }
@@ -873,6 +933,14 @@ struct CombatFlowController {
         }
         guard gameState.characterHasMovedThisTurn[id] != true else {
             gameState.addLog("\(char.name) already moved this turn.")
+            return
+        }
+        // Prone runners (riot-shotgun knockdown) are pinned to their tile —
+        // they can still act (attack/cast/defend from the deck) but cannot
+        // reposition until tickStatusEffects stands them back up.
+        guard !char.statusEffects.contains(.prone) else {
+            gameState.addLog("🔻 \(char.name) is prone — can act but not move this round.")
+            HapticsManager.shared.error()
             return
         }
         char.positionX = tileX

@@ -178,6 +178,107 @@ extension GameState {
         completeAction(for: mage)
     }
 
+    // MARK: Confusion — Single-target control
+
+    /// CONFUSION — Sable's control hex. No damage: an OPPOSED roll of the
+    /// mage's spellcasting pool vs the target's WIL-based mental resistance
+    /// (mirrors the Decker hack's opposed-resist pattern — bosses get the
+    /// same hardened +2). On a win the target is `.confused(roundsLeft: 1)`:
+    /// its next AI turn is spent lashing out at a random adjacent unit —
+    /// friend or foe — or stumbling to a random tile (see runConfusedTurn).
+    /// Range/LOS gating and glitch/drain handling match the single-target
+    /// bolts exactly.
+    func castConfusion(by mage: Character, targetId: UUID? = nil) {
+        // Same range + LOS rules as Mana Bolt — no hexing through walls.
+        let spellRange = 6
+        let candidates = livingEnemies.filter { e in
+            hexDistance(x1: mage.positionX, y1: mage.positionY,
+                        x2: e.positionX, y2: e.positionY) <= spellRange
+                && !isLineBlockedByWall(fromX: mage.positionX, fromY: mage.positionY,
+                                        toX: e.positionX, toY: e.positionY)
+        }
+        let target: Enemy
+        if let tid = targetId, let chosen = enemies.first(where: { $0.id == tid && $0.isAlive }) {
+            guard candidates.contains(where: { $0.id == tid }) else {
+                addLog("\(chosen.name) is out of range/LOS for \(SpellType.confusion.displayName) (range \(spellRange)).")
+                return
+            }
+            target = chosen
+        } else if let nearest = candidates.min(by: {
+            hexDistance(x1: mage.positionX, y1: mage.positionY, x2: $0.positionX, y2: $0.positionY)
+                < hexDistance(x1: mage.positionX, y1: mage.positionY, x2: $1.positionX, y2: $1.positionY)
+        }) {
+            target = nearest
+            targetCharacterId = nearest.id
+        } else {
+            addLog("No enemy in range/LOS for \(SpellType.confusion.displayName) (range \(spellRange)).")
+            return
+        }
+
+        let spellPool = max(1, mage.attributes.log + mage.skills.spellcasting + signalDiceBonus + (mage.equippedArmor?.spellPenalty ?? 0))   // heavy armor hampers casting
+        let spellRoll = DiceEngine.roll(pool: spellPool)
+        mage.currentMana -= max(0, SpellType.confusion.manaCost - signalManaDiscount)
+        HapticsManager.shared.attackHit()
+        if signalDiceBonus > 0 { addLog("📡 SIGNAL +\(signalDiceBonus)d (running hot)") }
+
+        // Glitch handling — same drain conventions as the bolts.
+        if spellRoll.criticalGlitch {
+            let drain = mage.attributes.wil * 2
+            mage.takeDamage(amount: drain)
+            addLog("💥 CRIT GLITCH! CONFUSION backfires! \(mage.name) takes \(drain) drain!")
+            HapticsManager.shared.playerDamaged()
+            NotificationCenter.default.post(name: .characterHit, object: nil, userInfo: ["characterId": mage.id.uuidString, "damage": drain])
+            if !mage.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: mage) }
+            completeAction(for: mage)
+            return
+        }
+        if spellRoll.glitch || spellRoll.hits == 0 {
+            let drain = mage.attributes.wil
+            mage.takeDamage(amount: drain)
+            addLog("⚠️ GLITCH! CONFUSION fizzles. \(mage.name) takes \(drain) drain!")
+            if !mage.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: mage) }
+            completeAction(for: mage)
+            return
+        }
+
+        // Opposed resist: the target's willpower pushes the hex back. Bosses
+        // get the same hardened +2 as ICE in performHackOnTarget — high-WIL
+        // elites shrug it off, keeping this from being a free boss-lock.
+        let isBoss = target.archetype.lowercased().hasPrefix("boss")
+        let resistPool = max(1, target.attributes.wil + (isBoss ? 2 : 0))
+        let resistRoll = DiceEngine.roll(pool: resistPool)
+        guard spellRoll.hits > resistRoll.hits else {
+            addLog("🌀 \(target.name) RESISTS Confusion! [\(spellPool)d6→\(spellRoll.hits) vs WIL \(resistPool)d6→\(resistRoll.hits)]")
+            addLog("  Mana: \(mage.currentMana)/\(mage.maxMana)")
+            NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": 0, "outcome": "miss"])
+            completeAction(for: mage)
+            return
+        }
+
+        // Land the hex — REFRESH rather than stack (same rule as .burning):
+        // re-casting on a confused target resets the clock instead of
+        // queueing multiple scrambled turns.
+        if let i = target.statusEffects.firstIndex(where: {
+            if case .confused = $0 { return true } else { return false }
+        }) {
+            target.statusEffects[i] = .confused(roundsLeft: 1)
+        } else {
+            target.statusEffects.append(.confused(roundsLeft: 1))
+        }
+        addLog("🌀 \(mage.name) CONFUSION! [\(spellPool)d6→\(spellRoll.hits) vs WIL \(resistRoll.hits)] — \(target.name)'s mind scrambles!")
+        addLog("  Mana: \(mage.currentMana)/\(mage.maxMana)")
+        NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": 0])
+        // Visual: pink bolt from caster to target — same delivery VFX as
+        // MANABOLT, tinted to the spell's UI color.
+        NotificationCenter.default.post(
+            name: .boltEffect, object: nil,
+            userInfo: ["fromX": mage.positionX, "fromY": mage.positionY,
+                       "toX": target.positionX, "toY": target.positionY,
+                       "color": "#FF66CC"]
+        )
+        completeAction(for: mage)
+    }
+
     // MARK: Heal
 
     /// Cast HEAL on a chosen ally (defaults to the mage if no target given).

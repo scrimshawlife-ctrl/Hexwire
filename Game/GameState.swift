@@ -10,14 +10,15 @@ enum SpellType: String, CaseIterable, Codable {
     case manaBolt   // Single-target Physical — raw mana lance
     case shock      // Single-target Stun — lightning jolt
     case heal       // Self-heal — mend flesh and stun
+    case confusion  // Single-target control — scramble a mind for a round
     // Black-market / purchasable spells (gated per-character via purchasedSpells).
     case powerBolt  // Single-target Physical — overcharged lance
     case stormBolt  // Single-target Stun — chain-lightning
 
-    /// The four starting spells every mage knows. Purchasable spells return false.
+    /// The starting spells every mage knows. Purchasable spells return false.
     var isBaseSpell: Bool {
         switch self {
-        case .fireball, .manaBolt, .shock, .heal: return true
+        case .fireball, .manaBolt, .shock, .heal, .confusion: return true
         case .powerBolt, .stormBolt: return false
         }
     }
@@ -30,6 +31,7 @@ enum SpellType: String, CaseIterable, Codable {
         case .manaBolt: return "Mana Bolt"
         case .shock:    return "Shock"
         case .heal:     return "Heal"
+        case .confusion: return "Confusion"
         case .powerBolt: return "Power Bolt"
         case .stormBolt: return "Storm Bolt"
         }
@@ -41,6 +43,7 @@ enum SpellType: String, CaseIterable, Codable {
         case .manaBolt: return "bolt.fill"
         case .shock:    return "bolt.circle.fill"
         case .heal:     return "cross.fill"
+        case .confusion: return "questionmark.circle.fill"
         case .powerBolt: return "sparkles"
         case .stormBolt: return "cloud.bolt.fill"
         }
@@ -52,6 +55,7 @@ enum SpellType: String, CaseIterable, Codable {
         case .manaBolt: return "6699FF"
         case .shock:    return "FFEE00"
         case .heal:     return "44CC88"
+        case .confusion: return "FF66CC"
         case .powerBolt: return "CC66FF"
         case .stormBolt: return "66DDFF"
         }
@@ -65,6 +69,9 @@ enum SpellType: String, CaseIterable, Codable {
                                    // 3 mana; stops it being a spammable 2-mana
                                    // hard-stun that one-casts most grunts.
         case .heal:     return 2
+        case .confusion: return 3   // control tool priced like the bolts —
+                                    // one lost enemy turn (or a friendly-fire
+                                    // swing) is worth a Mana Bolt.
         case .powerBolt: return 6   // was 5 — premium nuke, real cost
         case .stormBolt: return 4
         }
@@ -78,6 +85,7 @@ enum SpellType: String, CaseIterable, Codable {
                                    // full-stun (skip-turn) threshold in ~1-2
                                    // casts so it's a real control tool.
         case .heal:     return 0
+        case .confusion: return 0  // pure control — no direct damage
         case .powerBolt: return 10 // was 12 — a sidegrade to Mana Bolt (more
                                    // damage for more mana/price), not a nuke
                                    // that one-shots everything.
@@ -91,6 +99,7 @@ enum SpellType: String, CaseIterable, Codable {
         case .manaBolt: return "Focus single target. \(baseDamage)+hits Physical."
         case .shock:    return "Stun single target. \(baseDamage)+hits Stun."
         case .heal:     return "Restore HP & stun to a chosen ally."
+        case .confusion: return "Scramble a mind — target attacks blindly or stumbles."
         case .powerBolt: return "Overcharged lance. \(baseDamage)+hits Physical."
         case .stormBolt: return "Chain-lightning. \(baseDamage)+hits Stun."
         }
@@ -99,7 +108,7 @@ enum SpellType: String, CaseIterable, Codable {
     var isAreaOfEffect: Bool { self == .fireball }
     var isStunDamage: Bool   { self == .shock || self == .stormBolt }
     var isHeal: Bool         { self == .heal }
-    var needsEnemyTarget: Bool { self == .manaBolt || self == .shock || self == .powerBolt || self == .stormBolt }
+    var needsEnemyTarget: Bool { self == .manaBolt || self == .shock || self == .powerBolt || self == .stormBolt || self == .confusion }
 }
 
 enum ActionMode: String, CaseIterable {
@@ -869,6 +878,17 @@ final class GameState: ObservableObject {
     /// rigger's call-ins at 3 so it can't be farmed for infinite XP/loot.
     var riggerSummons: [UUID: Int] = [:]
 
+    /// Round each unit (player OR enemy id) was knocked PRONE. The status
+    /// clears in tickStatusEffects, but the tick fires at the top of
+    /// beginRound — immediately AFTER the enemy phase. Without this stamp a
+    /// riot-shotgun knockdown landed in the enemy phase would be removed
+    /// before the runner's input phase ever opened (prone would never
+    /// actually pin a player). The tick skips removal while
+    /// `roundNumber == inflicted round`, so a knockdown genuinely lasts the
+    /// round it was inflicted, then clears. Entries are dropped on stand-up;
+    /// stale ids from downed units are inert (transient, like riggerSummons).
+    var proneInflictedRound: [UUID: Int] = [:]
+
     var intimidationOriginalAgi: [UUID: Int] {
         get { sessionState.intimidationOriginalAgi }
         set { sessionState.intimidationOriginalAgi = newValue }
@@ -1585,18 +1605,21 @@ final class GameState: ObservableObject {
         objectWillChange.send()
     }
 
-    /// Death from a non-attributed source (burn DoT, environmental hazards).
-    /// No XP awarded — no character "lands the kill" — but the death pipeline
-    /// still runs so sprites despawn and the room-clear state advances.
-    func handleEnemyKilledByEnvironment(_ enemy: Enemy) {
+    /// Death from a non-attributed source (burn DoT, environmental hazards,
+    /// Confusion friendly fire). No XP awarded — no character "lands the
+    /// kill" — but the death pipeline still runs so sprites despawn and the
+    /// room-clear state advances. `cause` only flavors the kill log line;
+    /// it defaults to the original burn-out wording so the DoT call site
+    /// reads exactly as before.
+    func handleEnemyKilledByEnvironment(_ enemy: Enemy, cause: String = "burned out") {
         HapticsManager.shared.enemyKilled()
         missionEnemiesDefeated += 1
         CombatFlowController.handleEnemyKillForRoomEffects(gameState: self)
-        // Bounty still pays on a burn-out kill (no XP, since no runner landed
-        // it, but the team still cleared the threat).
+        // Bounty still pays on an unattributed kill (no XP, since no runner
+        // landed it, but the team still cleared the threat).
         let bounty = MissionStatsStore.killBounty(maxHP: enemy.maxHP)
         MissionStatsStore.shared.awardKillNuyen(maxHP: enemy.maxHP)
-        addLog("☠️ \(enemy.name) DOWN! (burned out) +¥\(bounty)")
+        addLog("☠️ \(enemy.name) DOWN! (\(cause)) +¥\(bounty)")
         generateLoot()
         NotificationCenter.default.post(name: .enemyDied, object: nil, userInfo: ["enemyId": enemy.id.uuidString])
         if livingEnemies.isEmpty { onRoomCleared() }
@@ -1815,6 +1838,18 @@ final class GameState: ObservableObject {
         target.takeDamage(amount: finalDmg, isStun: false)
         addLog("⚡ \(sam.name) BLITZ → \(target.name)! [\(blitzPool)d6→\(attackRoll.hits)] \(baseDmg)P - \(soakRoll.hits)soak = \(finalDmg) dmg! (\(target.currentHP)/\(target.maxHP))")
         NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": finalDmg])
+
+        // KNOCKDOWN: a decisive hit (net hits ≥ 3) in the sweep bowls the
+        // survivor off their feet. Prone lasts until the round tick — they
+        // can't reposition, they defend at -2 dice (see performAttack /
+        // Character.defensePool), and their AI turn is spent fighting from
+        // the ground. Only survivors get the status (a corpse can't be
+        // "knocked down"), and it doesn't re-stack on an already-prone target.
+        if target.isAlive && netHits >= 3 && !target.statusEffects.contains(.prone) {
+            target.statusEffects.append(.prone)
+            proneInflictedRound[target.id] = roundNumber
+            addLog("  🔻 \(target.name) is bowled off their feet — PRONE!")
+        }
 
         if !target.isAlive {
             HapticsManager.shared.enemyKilled()
