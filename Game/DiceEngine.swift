@@ -169,6 +169,56 @@ struct DiceEngine {
 /// Lives in DiceEngine.swift to avoid requiring a separate build-target entry.
 struct CombatMechanics {
 
+    // MARK: - Hex Distance (pure, no GameState needed)
+
+    /// Pure odd-q cube distance — the SAME math as PathingAndAIHelpers.hexDistance
+    /// (and the inline copy in computeHitPreview below), duplicated here so
+    /// stateless helpers like `isFlanked` don't need a GameState instance.
+    static func hexDistance(x1: Int, y1: Int, x2: Int, y2: Int) -> Int {
+        let z1 = y1 - (x1 - (x1 & 1)) / 2
+        let z2 = y2 - (x2 - (x2 & 1)) / 2
+        let cy1 = -x1 - z1
+        let cy2 = -x2 - z2
+        return max(abs(x1 - x2), abs(cy1 - cy2), abs(z1 - z2))
+    }
+
+    // MARK: - Flanking
+
+    /// TRUE when the target is caught between the attacker and one of the
+    /// attacker's allies — the target defends with 2 fewer dice (applied at
+    /// the attack call sites, same min-1 clamp as the stun/prone penalties).
+    ///
+    /// Rule: an ally of the attacker (living, not the attacker itself) is
+    /// ADJACENT to the target (hex-distance 1) AND on the FAR SIDE of it.
+    /// "Far side" is deliberately approximated as
+    ///     hexDistance(ally, attacker) >= hexDistance(target, attacker)
+    /// i.e. the ally is at least as far from the attacker as the target is,
+    /// so the target sits roughly BETWEEN them. This is coarser than a true
+    /// opposite-hex check (an ally at 90° to the shot at equal range still
+    /// counts) but it's cheap, symmetric for both rosters, and reads
+    /// correctly in play: hugging the target from the attacker's own side
+    /// (ally closer to the attacker than the target is) never flanks.
+    ///
+    /// `allies` are board positions of the attacker's LIVING teammates,
+    /// excluding the attacker — callers filter before passing so this helper
+    /// stays type-agnostic (works for Character-vs-Enemy in both directions).
+    static func isFlanked(
+        targetX: Int, targetY: Int,
+        attackerX: Int, attackerY: Int,
+        allies: [(x: Int, y: Int)]
+    ) -> Bool {
+        let attackerToTarget = hexDistance(x1: attackerX, y1: attackerY, x2: targetX, y2: targetY)
+        for ally in allies {
+            // Ally adjacent to the target…
+            guard hexDistance(x1: ally.x, y1: ally.y, x2: targetX, y2: targetY) == 1 else { continue }
+            // …and no closer to the attacker than the target is (far side).
+            if hexDistance(x1: ally.x, y1: ally.y, x2: attackerX, y2: attackerY) >= attackerToTarget {
+                return true
+            }
+        }
+        return false
+    }
+
     // MARK: - Cover System
 
     /// Walk the Bresenham line between two tile coordinates and count how many
@@ -200,6 +250,40 @@ struct CombatMechanics {
             if e2 < absDx  { err += absDx; y0 += stepY }
         }
         return count
+    }
+
+    /// The COORDINATES of every intermediate cover tile on the shooter→target
+    /// line — same Bresenham walk as `coverBetween` (which only counts), used
+    /// by the destructible-cover roll to pick WHICH tile splinters. Kept as a
+    /// separate function rather than changing coverBetween's signature so the
+    /// dozen existing count-only call sites stay untouched.
+    static func coverTilesBetween(
+        tiles: [[Int]],
+        fromX sx: Int, fromY sy: Int,
+        toX dx: Int, toY dy: Int
+    ) -> [(x: Int, y: Int)] {
+        guard !tiles.isEmpty else { return [] }
+        var x0 = sx, y0 = sy
+        let x1 = dx, y1 = dy
+        let absDx = abs(x1 - x0)
+        let absDy = abs(y1 - y0)
+        let stepX = x0 < x1 ? 1 : -1
+        let stepY = y0 < y1 ? 1 : -1
+        var err = absDx - absDy
+        var found: [(x: Int, y: Int)] = []
+        while true {
+            if !(x0 == sx && y0 == sy) && !(x0 == x1 && y0 == y1) {
+                let h = tiles.count
+                if y0 >= 0, y0 < h, x0 >= 0, x0 < tiles[y0].count {
+                    if tiles[y0][x0] == 2 { found.append((x: x0, y: y0)) }
+                }
+            }
+            if x0 == x1 && y0 == y1 { break }
+            let e2 = 2 * err
+            if e2 > -absDy { err -= absDy; x0 += stepX }
+            if e2 < absDx  { err += absDx; y0 += stepY }
+        }
+        return found
     }
 
     /// Cover defense bonus.
@@ -239,6 +323,7 @@ struct CombatMechanics {
         weapon overrideWeapon: Weapon? = nil,
         actionLabel: String = "ATK",
         signalDiceBonus: Int = 0,
+        attackerAllies: [(x: Int, y: Int)] = [],
         isBlocked: (Int, Int, Int, Int) -> Bool
     ) -> HitPreview {
         let weapon = overrideWeapon ?? attacker.equippedWeapon ?? Weapon(name: "Fists", type: .unarmed, damage: 3, accuracy: 3, armorPiercing: 0)
@@ -279,9 +364,20 @@ struct CombatMechanics {
         let coverBonus  = coverDefenseBonus(count: coverCount)
         // Match performAttack: stunned enemies take a flat -2 defense penalty,
         // and PRONE enemies (riot knockdown / BLITZ sweep) another stacking -2.
+        // FLANKED enemies (an ally of the attacker adjacent to the target on
+        // the far side — see isFlanked) take a further stacking -2, so the
+        // pre-attack preview shows the same defense pool the real roll uses.
+        // `attackerAllies` = the attacker's LIVING teammates' positions
+        // (attacker excluded), passed from GameState.attackPreview/shootPreview.
+        let previewFlanked = isFlanked(
+            targetX: target.positionX, targetY: target.positionY,
+            attackerX: attacker.positionX, attackerY: attacker.positionY,
+            allies: attackerAllies
+        )
         let baseDefense = target.attributes.rea + target.attributes.agi + coverBonus
         let statusPenalty = ((target.status == .stunned) ? 2 : 0)
             + (target.statusEffects.contains(.prone) ? 2 : 0)
+            + (previewFlanked ? 2 : 0)
         let defensePool = statusPenalty > 0
             ? max(1, baseDefense - statusPenalty)
             : baseDefense

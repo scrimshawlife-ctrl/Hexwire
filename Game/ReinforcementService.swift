@@ -24,6 +24,30 @@ enum ReinforcementService {
     /// 2 enemy phases of warning before reinforcements arrive.
     private static let reinforcementDelayPhases = 2
 
+    /// Seeded RNG (SplitMix64) for wave composition + placement. Seeding off
+    /// `missionAttemptId` means every ATTEMPT rolls different waves while a
+    /// single attempt stays deterministic (reproducible when debugging a
+    /// report). The old raw-LCG-off-phase-count formula had no per-attempt
+    /// input at all, so every replay of a room produced the IDENTICAL wave —
+    /// one of the few places the game could cheaply gain run-to-run variance.
+    private struct SplitMix64: RandomNumberGenerator {
+        var state: UInt64
+        init(seed: UInt64) { state = seed }
+        mutating func next() -> UInt64 {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            return z ^ (z >> 31)
+        }
+    }
+
+    private static func waveRNG(gameState: GameState, roomIdx: Int) -> SplitMix64 {
+        SplitMix64(seed: UInt64(bitPattern: Int64(gameState.missionAttemptId)) &* 0x9E37_79B9_7F4A_7C15
+                       &+ UInt64(max(0, gameState.enemyPhaseCount)) &* 0xBF58_476D_1CE4_E5B9
+                       &+ UInt64(max(0, roomIdx)))
+    }
+
     /// Pool of archetype types eligible for reinforcement waves. Mix of
     /// classic + new specialists from TurnManager.swift.
     private static let archetypePool: [String] = [
@@ -60,12 +84,17 @@ enum ReinforcementService {
         var wave: [Enemy] = []
         var occupied = Set(gameState.playerTeam.filter(\.isAlive)
             .map { "\($0.positionX),\($0.positionY)" })
+        var rng = waveRNG(gameState: gameState, roomIdx: roomIdx)
 
-        for i in 0..<waveSize {
-            // Rotate through pool deterministically per spawn so each wave
-            // contains varied roles instead of N identical units.
-            let seed = (gameState.enemyPhaseCount &+ roomIdx &+ i)
-            let archetypeKey = archetypePool[(seed &* 1_103_515_245 &+ 12345) % archetypePool.count]
+        var lastArchetype: String? = nil
+        for _ in 0..<waveSize {
+            // Seeded-random pick, re-rolled once on an immediate repeat so a
+            // 2-unit wave leans toward varied roles instead of twins.
+            var archetypeKey = archetypePool.randomElement(using: &rng) ?? "guard"
+            if archetypeKey == lastArchetype {
+                archetypeKey = archetypePool.randomElement(using: &rng) ?? archetypeKey
+            }
+            lastArchetype = archetypeKey
 
             let enemy: Enemy
             switch archetypeKey {
@@ -82,7 +111,7 @@ enum ReinforcementService {
             // while every initial spawn in the room is scaled.
             NGPlusStore.shared.scaleForTier(enemy)
 
-            if let (x, y) = pickReinforcementTile(gameState: gameState, occupied: occupied) {
+            if let (x, y) = pickReinforcementTile(gameState: gameState, occupied: occupied, using: &rng) {
                 enemy.positionX = x
                 enemy.positionY = y
                 occupied.insert("\(x),\(y)")
@@ -115,10 +144,14 @@ enum ReinforcementService {
     }
 
     /// Find a walkable tile far from every living player. Falls back to any
-    /// walkable tile on the map if no "far" tile exists.
+    /// walkable tile on the map if no "far" tile exists. Picks RANDOMLY
+    /// (seeded) among all qualifying far tiles — the old best-distance scan
+    /// always chose the same corner, so reinforcements entered from an
+    /// identical spot on every replay.
     private static func pickReinforcementTile(
         gameState: GameState,
-        occupied: Set<String>
+        occupied: Set<String>,
+        using rng: inout SplitMix64
     ) -> (Int, Int)? {
         let tiles = gameState.currentMissionTiles
         guard !tiles.isEmpty else { return nil }
@@ -126,9 +159,8 @@ enum ReinforcementService {
         let width = tiles.first?.count ?? 0
         let wallRaw = TileType.wall.rawValue
 
-        var bestFar: (Int, Int)? = nil
-        var bestFarDist = -1
-        var anyWalkable: (Int, Int)? = nil
+        var farCandidates: [(Int, Int)] = []
+        var walkable: [(Int, Int)] = []
 
         for y in 0..<height {
             for x in 0..<width {
@@ -140,14 +172,12 @@ enum ReinforcementService {
                 if gameState.enemies.contains(where: { $0.positionX == x && $0.positionY == y }) {
                     continue
                 }
-                anyWalkable = (x, y)
-                let d = gameState.distanceToNearestPlayer(x: x, y: y)
-                if d >= 5, d > bestFarDist {
-                    bestFarDist = d
-                    bestFar = (x, y)
+                walkable.append((x, y))
+                if gameState.distanceToNearestPlayer(x: x, y: y) >= 5 {
+                    farCandidates.append((x, y))
                 }
             }
         }
-        return bestFar ?? anyWalkable
+        return farCandidates.randomElement(using: &rng) ?? walkable.randomElement(using: &rng)
     }
 }

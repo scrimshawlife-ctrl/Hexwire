@@ -76,6 +76,14 @@ extension GameState {
             NotificationCenter.default.post(name: .enemyHit, object: nil, userInfo: ["enemyId": target.id.uuidString, "damage": finalDamage, "outcome": finalDamage > 0 ? "hit" : "soak"])
             if !target.isAlive { handleEnemyKilled(target, by: mage) }
         }
+        // SECONDARY EXPLOSIONS: every fireball detonation is an AoE impact, so
+        // any explosive-barrel cover tile within 1 of an impact tile goes up
+        // (6P to everyone adjacent — the mage's own team included, so a
+        // point-blank barrel is on them). Resolved AFTER the spell's own
+        // damage pass; one pass, no barrel-to-barrel chaining
+        // (see detonateBarrelsNear). `targets` snapshotted the impact tiles
+        // before anyone died, so corpses still mark where the blasts landed.
+        detonateBarrelsNear(impactTiles: targets.map { (x: $0.positionX, y: $0.positionY) })
         addLog("  Mana: \(mage.currentMana)/\(mage.maxMana)")
         if livingEnemies.isEmpty { onRoomCleared() }
         completeAction(for: mage)

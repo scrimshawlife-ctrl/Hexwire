@@ -11,24 +11,29 @@ struct MissionSetupService {
         // screen under the "select a runner" prompt while the tutorial is up.
         gameState.combatLog.removeAll()
 
+        // currentMissionDisplayId is assigned BEFORE setup runs — setup reads
+        // it for the payout preview and the replay-variant gate, and when it
+        // was assigned afterwards those reads saw the PREVIOUS load's id
+        // (a stale id could grant another mission's variant roll and quote
+        // the wrong contract in the debrief).
         if let multiMission = MissionLoader.shared.loadMultiRoomMission(named: resolvedMissionId) {
+            gameState.currentMissionDisplayId = resolvedMissionId
             RoomManager.shared.loadMission(named: resolvedMissionId)
             setupMultiRoomMission(gameState: gameState, mission: multiMission)
-            gameState.currentMissionDisplayId = resolvedMissionId
             return resolvedMissionId
         }
 
         if let mission = MissionLoader.shared.loadMission(named: resolvedMissionId) {
-            setupMission(gameState: gameState, mission: mission)
             gameState.currentMissionDisplayId = resolvedMissionId
+            setupMission(gameState: gameState, mission: mission)
             return resolvedMissionId
         }
 
         // Ultimate fallback: every shipped mission has a multi-room variant.
         if let fallbackMulti = MissionLoader.shared.loadMultiRoomMission(named: "Mission001") {
+            gameState.currentMissionDisplayId = "Mission001"
             RoomManager.shared.loadMission(named: "Mission001")
             setupMultiRoomMission(gameState: gameState, mission: fallbackMulti)
-            gameState.currentMissionDisplayId = "Mission001"
             return "Mission001"
         }
         return resolvedMissionId
@@ -215,8 +220,17 @@ struct MissionSetupService {
         // extraction-only (M3's scripted Sato phase-2 and the M4-6 bossSpawn
         // door seals assume the extraction flow).
         let missionId = gameState.currentMissionDisplayId ?? ""
+        // NOTE: currentMissionDisplayId is assigned by prepareMissionForCombat
+        // AFTER this setup runs, so `missionId` here is the PREVIOUS load's id.
+        // For story missions that's benign (a stale id only mis-grants a
+        // variant when the previous mission happened to be an M1/M2 replay),
+        // but an armed Endless Gauntlet floor must ALWAYS play the authored
+        // .extraction contract — the gauntlet's underlying mission is randomly
+        // one of M1/M2/M4/M5 and a stale "Mission001" id could otherwise let
+        // a stealth/assault variant leak onto the floor. Gate it explicitly.
         let variantEligible = ["Mission001", "Mission002"].contains(missionId)
             && MissionStatsStore.shared.record(for: missionId).attempts > 0
+            && !GauntletStore.shared.isActive
         if gameState.currentMissionType != .extraction && !variantEligible {
             gameState.currentMissionType = .extraction
             gameState.currentMapSituation = .chokepoint
@@ -345,6 +359,20 @@ struct MissionSetupService {
     }
 
     static func updateTilesForCurrentRoom(gameState: GameState, tiles: [[Int]]) {
+        // ── ENDLESS GAUNTLET ── room-transition enemies are built directly
+        // in BattleScene's transition handler (which bypasses makeEnemy and
+        // applies only NG+ scaling), and this method runs right after that
+        // handler installs them into gameState.enemies / pendingSpawns — so
+        // it's the editable choke point for scaling later-room spawns.
+        // scaleForFloor is idempotent per enemy (and a no-op outside an
+        // armed gauntlet run), so re-sweeping already-scaled enemies here is
+        // safe.
+        for enemy in gameState.enemies where enemy.isAlive {
+            GauntletStore.shared.scaleForFloor(enemy)
+        }
+        for pending in gameState.pendingSpawns {
+            GauntletStore.shared.scaleForFloor(pending.enemy)
+        }
         var adjusted = gameState.dataAcquired ? tilesWithoutDataTerminals(tiles) : tiles
         // Re-apply barriers already dropped in this room (callers run after
         // completeTransition, so currentRoom is the room these tiles are from).
@@ -658,6 +686,10 @@ struct MissionSetupService {
         }
         applyEnemyArchetype(gameState: gameState, archetype: archetype, to: enemy)
         NGPlusStore.shared.scaleForTier(enemy)   // New Game+ durability scaling
+        // Endless Gauntlet floor scaling — stacks ON TOP of NG+ (order
+        // matters: the +15%/floor HP multiplier compounds the NG+-scaled
+        // base). No-op outside an armed gauntlet run and on floor 1.
+        GauntletStore.shared.scaleForFloor(enemy)
         return enemy
     }
 
@@ -865,6 +897,20 @@ struct MissionSetupService {
     }
 
     static func processDelayedSpawns(gameState: GameState, enemyPhaseIndex: Int) {
+        // ── ENDLESS GAUNTLET ── this runs every enemy phase, making it the
+        // catch-all sweep for spawn paths that bypass makeEnemy AND the
+        // room-transition sweep: ReinforcementService waves (queued straight
+        // into pendingSpawns with only NG+ scaling) and bosses (deployBoss /
+        // the mage phase-2 path append directly to gameState.enemies — they
+        // get swept on the next enemy-phase tick, before their first act).
+        // Idempotent per enemy; no-op outside an armed gauntlet run. Runs
+        // BEFORE the boss-active early return below so a live boss is swept.
+        for enemy in gameState.enemies where enemy.isAlive {
+            GauntletStore.shared.scaleForFloor(enemy)
+        }
+        for pending in gameState.pendingSpawns {
+            GauntletStore.shared.scaleForFloor(pending.enemy)
+        }
         // Boss-active gate. If a boss (M3 Sato, M5 MEKTON-7, M6 AGI-PRIME) is
         // on the field, suppress all timed/queued reinforcement spawns so the
         // boss is the focal threat and the room can't get re-cluttered mid-

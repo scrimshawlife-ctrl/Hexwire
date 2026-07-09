@@ -290,6 +290,17 @@ final class BattleScene: SKScene {
             guard let coords = note.userInfo?["tiles"] as? [[String: Int]] else { return }
             self?.dropBarrierTiles(coords: coords)
         }
+        // Cover destroyed mid-combat (barrel detonation / splintered crate).
+        // Same payload shape as .barriersDropped on purpose — the redraw need
+        // is identical (a tile just became floor: fade the tile node, stamp a
+        // matching floor patch sampled from the room BG, spark), so we reuse
+        // the exact dropBarrierTiles pass. Detonations additionally post
+        // .fireballEffect from GameState.detonateBarrelsNear, so the blast
+        // bloom + screen shake ride the existing explosion pipeline.
+        observe(.coverTileDestroyed) { [weak self] note in
+            guard let coords = note.userInfo?["tiles"] as? [[String: Int]] else { return }
+            self?.dropBarrierTiles(coords: coords)
+        }
         observe(.extractionAnimationRequested) { [weak self] note in
             guard let x = note.userInfo?["x"] as? Int,
                   let y = note.userInfo?["y"] as? Int else { return }
@@ -1325,6 +1336,10 @@ final class BattleScene: SKScene {
 
         // Update tiles for enemy pathfinding
         GameState.shared.updateTilesForCurrentRoom(targetRoom.map)
+        // targetRoom.map is fresh from JSON — re-flatten any cover the player
+        // already destroyed in this room (barrels/crates), so cover math and
+        // walkability keep reading the destroyed state on re-entry.
+        GameState.shared.applyDestroyedCoverToCurrentTiles(roomId: targetRoom.id)
 
         // Clear stale door-open state from previous room
         openedDoorKeys.removeAll()
@@ -2161,6 +2176,18 @@ final class BattleScene: SKScene {
         var visibleMap = room.map
         // Already-dropped barriers stay dropped visually on re-entry too.
         RoomManager.shared.applyDroppedBarriers(to: &visibleMap, room: room)
+        // Cover destroyed mid-combat (detonated barrels / splintered crates)
+        // stays destroyed visually on re-entry as well — the room map is
+        // rebuilt from JSON here, which would otherwise resurrect the props.
+        // (The LOGIC map gets the same re-apply next to each
+        // updateTilesForCurrentRoom call — see applyDestroyedCoverToCurrentTiles.)
+        if let destroyed = GameState.shared.destroyedCoverByRoom[room.id] {
+            for pair in destroyed where pair.count == 2 {
+                let dx = pair[0], dy = pair[1]
+                guard dy >= 0, dy < visibleMap.count, dx >= 0, dx < visibleMap[dy].count else { continue }
+                visibleMap[dy][dx] = TileType.floor.rawValue
+            }
+        }
         if GameState.shared.dataAcquired {
             for y in visibleMap.indices {
                 for x in visibleMap[y].indices where visibleMap[y][x] == TileType.dataTerminal.rawValue {
@@ -3124,6 +3151,10 @@ final class BattleScene: SKScene {
         // Sync tiles to GameState for enemy pathfinding
         Task { @MainActor in
             GameState.shared.updateTilesForCurrentRoom(room.map)
+            // room.map is fresh from JSON — re-flatten any cover the player
+            // already destroyed in this room (barrels/crates), so cover math
+            // and walkability keep reading the destroyed state on re-entry.
+            GameState.shared.applyDestroyedCoverToCurrentTiles(roomId: room.id)
         }
         let mapNode = newTileMap.buildNode()
         mapNode.position = mapOrigin

@@ -451,6 +451,11 @@ final class Character: ObservableObject, Identifiable, Codable {
     /// (guards, drones, specialists, bosses) reads for the player's defense.
     /// The enemy-side mirror of this penalty lives in
     /// CombatFlowController.performAttack, next to the .stunned check.
+    /// FLANKING (-2 when an enemy ally sits adjacent on the runner's far
+    /// side) is NOT applied here — this method has no board context (it
+    /// can't see who is attacking or where their allies stand), so the
+    /// penalty is applied at the enemy-attack call sites via
+    /// GameState.flankedDefensePenalty, under the same min-1 clamp.
     func defensePool() -> Int {
         let pronePenalty = statusEffects.contains(.prone) ? 2 : 0
         return max(0, attributes.rea + attributes.agi + cyberDefenseDice - pronePenalty)

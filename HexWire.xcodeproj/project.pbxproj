@@ -15,6 +15,7 @@
 		012EF274A80D3F9E895518AE /* brawler_light_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 326D6235A01D2A597D6E968E /* brawler_light_0.png */; };
 		01E895654609B15621437CC4 /* MissionLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B0B38FA129B2624481248E /* MissionLoader.swift */; };
 		01F22F52FF001EFBFE1C4F71 /* MissionStatsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB7FC78DE86A3A055CE6FE03 /* MissionStatsStore.swift */; };
+		A1E12424E4CE4DEB8CC2AFA5 /* GauntletService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E13807330346CD9B376189 /* GauntletService.swift */; };
 		023879C02BCABA63861B1189 /* tilesheet_3_r1c2.png in Resources */ = {isa = PBXBuildFile; fileRef = 1475E0581E43DCA4607D579F /* tilesheet_3_r1c2.png */; };
 		02B684B58468605EBDA7495F /* vfx_smoke_01.png in Resources */ = {isa = PBXBuildFile; fileRef = FC9C53809BC4F91669A27FE5 /* vfx_smoke_01.png */; };
 		02E0589D84B5E6958ECA5AB0 /* vargas_walk_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 169CD1A684101C0F2D46B266 /* vargas_walk_0.png */; };
@@ -351,6 +352,7 @@
 		6EC1779E73828C8CD4A29933 /* face_walk_1.png in Resources */ = {isa = PBXBuildFile; fileRef = 13600450280A894AA9F488CD /* face_walk_1.png */; };
 		6F31A93757C8273EDF1AF51D /* vfx_digital_06.png in Resources */ = {isa = PBXBuildFile; fileRef = 26C49175D8B5C039CCFDA9DD /* vfx_digital_06.png */; };
 		6FDA19FF33C579D9FDCC8461 /* MirrorlineScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B200CB9055E120A2CC8F27 /* MirrorlineScene.swift */; };
+		765A2BA903F44E67804CE875 /* AchievementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9218EBFD08F7413CB5D1D852 /* AchievementsView.swift */; };
 		702B1BA016EBB405DF855FB7 /* mech_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 97C4759DA9799A45D054ADDB /* mech_idle_0.png */; };
 		707662D80882B658CDAF403D /* tilesheet_2.png in Resources */ = {isa = PBXBuildFile; fileRef = 2BFD6E2D44E36F8F4A3607AB /* tilesheet_2.png */; };
 		70DBD6EA7CCE97AC4495C63B /* vfx_floor_arrow_04.png in Resources */ = {isa = PBXBuildFile; fileRef = F68FF413840CAD3ABE18D432 /* vfx_floor_arrow_04.png */; };
@@ -1017,6 +1019,7 @@
 		40C61AE6269D31DB36F9DE9D /* brawler_block_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = brawler_block_0.png; sourceTree = "<group>"; };
 		40F5FF452F2623DCD2099655 /* packet_route_hop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = packet_route_hop.mp3; sourceTree = "<group>"; };
 		41B200CB9055E120A2CC8F27 /* MirrorlineScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorlineScene.swift; sourceTree = "<group>"; };
+		9218EBFD08F7413CB5D1D852 /* AchievementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementsView.swift; sourceTree = "<group>"; };
 		41BC4E577A402783FF092B89 /* HapticsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsManager.swift; sourceTree = "<group>"; };
 		41F154BFA740130F13304C6F /* daemon_p3_drain.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = daemon_p3_drain.png; sourceTree = "<group>"; };
 		41F5A154B4E8C905FF55A546 /* bodyguard_hit_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bodyguard_hit_0.png; sourceTree = "<group>"; };
@@ -1498,6 +1501,7 @@
 		DB166667D6F885EF61BB19CA /* brawler_walk_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = brawler_walk_0.png; sourceTree = "<group>"; };
 		DB2999D875C1665FB2960116 /* mech_step_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = mech_step_1.mp3; sourceTree = "<group>"; };
 		DB7FC78DE86A3A055CE6FE03 /* MissionStatsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissionStatsStore.swift; sourceTree = "<group>"; };
+		81E13807330346CD9B376189 /* GauntletService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GauntletService.swift; sourceTree = "<group>"; };
 		DBA5952D2725E4FDBC167AAA /* bossagi_idle_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bossagi_idle_0.png; sourceTree = "<group>"; };
 		DC4B1EEF237E6CB3F9E823DB /* tilesheet_1_r4c1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_1_r4c1.png; sourceTree = "<group>"; };
 		DC4E8C70037B6112DB63EF12 /* VFXManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VFXManager.swift; sourceTree = "<group>"; };
@@ -1972,6 +1976,7 @@
 				41BC4E577A402783FF092B89 /* HapticsManager.swift */,
 				846428F5DE0A8F3BB5290195 /* MissionSetupService.swift */,
 				DB7FC78DE86A3A055CE6FE03 /* MissionStatsStore.swift */,
+				81E13807330346CD9B376189 /* GauntletService.swift */,
 				A96C9951EB1CF4A899E92349 /* MusicManager.swift */,
 				23AA9AE714A081DF12E9D1B9 /* OutcomePipeline.swift */,
 				3ACC5AC220C2D3DB7BE6AEB9 /* PathingAndAIHelpers.swift */,
@@ -2059,6 +2064,7 @@
 				454C4129D49F3D549D6F74E0 /* MatrixMiniGameRouter.swift */,
 				BF57D883B11FF00550C7907D /* MiniGameBriefing.swift */,
 				41B200CB9055E120A2CC8F27 /* MirrorlineScene.swift */,
+				9218EBFD08F7413CB5D1D852 /* AchievementsView.swift */,
 				3EF1B03CEA27A4E556A27431 /* MissionIntroScene.swift */,
 				C496917F380001784182666C /* MissionOutroScene.swift */,
 				B61CD5BBD78596D6B9FDE44E /* NeonLotusScene.swift */,
@@ -3391,11 +3397,13 @@
 				B8F033D144A11FDA527F961D /* MatrixMiniGameRouter.swift in Sources */,
 				B5B6D93F659C3144E584511D /* MiniGameBriefing.swift in Sources */,
 				6FDA19FF33C579D9FDCC8461 /* MirrorlineScene.swift in Sources */,
+				765A2BA903F44E67804CE875 /* AchievementsView.swift in Sources */,
 				08D5E324BA56C9FADE0FFFAA /* MissionIntroScene.swift in Sources */,
 				01E895654609B15621437CC4 /* MissionLoader.swift in Sources */,
 				4E507823DFEBEAD69049E865 /* MissionOutroScene.swift in Sources */,
 				6E8EB85D46DF4F3C167FB45D /* MissionSetupService.swift in Sources */,
 				01F22F52FF001EFBFE1C4F71 /* MissionStatsStore.swift in Sources */,
+				A1E12424E4CE4DEB8CC2AFA5 /* GauntletService.swift in Sources */,
 				13B93A14003CCEB879492D65 /* MusicManager.swift in Sources */,
 				1F8AE135A5A5492406370B92 /* NeonLotusScene.swift in Sources */,
 				9F5B8C6A94AEFEEB2B3E7CCC /* OutcomePipeline.swift in Sources */,

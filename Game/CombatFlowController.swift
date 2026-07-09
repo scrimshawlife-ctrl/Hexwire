@@ -463,12 +463,27 @@ struct CombatFlowController {
         // (~33% smaller defense pool against a typical 6d enemy) without
         // making everything an instant kill.
         let baseDefense = targetEnemy.attributes.rea + targetEnemy.attributes.agi + coverBonus
+        // FLANKING: a living teammate of the attacker adjacent to the target
+        // AND on its far side (see CombatMechanics.isFlanked for the far-side
+        // approximation) pins the target in a crossfire — it defends at -2
+        // dice. Symmetric with the enemy→player check
+        // (GameState.flankedDefensePenalty), and shown in the hit preview
+        // (computeHitPreview takes the same ally positions).
+        let attackerAllies = gameState.livingPlayers
+            .filter { $0.id != a.id }
+            .map { (x: $0.positionX, y: $0.positionY) }
+        let isTargetFlanked = CombatMechanics.isFlanked(
+            targetX: targetEnemy.positionX, targetY: targetEnemy.positionY,
+            attackerX: a.positionX, attackerY: a.positionY,
+            allies: attackerAllies)
         // Prone enemies (riot knockdown / BLITZ sweep) defend at -2 dice too —
         // no diving for cover from the floor. STACKS with the stun penalty
         // (a hacked target that's ALSO flat on its back is nearly helpless,
-        // which is exactly the hack→Blitz combo payoff). Same min-1 clamp.
+        // which is exactly the hack→Blitz combo payoff) AND the flanking
+        // penalty, all under the same min-1 clamp.
         let statusPenalty = ((targetEnemy.status == .stunned) ? 2 : 0)
             + (targetEnemy.statusEffects.contains(.prone) ? 2 : 0)
+            + (isTargetFlanked ? 2 : 0)
         let defensePool: Int = statusPenalty > 0
             ? max(1, baseDefense - statusPenalty)
             : baseDefense
@@ -505,7 +520,10 @@ struct CombatFlowController {
         let defenseRoll = DiceEngine.roll(pool: defensePool)
         let netHits = max(0, attackRoll.hits - defenseRoll.hits)
 
-        gameState.addLog("⚔️ \(a.name) attacks with \(weapon.name)!\(rangeNote) [\(attackPool)d6→\(attackRoll.hits)] vs [\(defensePool)d6→\(defenseRoll.hits)\(coverBonus > 0 ? " +\(coverBonus)cov" : "")]")
+        // FLANKED! rides the attack line itself so the player connects the
+        // positioning (ally behind the target) to the smaller defense pool.
+        let flankNote = isTargetFlanked ? " ⚔️ FLANKED! (−2 DEF)" : ""
+        gameState.addLog("⚔️ \(a.name) attacks with \(weapon.name)!\(rangeNote)\(flankNote) [\(attackPool)d6→\(attackRoll.hits)] vs [\(defensePool)d6→\(defenseRoll.hits)\(coverBonus > 0 ? " +\(coverBonus)cov" : "")]")
 
         // Visual: muzzle flash + tracer for ranged, slash arc for melee.
         // Fired regardless of hit/miss so the player always sees something
@@ -529,6 +547,18 @@ struct CombatFlowController {
                            "weaponType": weapon.type.rawValue,
                            "attackerId": a.id.uuidString]   // animate the attacker's sprite
             )
+        }
+
+        // DESTRUCTIBLE COVER: ranged fire that traced through cover has a 25%
+        // chance to splinter the cover tile nearest the target. Rolled here —
+        // AFTER the attack/defense dice (so THIS shot still got the full
+        // cover bonus) but on hit AND miss alike (bullets chew crates either
+        // way). Glitch branches returned above: a misfire never left the
+        // barrel, so nothing downrange takes wear.
+        if !isMelee {
+            gameState.maybeDegradeCoverAlongShot(
+                fromX: a.positionX, fromY: a.positionY,
+                toX: targetEnemy.positionX, toY: targetEnemy.positionY)
         }
 
         if netHits == 0 {
@@ -959,6 +989,16 @@ struct CombatFlowController {
             object: nil,
             userInfo: ["tileX": tileX, "tileY": tileY, "characterId": id.uuidString]
         )
+        // ENEMY OVERWATCH: a sniper/turret that banked its shot last enemy
+        // phase reacts to this movement commit — MOVEMENT ONLY (DEFEND, LAY
+        // LOW, attacks etc. never trigger it; note performOverwatch on the
+        // player side has the same movement-only trigger against enemies).
+        // Fired AFTER the position commit so the reaction shot resolves
+        // against the tile the runner moved TO, with that tile's cover dice.
+        gameState.fireEnemyOverwatchShots(atMovingPlayer: char)
+        // A runner dropped by the reaction shot doesn't go on to trigger
+        // objective pulses or scoop up terminals from the floor.
+        guard char.isAlive else { return }
         // Floor-pulse VFX on objective tile entry (data terminal or
         // extraction). Single expanding ring — fires once per step-on, not
         // per render frame.
@@ -1423,6 +1463,15 @@ struct CombatFlowController {
     static func enemyPhase(gameState: GameState) {
         guard !gameState.isEnemyPhaseRunning else { return }
         gameState.isEnemyPhaseRunning = true
+
+        // ENEMY overwatch banks expire HERE, at the enemy-phase boundary —
+        // NOT in beginRound alongside the player-side `overwatchers` clear.
+        // beginRound runs immediately AFTER the enemy phase that banks these,
+        // so clearing there would wipe every fresh bank before the player got
+        // to move at all. Clearing at the top of the NEXT enemy phase gives a
+        // bank exactly one full player input phase of life, and each
+        // sniper/turret then re-decides (shoot vs re-bank) on its own turn.
+        gameState.enemyOverwatchers.removeAll()
 
         let livingEnemies = gameState.enemies.filter { $0.isAlive }
         let livingPlayers = gameState.playerTeam.filter { $0.isAlive }

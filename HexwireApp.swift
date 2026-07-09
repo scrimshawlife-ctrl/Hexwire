@@ -485,7 +485,7 @@ struct RunnerScorecardRow: View {
 
 // MARK: - Black Market Shop
 
-enum ShopTab: String, CaseIterable { case cyberware = "CYBER", weapons = "WEAPONS", armor = "ARMOR", stims = "STIMS", spells = "SPELLS" }
+enum ShopTab: String, CaseIterable { case cyberware = "CYBER", weapons = "WEAPONS", armor = "ARMOR", stims = "STIMS", spells = "SPELLS", fixer = "FIXER" }
 
 /// Between-missions black market. Loads the canonical (persisted) roster, lets
 /// the player spend banked nuyen on gear/cyberware/spells, and saves back so
@@ -535,6 +535,7 @@ struct ShopView: View {
                         case .armor:     armorList
                         case .stims:     stimsList
                         case .spells:    spellsList
+                        case .fixer:     fixerList
                         }
                     }
                     .padding(.horizontal, 14)
@@ -751,6 +752,48 @@ struct ShopView: View {
                     commit("LEARNED \(entry.spell.displayName.uppercased())")
                 }
             }
+        }
+    }
+
+    /// Fixer services — the RECURRING spend side of the economy. The gear
+    /// tabs are a finite buyout (once the roster is kitted the wallet had
+    /// nothing left to want); these repeat forever:
+    ///  • Heat payoffs close the faction-attention loop surfaced on mission
+    ///    select — ¥ buys down the corp/gang heat that drives extra patrols.
+    ///  • Combat sim training converts late-game nuyen into runner XP, so a
+    ///    fat wallet keeps mattering after the shop is cleaned out.
+    @ViewBuilder private var fixerList: some View {
+        let _ = bump   // re-read heat after each payoff
+        let attention = stats.loadFactionAttention()
+        let corp = attention[.corp, default: 0]
+        let gang = attention[.gang, default: 0]
+
+        ShopRow(icon: "flame.fill", name: "Corp Payoff",
+                blurb: "The fixer greases corporate channels. Patrol postings quietly vanish.",
+                effect: corp > 0 ? "CORP HEAT \(corp) → \(corp - 1)" : "CORP HEAT 0 — nothing to bury",
+                cost: 6_000, state: corp > 0 ? .buyable : .owned("COLD"),
+                affordable: stats.playerNuyen >= 6_000) {
+            guard corp > 0, stats.spend(6_000) else { return }
+            stats.reduceFactionAttention(.corp)
+            commit("CORP HEAT REDUCED")
+        }
+        ShopRow(icon: "person.3.fill", name: "Gang Payoff",
+                blurb: "Street tax. The gangs look the other way on your next run.",
+                effect: gang > 0 ? "GANG HEAT \(gang) → \(gang - 1)" : "GANG HEAT 0 — nothing to bury",
+                cost: 4_500, state: gang > 0 ? .buyable : .owned("COLD"),
+                affordable: stats.playerNuyen >= 4_500) {
+            guard gang > 0, stats.spend(4_500) else { return }
+            stats.reduceFactionAttention(.gang)
+            commit("GANG HEAT REDUCED")
+        }
+        ShopRow(icon: "figure.martial.arts", name: "Combat Sim Training",
+                blurb: "Full-immersion sim time for \(runner.name). Experience, minus the scar tissue.",
+                effect: "+40 XP · \(runner.name.uppercased()) LVL \(runner.level)",
+                cost: 8_000, state: .buyable,
+                affordable: stats.playerNuyen >= 8_000) {
+            guard stats.spend(8_000) else { return }
+            let leveled = runner.gainXP(40)
+            commit(leveled ? "\(runner.name.uppercased()) LEVELED UP!" : "+40 XP · \(runner.name.uppercased())")
         }
     }
 
@@ -1494,6 +1537,7 @@ struct MissionSelectView: View {
     @ObservedObject private var stats = MissionStatsStore.shared
     @State private var showShop = false
     @State private var showRoster = false
+    @State private var showRecords = false
 
     /// Mission roster. `isChase=true` denotes a side-scrolling chase mission
     /// (M3.5 "The Drop") that routes through a different phase than the
@@ -1618,23 +1662,46 @@ struct MissionSelectView: View {
             // off, or lean into a hot run for the risk-pay multiplier.
             factionHeatRow
 
-            // Black-market shop — spend nuyen on gear/cyberware/spells between runs.
-            Button(action: { HapticsManager.shared.buttonTap(); showShop = true }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "cart.fill")
-                    Text("BLACK MARKET")
-                        .font(.system(size: 14, weight: .black, design: .monospaced))
-                        .tracking(2)
+            // Black-market shop + records board, side by side.
+            HStack(spacing: 8) {
+                Button(action: { HapticsManager.shared.buttonTap(); showShop = true }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "cart.fill")
+                        Text("BLACK MARKET")
+                            .font(.system(size: 14, weight: .black, design: .monospaced))
+                            .tracking(2)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .foregroundColor(Color(hex: "FFCC00"))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9)
+                            .fill(Color(hex: "FFCC00").opacity(0.10))
+                            .overlay(RoundedRectangle(cornerRadius: 9)
+                                .stroke(Color(hex: "FFCC00").opacity(0.6), lineWidth: 1.2))
+                    )
                 }
-                .foregroundColor(Color(hex: "FFCC00"))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-                .background(
-                    RoundedRectangle(cornerRadius: 9)
-                        .fill(Color(hex: "FFCC00").opacity(0.10))
-                        .overlay(RoundedRectangle(cornerRadius: 9)
-                            .stroke(Color(hex: "FFCC00").opacity(0.6), lineWidth: 1.2))
-                )
+                // Achievements/records board — evaluated live from persisted
+                // stats, so it needs no unlock plumbing of its own.
+                Button(action: { HapticsManager.shared.buttonTap(); showRecords = true }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "rosette")
+                        Text("RECORDS")
+                            .font(.system(size: 14, weight: .black, design: .monospaced))
+                            .tracking(2)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .foregroundColor(Color(hex: "00FFCC"))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 9)
+                            .fill(Color(hex: "00FFCC").opacity(0.10))
+                            .overlay(RoundedRectangle(cornerRadius: 9)
+                                .stroke(Color(hex: "00FFCC").opacity(0.6), lineWidth: 1.2))
+                    )
+                }
             }
             .padding(.horizontal, 2)
 
@@ -1709,6 +1776,14 @@ struct MissionSelectView: View {
                             }
                         )
                     }
+
+                    // Endless Gauntlet — floor-based replay mode recombining
+                    // the shipped missions with per-floor enemy scaling.
+                    // Unlocks once M1 is cleared (a brand-new player should
+                    // meet the campaign first; everyone else dives freely).
+                    if stats.record(for: "Mission001").completed {
+                        gauntletCard
+                    }
                 }
                 .padding(.bottom, 16)
             }
@@ -1723,6 +1798,66 @@ struct MissionSelectView: View {
         }
         .fullScreenCover(isPresented: $showRoster) {
             RosterView(onDismiss: { showRoster = false })
+        }
+        .fullScreenCover(isPresented: $showRecords) {
+            AchievementsView(onDismiss: { showRecords = false })
+        }
+    }
+
+    /// Endless Gauntlet entry card. Arming is lazy at LOAD time (inside
+    /// MissionLoader's "Gauntlet" id intercept), so tapping just routes
+    /// through the normal mission-select flow — backing out of the briefing
+    /// is harmless and the floor/pick survive for a re-dive.
+    private var gauntletCard: some View {
+        let gauntlet = GauntletStore.shared
+        let record = stats.record(for: GauntletStore.gauntletMissionId)
+        return Button(action: {
+            HapticsManager.shared.selectAffirm()
+            _ = manager.transition(to: .selectMission(GauntletStore.gauntletMissionId))
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.down.to.line.compact")
+                    .font(.system(size: 22, weight: .black))
+                    .foregroundColor(Color(hex: "FF66CC"))
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Color(hex: "FF66CC").opacity(0.12))
+                        .overlay(Circle().stroke(Color(hex: "FF66CC").opacity(0.5), lineWidth: 1)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("ENDLESS GAUNTLET")
+                        .font(.system(size: 15, weight: .black, design: .monospaced))
+                        .foregroundColor(Color(hex: "FF66CC")).tracking(1.5)
+                    Text("Randomized contracts, escalating floors. How deep can the team go?")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.55))
+                        .lineLimit(2)
+                    HStack(spacing: 10) {
+                        Text("NEXT: FLOOR \(gauntlet.currentFloor)")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundColor(Color(hex: "00FFCC"))
+                        if gauntlet.bestFloor > 0 {
+                            Text("BEST: FLOOR \(gauntlet.bestFloor)")
+                                .font(.system(size: 10, weight: .black, design: .monospaced))
+                                .foregroundColor(Color(hex: "FFCC00"))
+                        }
+                        if record.bestScore > 0 {
+                            Text("BEST SCORE \(record.bestScore)")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                    }
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Color(hex: "FF66CC").opacity(0.7))
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(hex: "FF66CC").opacity(0.06))
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(hex: "FF66CC").opacity(0.45), lineWidth: 1.2))
+            )
         }
     }
 

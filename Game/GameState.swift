@@ -894,6 +894,30 @@ final class GameState: ObservableObject {
         set { sessionState.intimidationOriginalAgi = newValue }
     }
 
+    /// ENEMY overwatch bank — the inverse of the player-side `overwatchers`
+    /// dictionary above: enemy id → snapshotted attack pool. A sniper or
+    /// turret that finds no target in range/LOS on its AI turn banks its shot
+    /// here instead; any player MOVEMENT commit while the bank is live (and
+    /// the banker has range + LOS) eats one reaction shot at halved net hits
+    /// (see fireEnemyOverwatchShots). Lifecycle: banked during the enemy
+    /// phase, live through the following player input phase, and cleared at
+    /// the START of the next enemy phase (CombatFlowController.enemyPhase) —
+    /// clearing in beginRound like `overwatchers` would wipe fresh banks
+    /// before the player ever moved, because beginRound runs immediately
+    /// AFTER the enemy phase that set them. Entries for enemies that died are
+    /// inert (fire path re-checks liveness) and stale ids across missions
+    /// never match the new roster (transient, like riggerSummons).
+    var enemyOverwatchers: [UUID: Int] = [:]
+
+    /// Cover tiles destroyed mid-combat (barrel detonations / splintered
+    /// crates), keyed by room id → list of [x, y] pairs. Room maps are
+    /// rebuilt from their JSON on every room (re)entry, which would silently
+    /// resurrect destroyed cover — BattleScene re-applies these to both the
+    /// visible map (presentationTileMap) and the pathfinding map (after
+    /// updateTilesForCurrentRoom) on transition. In-memory only, mirroring
+    /// how barrierDroppedRoomIds handles the retracted-barrier persistence.
+    var destroyedCoverByRoom: [String: [[Int]]] = [:]
+
     /// Drives the Matrix hacking mini-game overlay. SwiftUI binds to this so
     /// it must be @Published directly on GameState (forwarded to sessionState
     /// won't trigger view updates).
@@ -1367,6 +1391,11 @@ final class GameState: ObservableObject {
             weapon:    weapon,
             actionLabel: "ATK",
             signalDiceBonus: signalDiceBonus,
+            // Teammate positions so the preview's defense pool includes the
+            // FLANKED −2 — matches the check in performAttack exactly.
+            attackerAllies: livingPlayers
+                .filter { $0.id != attacker.id }
+                .map { (x: $0.positionX, y: $0.positionY) },
             isBlocked: { sx, sy, tx, ty in
                 self.isLineBlockedByWall(fromX: sx, fromY: sy, toX: tx, toY: ty)
             }
@@ -1391,6 +1420,10 @@ final class GameState: ObservableObject {
             weapon: sidearm,
             actionLabel: "SHT",
             signalDiceBonus: signalDiceBonus,
+            // Same flanking context as attackPreview — see comment there.
+            attackerAllies: livingPlayers
+                .filter { $0.id != attacker.id }
+                .map { (x: $0.positionX, y: $0.positionY) },
             isBlocked: { sx, sy, tx, ty in
                 self.isLineBlockedByWall(fromX: sx, fromY: sy, toX: tx, toY: ty)
             }
@@ -1490,6 +1523,10 @@ final class GameState: ObservableObject {
 
     func handleEnemyKilled(_ enemy: Enemy, by mage: Character) {
         HapticsManager.shared.enemyKilled()
+        // A dead sniper/turret's banked overwatch dies with it. (Belt-and-
+        // suspenders: kill paths that bypass this handler are covered by the
+        // isAlive re-check in fireEnemyOverwatchShots.)
+        enemyOverwatchers.removeValue(forKey: enemy.id)
         missionEnemiesDefeated += 1
         CombatFlowController.handleEnemyKillForRoomEffects(gameState: self)
         let bounty = MissionStatsStore.killBounty(maxHP: enemy.maxHP)
@@ -1613,6 +1650,8 @@ final class GameState: ObservableObject {
     /// reads exactly as before.
     func handleEnemyKilledByEnvironment(_ enemy: Enemy, cause: String = "burned out") {
         HapticsManager.shared.enemyKilled()
+        // Same overwatch-bank cleanup as handleEnemyKilled above.
+        enemyOverwatchers.removeValue(forKey: enemy.id)
         missionEnemiesDefeated += 1
         CombatFlowController.handleEnemyKillForRoomEffects(gameState: self)
         // Bounty still pays on an unattributed kill (no XP, since no runner
@@ -1711,6 +1750,11 @@ final class GameState: ObservableObject {
                 handleEnemyKilled(enemy, by: runner)
             }
         }
+
+        // Explosive barrels caught in the grenade's blast go up too — checked
+        // AFTER the direct blast resolves so the log reads throw → hits →
+        // secondary explosions. One pass, no chaining (see detonateBarrelsNear).
+        detonateBarrelsNear(impactTiles: [(x: primary.positionX, y: primary.positionY)])
 
         if livingEnemies.isEmpty {
             onRoomCleared()
@@ -1985,6 +2029,265 @@ final class GameState: ObservableObject {
         return 1
     }
 
+    // MARK: - Enemy Overwatch (sniper / turret reaction fire)
+
+    /// Bank an ENEMY overwatch shot — the inverse of performOverwatch. Called
+    /// from the sniper/turret AI branches when they end their turn with no
+    /// target in range/LOS. The log line is the player's warning: moving in
+    /// the open next round eats a reaction shot.
+    func bankEnemyOverwatch(for enemy: Enemy, pool: Int) {
+        enemyOverwatchers[enemy.id] = pool
+        addLog("🎯 \(enemy.name) settles into OVERWATCH — holding fire on any movement!")
+    }
+
+    /// Reaction-fire range for a banked enemy — mirrors each archetype's
+    /// normal engagement range (sniper lane 8 / turret arc 6) so overwatch
+    /// never reaches farther than a deliberate shot could.
+    private func enemyOverwatchRange(for enemy: Enemy) -> Int {
+        enemy.archetype.lowercased() == "sniper" ? 8 : 6
+    }
+
+    /// Fire banked ENEMY overwatch at a player who just committed a MOVE.
+    /// Called from CombatFlowController.moveCharacter (the movement commit
+    /// path — DEFEND/attack/other actions never trigger this, movement only).
+    /// Each banked enemy with range + clear LOS fires ONE reaction shot, then
+    /// its bank is spent for the round. Same conventions as the player-side
+    /// fireOverwatchShot: net hits HALVED (reaction-fire penalty), soak minus
+    /// AP, and the moving runner keeps their cover dice — ducking tile-to-tile
+    /// behind crates is still safer than sprinting the open lane.
+    func fireEnemyOverwatchShots(atMovingPlayer char: Character) {
+        guard !enemyOverwatchers.isEmpty else { return }
+        for (enemyId, pool) in enemyOverwatchers {
+            // The mover can die to the first reaction shot — later banks stay
+            // armed for the next runner rather than firing at a corpse.
+            guard char.isAlive else { return }
+            // Stale ids (banker died to the player phase, or leftovers from a
+            // previous mission's roster) simply never match — inert entries.
+            guard let shooter = enemies.first(where: { $0.id == enemyId && $0.isAlive }) else {
+                enemyOverwatchers.removeValue(forKey: enemyId)
+                continue
+            }
+            let dist = hexDistance(x1: shooter.positionX, y1: shooter.positionY,
+                                   x2: char.positionX, y2: char.positionY)
+            guard dist <= enemyOverwatchRange(for: shooter) else { continue }
+            guard !isLineBlockedByWall(fromX: shooter.positionX, fromY: shooter.positionY,
+                                       toX: char.positionX, toY: char.positionY) else { continue }
+
+            // The shot is happening — the bank is spent for the round.
+            enemyOverwatchers.removeValue(forKey: enemyId)
+            addLog("⚡ OVERWATCH! \(shooter.name) reacts to \(char.name)'s movement!")
+
+            // Tracer + muzzle flash — same payload shape as a deliberate enemy shot.
+            NotificationCenter.default.post(name: .gunfireEffect, object: nil, userInfo: [
+                "fromX": shooter.positionX, "fromY": shooter.positionY,
+                "toX": char.positionX, "toY": char.positionY,
+                "weaponType": (shooter.equippedWeapon?.type ?? .rifle).rawValue,
+                "enemyArchetype": shooter.archetype
+            ])
+
+            // Moving runner still defends with their full pool + cover dice
+            // read from the LIVE map (a detonated barrel no longer shields).
+            let cover = CombatMechanics.coverBetween(
+                tiles: currentMissionTiles,
+                fromX: shooter.positionX, fromY: shooter.positionY,
+                toX: char.positionX, toY: char.positionY)
+            let defPool = char.defensePool() + CombatMechanics.coverDefenseBonus(count: cover)
+            let atk = DiceEngine.roll(pool: pool)
+            let def = DiceEngine.roll(pool: defPool)
+            // Reaction fire: halved net hits — same rule as player overwatch.
+            let net = max(0, atk.hits - def.hits) / 2
+            if net == 0 {
+                addLog("→ \(char.name) dives clear of the reaction shot!")
+                continue
+            }
+            let wd = shooter.equippedWeapon?.damage ?? 7
+            let ap = shooter.equippedWeapon?.armorPiercing ?? 2
+            let soak = DiceEngine.roll(pool: max(0, char.computeDerived().soak - ap)).hits
+            let dmg = escalatedIncomingDamage(max(0, wd + net - soak))
+            if dmg > 0 {
+                char.takeDamage(amount: dmg, isStun: shooter.equippedWeapon?.isStunDamage ?? false)
+                HapticsManager.shared.playerDamaged()
+                addLog("💥 OVERWATCH hit! \(shooter.name) → \(char.name): \(net) net hits → \(dmg) dmg. (HP \(char.currentHP)/\(char.maxHP))")
+                NotificationCenter.default.post(name: .playerHit, object: nil, userInfo: [
+                    "playerId": char.id.uuidString, "damage": dmg, "enemyId": shooter.id.uuidString])
+                if !char.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: char) }
+            } else {
+                addLog("→ \(char.name)'s armour holds against the reaction shot!")
+            }
+        }
+    }
+
+    // MARK: - Destructible Cover & Explosive Barrels
+
+    /// Convert a COVER tile to floor mid-combat and keep every consumer in
+    /// sync: the LIVE pathfinding/cover map mutates immediately (so walkability
+    /// and coverBetween see floor on the very next roll), the destruction is
+    /// recorded per-room (so re-entering the room doesn't resurrect the crate
+    /// from JSON — see destroyedCoverByRoom), and `.coverTileDestroyed` tells
+    /// BattleScene to swap the tile visuals — the same fade-out + sampled
+    /// floor-patch pass the removeOnFirstKill barrier drop uses.
+    func destroyCoverTile(x: Int, y: Int) {
+        guard y >= 0, y < currentMissionTiles.count,
+              x >= 0, x < currentMissionTiles[y].count,
+              currentMissionTiles[y][x] == TileType.cover.rawValue else { return }
+        currentMissionTiles[y][x] = TileType.floor.rawValue
+        destroyedCoverByRoom[currentRoomId, default: []].append([x, y])
+        NotificationCenter.default.post(
+            name: .coverTileDestroyed, object: nil,
+            userInfo: ["tiles": [["x": x, "y": y]]]
+        )
+    }
+
+    /// Re-apply this room's recorded cover destruction to the freshly loaded
+    /// tile grid. Room maps rebuild from JSON on every (re)entry, which would
+    /// otherwise resurrect blown barrels/splintered crates in the LOGIC map
+    /// while the player remembers destroying them. Called by BattleScene right
+    /// after updateTilesForCurrentRoom on room transitions.
+    func applyDestroyedCoverToCurrentTiles(roomId: String) {
+        guard let destroyed = destroyedCoverByRoom[roomId], !destroyed.isEmpty else { return }
+        var tiles = currentMissionTiles
+        for pair in destroyed where pair.count == 2 {
+            let x = pair[0], y = pair[1]
+            guard y >= 0, y < tiles.count, x >= 0, x < tiles[y].count else { continue }
+            tiles[y][x] = TileType.floor.rawValue
+        }
+        currentMissionTiles = tiles
+    }
+
+    /// EXPLOSIVE BARREL detonation. Any barrel cover tile (live cover == 2 AND
+    /// TileMap.isBarrelTile — the same deterministic rule the renderer draws
+    /// barrels with) within hex-distance 1 of an AoE impact tile goes up:
+    /// 6 physical to EVERY unit (both rosters — friendly fire very much
+    /// included) within hex-distance 1 of the barrel, each with its own soak
+    /// roll, then the tile converts to floor/rubble.
+    ///
+    /// ONE PASS ONLY — deliberately: all triggered barrels are collected
+    /// BEFORE any of them detonate, and a detonation does NOT re-scan for
+    /// barrels caught in ITS blast. No chain reactions; a Fireball into a
+    /// barrel farm is one simultaneous boom, not a room-clearing cascade.
+    ///
+    /// Call sites: Fireball (SpellResolver), the player grenade
+    /// (throwGrenade), and the grenadier's lob (EnemyAI).
+    func detonateBarrelsNear(impactTiles: [(x: Int, y: Int)]) {
+        guard !impactTiles.isEmpty else { return }
+        // Collect every live barrel within 1 of any impact tile (deduped).
+        var barrels: [(x: Int, y: Int)] = []
+        for (y, row) in currentMissionTiles.enumerated() {
+            for (x, raw) in row.enumerated() {
+                guard raw == TileType.cover.rawValue, TileMap.isBarrelTile(x: x, y: y) else { continue }
+                guard impactTiles.contains(where: {
+                    hexDistance(x1: $0.x, y1: $0.y, x2: x, y2: y) <= 1
+                }) else { continue }
+                barrels.append((x: x, y: y))
+            }
+        }
+        guard !barrels.isEmpty else { return }
+
+        for barrel in barrels {
+            addLog("🛢💥 The chemical barrels at (\(barrel.x),\(barrel.y)) DETONATE!")
+            // Reuse the fireball explosion VFX (blast bloom + keyed screen
+            // shake) — BattleScene already listens for this and it reads
+            // exactly like an explosion at a tile, which is what this is.
+            NotificationCenter.default.post(
+                name: .fireballEffect, object: nil,
+                userInfo: ["x": barrel.x, "y": barrel.y]
+            )
+            // Tile becomes rubble (floor). Mutating BEFORE the damage pass
+            // also means a runner's cover dice never count the barrel that
+            // is currently exploding in their face.
+            destroyCoverTile(x: barrel.x, y: barrel.y)
+
+            let blastDamage = 6
+            // Players in the blast — per-unit soak, same dice conventions as
+            // the grenade (BOD+armor pool vs the flat blast damage).
+            for runner in playerTeam where runner.isAlive {
+                guard hexDistance(x1: runner.positionX, y1: runner.positionY,
+                                  x2: barrel.x, y2: barrel.y) <= 1 else { continue }
+                let soak = DiceEngine.roll(pool: max(0, runner.computeDerived().soak)).hits
+                let dmg = max(0, blastDamage - soak)
+                if dmg > 0 {
+                    runner.takeDamage(amount: dmg, isStun: false)
+                    HapticsManager.shared.playerDamaged()
+                    addLog("  → \(runner.name) caught in the blast: \(blastDamage)P - \(soak) soak = \(dmg) dmg. (HP \(runner.currentHP)/\(runner.maxHP))")
+                    NotificationCenter.default.post(name: .characterHit, object: nil,
+                        userInfo: ["characterId": runner.id.uuidString, "damage": dmg])
+                    if !runner.isAlive { CombatFlowController.handlePlayerKilled(gameState: self, char: runner) }
+                } else {
+                    addLog("  → \(runner.name) shrugs off the barrel blast.")
+                }
+            }
+            // Enemies in the blast — kills route through the environment
+            // pipeline (bounty pays, no runner XP: the barrel landed it).
+            for foe in enemies where foe.isAlive {
+                guard hexDistance(x1: foe.positionX, y1: foe.positionY,
+                                  x2: barrel.x, y2: barrel.y) <= 1 else { continue }
+                let soak = DiceEngine.roll(pool: max(0, foe.computeDerived().soak)).hits
+                let dmg = max(0, blastDamage - soak)
+                if dmg > 0 {
+                    foe.takeDamage(amount: dmg, isStun: false)
+                    addLog("  → \(foe.name) caught in the blast: \(blastDamage)P - \(soak) soak = \(dmg) dmg. (\(foe.currentHP)/\(foe.maxHP) HP)")
+                    NotificationCenter.default.post(name: .enemyHit, object: nil,
+                        userInfo: ["enemyId": foe.id.uuidString, "damage": dmg, "outcome": "hit"])
+                    if !foe.isAlive { handleEnemyKilledByEnvironment(foe, cause: "barrel detonation") }
+                } else {
+                    addLog("  → \(foe.name) soaks the barrel blast.")
+                    NotificationCenter.default.post(name: .enemyHit, object: nil,
+                        userInfo: ["enemyId": foe.id.uuidString, "damage": 0, "outcome": "soak"])
+                }
+            }
+        }
+    }
+
+    /// DESTRUCTIBLE COVER on ranged fire: after a ranged attack that traced
+    /// through ≥1 cover tile resolves, 25% chance the cover tile NEAREST THE
+    /// TARGET degrades to floor. Called AFTER the attack's dice are rolled —
+    /// this shot still enjoyed the cover bonus; the NEXT one won't.
+    /// Barrel tiles that degrade this way just become floor with NO
+    /// detonation — stray bullets nick and topple them, they don't ignite
+    /// them (only real AoE blasts set them off, see detonateBarrelsNear).
+    func maybeDegradeCoverAlongShot(fromX: Int, fromY: Int, toX: Int, toY: Int) {
+        let coverTiles = CombatMechanics.coverTilesBetween(
+            tiles: currentMissionTiles,
+            fromX: fromX, fromY: fromY, toX: toX, toY: toY)
+        guard !coverTiles.isEmpty else { return }
+        guard Double.random(in: 0..<1) < 0.25 else { return }
+        // ONE tile degrades — the one nearest the target end of the line
+        // (that's where the bulk of the incoming fire chews).
+        guard let hit = coverTiles.min(by: {
+            hexDistance(x1: $0.x, y1: $0.y, x2: toX, y2: toY) <
+            hexDistance(x1: $1.x, y1: $1.y, x2: toX, y2: toY)
+        }) else { return }
+        if TileMap.isBarrelTile(x: hit.x, y: hit.y) {
+            addLog("🛢 Stray rounds topple the barrels at (\(hit.x),\(hit.y)) — that cover is gone!")
+        } else {
+            addLog("📦 The crate at (\(hit.x),\(hit.y)) splinters apart — that cover is gone!")
+        }
+        destroyCoverTile(x: hit.x, y: hit.y)
+    }
+
+    // MARK: - Flanking (enemy → player side)
+
+    /// Flanking penalty for an ENEMY attack against a PLAYER — the symmetric
+    /// mirror of the check in CombatFlowController.performAttack. Returns 2
+    /// (dice to subtract, callers apply the same min-1 clamp as stun/prone)
+    /// when another living enemy is adjacent to the runner on the far side of
+    /// the attacker, else 0. Logs the FLANKED! warning so the player learns
+    /// the mechanic works against them too and spreads enemies apart.
+    /// Lives here (not in Character.defensePool) because the pool computation
+    /// has no board context — see the note in defensePool.
+    func flankedDefensePenalty(target: Character, attacker: Enemy) -> Int {
+        let allies = livingEnemies
+            .filter { $0.id != attacker.id }
+            .map { (x: $0.positionX, y: $0.positionY) }
+        guard CombatMechanics.isFlanked(
+            targetX: target.positionX, targetY: target.positionY,
+            attackerX: attacker.positionX, attackerY: attacker.positionY,
+            allies: allies
+        ) else { return 0 }
+        addLog("⚔️ FLANKED! \(target.name) is caught in a crossfire (−2 DEF)")
+        return 2
+    }
+
     func endTurn() {
         TurnManager.requestTurnAdvance(gameState: self)
     }
@@ -2245,6 +2548,17 @@ final class GameState: ObservableObject {
             HapticsManager.shared.unlock()
         }
     }
+}
+
+// MARK: - Combat-Depth Notification Names
+// Declared here rather than in GameNotifications.swift to keep this feature's
+// surface inside the combat-owned files; same Notification.Name namespace.
+extension Notification.Name {
+    /// A COVER tile just converted to floor mid-combat (barrel detonation or
+    /// splintered crate). userInfo: ["tiles": [["x": Int, "y": Int]]] — same
+    /// payload shape as .barriersDropped so BattleScene can reuse the exact
+    /// fade-out + sampled-floor-patch redraw pass for both.
+    static let coverTileDestroyed = Notification.Name("coverTileDestroyed")
 }
 
 /// Helper for classifying combat-log entries so SFX can fire from a single

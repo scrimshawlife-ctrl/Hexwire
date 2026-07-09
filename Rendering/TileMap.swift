@@ -53,6 +53,33 @@ final class TileMap {
     static let hexColSpacing: CGFloat = hexRadius * 1.5                     // 1.5R = 54
     static let hexRowSpacing: CGFloat = hexRadius * 1.7320508 * isoSquash   // R√3·iso ≈ 35.99
 
+    // MARK: - Explosive Barrel Tiles (single source of truth)
+
+    /// TRUE if a cover tile at (x, y) is an EXPLOSIVE BARREL stack rather than
+    /// an inert crate. This is the ONE deterministic rule shared by rendering
+    /// (createHexTile draws the toxic-barrel props on these tiles) and combat
+    /// (GameState.detonateBarrelsNear checks it before blowing a cover tile up),
+    /// so what the player SEES as barrels is exactly what detonates.
+    ///
+    /// History: the barrel art in addCoverProps used to be picked by a seed the
+    /// renderer no longer feeds it (the cover-prop pass went dormant when cover
+    /// art moved into the room background images) — there was NO live, stable
+    /// "which cover tile is a barrel" choice at all. This coordinate hash makes
+    /// the choice deterministic: same tile → same answer on every load, no
+    /// stored state needed. Two large odd multipliers (the classic spatial-hash
+    /// primes) keep neighbouring tiles from clumping into all-barrel rows.
+    ///
+    /// Rate: ~25% of cover tiles read as barrels (hash % 4 == 1 — matching the
+    /// 1-in-4 share the old addCoverProps variant table gave the barrel look).
+    ///
+    /// NOTE: callers must ALSO confirm the tile is currently cover (== 2) in
+    /// the LIVE map — a barrel that already detonated is floor and this
+    /// position-only helper will still return true for its coordinates.
+    static func isBarrelTile(x: Int, y: Int) -> Bool {
+        let h = (x &* 73_856_093) ^ (y &* 19_349_663)
+        return abs(h) % 4 == 1
+    }
+
     // MARK: - Coordinate Helpers (single source of truth)
 
     /// Local position of a tile's center within the TileMap container node.
@@ -306,12 +333,31 @@ final class TileMap {
             // "weird brown hex tiles" against the BG art. Now we just draw a
             // very faint hex outline so the player can still confirm "this
             // hex is cover" by glancing — no fill, no hatch, no pips.
+            //
+            // EXPLOSIVE BARRELS are the exception: those cover tiles are a
+            // combat mechanic (Fireball / grenade blasts detonate them for
+            // 6P AoE — see GameState.detonateBarrelsNear), so the player MUST
+            // be able to tell them apart from inert crates at a glance. On
+            // barrel tiles we resurrect the procedural toxic-barrel props
+            // (dormant since cover art moved into the BG images) drawn OVER
+            // the background, plus a toxic-green outline instead of amber.
+            // TileMap.isBarrelTile is the shared deterministic rule, so the
+            // tiles drawn here are exactly the ones combat will detonate.
+            let isBarrel = TileMap.isBarrelTile(x: x, y: y)
             let outline = SKShapeNode(path: hPath)
             outline.fillColor = .clear
-            outline.strokeColor = UIColor(hex: "#FF8800").withAlphaComponent(0.25)
+            outline.strokeColor = isBarrel
+                ? UIColor(hex: "#AACC00").withAlphaComponent(0.35)
+                : UIColor(hex: "#FF8800").withAlphaComponent(0.25)
             outline.lineWidth = 1.0
             outline.zPosition = 1.0
             tileNode.addChild(outline)
+            if isBarrel {
+                // seed: 1 → abs(1) % 4 == 1 selects the chemical-barrel
+                // variant inside addCoverProps (the only variant we want on a
+                // tile flagged explosive — crates/racks would lie to the player).
+                addCoverProps(to: tileNode, R: R, seed: 1)
+            }
 
         // ─────────────────────────────────────────── DOOR (transparent — door art is in BG)
         case .door:

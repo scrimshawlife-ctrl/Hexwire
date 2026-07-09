@@ -296,6 +296,35 @@ final class MissionStatsStore: ObservableObject {
         save()
     }
 
+    /// Generic wallet credit — for systems that pay OUTSIDE the contract
+    /// pipeline (gauntlet floor bonuses, future bounty events). Contract
+    /// payouts must keep going through `recordVictory` so the rank/heat/
+    /// replay factors and `lastWalletCredit` bookkeeping stay authoritative.
+    func credit(_ amount: Int) {
+        guard amount > 0 else { return }
+        playerNuyen += amount
+        save()
+    }
+
+    /// Fixer payoff — buy down persisted faction attention (¥ → heat relief).
+    /// The recurring spend side of the heat loop: attention drives extra
+    /// patrols/ambushes, decays only on trace-0 runs, and until now had no
+    /// other release valve. Also syncs the live GameState copy so a bribe
+    /// bought between missions shows in the next briefing without a relaunch.
+    /// Returns the new attention value.
+    /// @MainActor because it syncs the live (MainActor-isolated) GameState;
+    /// every caller is UI-side anyway.
+    @MainActor
+    @discardableResult
+    func reduceFactionAttention(_ faction: Faction, by amount: Int = 1) -> Int {
+        var attention = loadFactionAttention()
+        let newValue = max(0, attention[faction, default: 0] - amount)
+        attention[faction] = newValue
+        saveFactionAttention(attention)
+        GameState.shared.factionAttention[faction] = newValue
+        return newValue
+    }
+
     /// Letter rank for a mission score. Tuned to the score components
     /// (survival ≤1600, kills, objective 250, efficiency ≤600).
     static func rank(forScore score: Int) -> String {

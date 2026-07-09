@@ -147,6 +147,18 @@ final class MissionLoader {
 
     /// Load a multi-room mission by name.
     func loadMultiRoomMission(named name: String) -> MultiRoomMission? {
+        // ── ENDLESS GAUNTLET ── the synthetic "Gauntlet" id never has a JSON
+        // of its own: resolve it to the current floor's underlying story
+        // mission (stable pick per floor), with id/title overridden so the
+        // whole downstream pipeline (setup, stats, debrief) sees "Gauntlet".
+        if name == GauntletStore.gauntletMissionId {
+            return loadGauntletFloorMission()
+        }
+        // Any REAL mission load stands a previously-armed gauntlet down —
+        // the player backed out of the gauntlet briefing and picked a story
+        // mission, so no floor scaling may leak onto it and its victory must
+        // not advance the floor. No-op when the gauntlet isn't armed.
+        GauntletStore.shared.disarmForNonGauntletLoad()
         let multiName = name.hasSuffix("_multi") ? name : "\(name)_multi"
         // Try bundle Missions/ subdirectory first (preferred bundling)
         if let url = Bundle.main.url(forResource: multiName, withExtension: "json", subdirectory: "Missions") {
@@ -184,6 +196,46 @@ final class MissionLoader {
             }
         }
         return nil
+    }
+
+    /// Resolve the synthetic "Gauntlet" mission id to the current floor's
+    /// underlying story mission.
+    ///
+    /// The returned MultiRoomMission is a copy of the underlying mission with:
+    /// • `id` overridden to "Gauntlet" — so MissionSetupService sets
+    ///   currentMissionDisplayId = "Gauntlet" and the victory records under
+    ///   the "Gauntlet" stats record, NOT the story mission's (keeps campaign
+    ///   completion + paidThisRun clean).
+    /// • `title` overridden to "GAUNTLET — FLOOR N: <original title>" so the
+    ///   briefing/debrief make the mode + depth obvious.
+    /// Everything else (rooms, briefing, summary, extraction type) passes
+    /// through untouched — the floor IS that mission, just harder.
+    ///
+    /// Arming happens here, lazily at LOAD time, precisely so the mission-
+    /// select card needs no arm/disarm choreography: backing out of the
+    /// briefing is harmless (the next real-mission load disarms, see above),
+    /// and re-entering simply re-arms with the SAME persisted floor pick.
+    private func loadGauntletFloorMission() -> MultiRoomMission? {
+        let store = GauntletStore.shared
+        let underlyingId = store.missionIdForCurrentFloor()
+        // Recursive call — takes the normal (non-gauntlet) branch above,
+        // which also runs the disarm; we arm AFTER it returns.
+        guard let base = loadMultiRoomMission(named: underlyingId) else {
+            dlog("MissionLoader: ⚠️ Gauntlet floor \(store.currentFloor) failed to load underlying mission '\(underlyingId)'")
+            return nil
+        }
+        store.armForGauntletLoad()
+        dlog("MissionLoader: Gauntlet floor \(store.currentFloor) → \(underlyingId) (\(base.title))")
+        return MultiRoomMission(
+            id: GauntletStore.gauntletMissionId,
+            title: "GAUNTLET — FLOOR \(store.currentFloor): \(base.title)",
+            description: base.description,
+            difficulty: base.difficulty,
+            briefing: base.briefing,
+            missionCompleteSummary: base.missionCompleteSummary,
+            rooms: base.rooms,
+            extractionType: base.extractionType
+        )
     }
 
     /// Load multi-room mission from URL.

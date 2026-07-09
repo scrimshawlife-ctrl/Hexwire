@@ -12,7 +12,10 @@ extension GameState {
     @discardableResult
     func bossRangedStrike(enemy: Enemy, target: Character, label: String, dmgScale: Double = 1.0) -> Bool {
         let attackPool = enemy.attributes.agi + (enemy.equippedWeapon?.accuracy ?? 5) / 2 + 1
-        let defensePool = target.defensePool()
+        // FLANKED runners defend at -2 (min-1 clamp) — symmetric with the
+        // player-side check in performAttack; the helper logs the warning.
+        let flankPenalty = flankedDefensePenalty(target: target, attacker: enemy)
+        let defensePool = max(1, target.defensePool() - flankPenalty)
         let attackRoll = DiceEngine.roll(pool: attackPool)
         let defenseRoll = DiceEngine.roll(pool: defensePool)
         let netHits = max(0, attackRoll.hits - defenseRoll.hits)
@@ -84,10 +87,21 @@ extension GameState {
         let cover = melee ? 0 : CombatMechanics.coverBetween(
             tiles: currentMissionTiles, fromX: enemy.positionX, fromY: enemy.positionY,
             toX: target.positionX, toY: target.positionY)
-        let defPool = target.defensePool() + defBonus + CombatMechanics.coverDefenseBonus(count: cover)
+        // FLANKED runners defend at -2 (min-1 clamp, stacks with the prone
+        // penalty already baked into defensePool) — mirror of performAttack.
+        let flankPenalty = flankedDefensePenalty(target: target, attacker: enemy)
+        let defPool = max(1, target.defensePool() + defBonus
+            + CombatMechanics.coverDefenseBonus(count: cover) - flankPenalty)
         let atk = DiceEngine.roll(pool: pool)
         let def = DiceEngine.roll(pool: defPool)
         let net = max(0, atk.hits - def.hits)
+        // DESTRUCTIBLE COVER: enemy ranged fire chews crates too — rolled
+        // after the dice (this shot kept the cover benefit), hit or miss.
+        if !melee {
+            maybeDegradeCoverAlongShot(
+                fromX: enemy.positionX, fromY: enemy.positionY,
+                toX: target.positionX, toY: target.positionY)
+        }
         if net == 0 {
             addLog("→ \(enemy.name) \(hitVerb) \(target.name) — DODGED!")
             return
@@ -373,11 +387,17 @@ extension GameState {
                     toX: closestPlayer.positionX, toY: closestPlayer.positionY
                 )
                 let playerCoverBonus = CombatMechanics.coverDefenseBonus(count: enemyCoverCount)
-                let playerDefensePool = closestPlayer.defensePool() + defenseBonus + playerCoverBonus
+                // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+                let droneFlank = flankedDefensePenalty(target: closestPlayer, attacker: enemy)
+                let playerDefensePool = max(1, closestPlayer.defensePool() + defenseBonus + playerCoverBonus - droneFlank)
 
                 let attackRoll = DiceEngine.roll(pool: enemyAttackPool)
                 let defenseRoll = DiceEngine.roll(pool: playerDefensePool)
                 let netHits = max(0, attackRoll.hits - defenseRoll.hits)
+                // Destructible cover — after the dice, hit or miss (see performAttack).
+                maybeDegradeCoverAlongShot(
+                    fromX: enemy.positionX, fromY: enemy.positionY,
+                    toX: closestPlayer.positionX, toY: closestPlayer.positionY)
 
                 if netHits == 0 {
                     addLog("→ \(enemy.name) attacks \(closestPlayer.name) — DODGED!")
@@ -446,11 +466,17 @@ extension GameState {
                         toX: closestPlayer.positionX, toY: closestPlayer.positionY
                     )
                     let playerCoverBonus2 = CombatMechanics.coverDefenseBonus(count: enemyCoverCount2)
-                    let playerDefensePool = closestPlayer.defensePool() + defenseBonus + playerCoverBonus2
+                    // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+                    let droneFlank2 = flankedDefensePenalty(target: closestPlayer, attacker: enemy)
+                    let playerDefensePool = max(1, closestPlayer.defensePool() + defenseBonus + playerCoverBonus2 - droneFlank2)
 
                     let attackRoll = DiceEngine.roll(pool: enemyAttackPool)
                     let defenseRoll = DiceEngine.roll(pool: playerDefensePool)
                     let netHits = max(0, attackRoll.hits - defenseRoll.hits)
+                    // Destructible cover — after the dice, hit or miss (see performAttack).
+                    maybeDegradeCoverAlongShot(
+                        fromX: enemy.positionX, fromY: enemy.positionY,
+                        toX: closestPlayer.positionX, toY: closestPlayer.positionY)
 
                     if netHits == 0 {
                         addLog("→ \(enemy.name) attacks \(closestPlayer.name) — DODGED!")
@@ -617,7 +643,11 @@ extension GameState {
                 toX: closestPlayer.positionX, toY: closestPlayer.positionY
             )
             let elitePlayerCoverBonus = CombatMechanics.coverDefenseBonus(count: eliteCoverCount)
-            let playerDefensePool = closestPlayer.defensePool() + defenseBonus + elitePlayerCoverBonus
+            // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+            // (No cover-degrade roll here: elites strike adjacent, and a
+            // 1-tile line has no intermediate cover tiles to splinter.)
+            let eliteFlank = flankedDefensePenalty(target: closestPlayer, attacker: enemy)
+            let playerDefensePool = max(1, closestPlayer.defensePool() + defenseBonus + elitePlayerCoverBonus - eliteFlank)
 
             let attackRoll = DiceEngine.roll(pool: enemyAttackPool)
             let defenseRoll = DiceEngine.roll(pool: playerDefensePool)
@@ -704,7 +734,9 @@ extension GameState {
                 // dealt (used by the siphon self-heal). Posts the red bloodbolt VFX.
                 func castBolt(on target: Character, label: String, dmgScale: Double) -> Int {
                     let attackPool = enemy.attributes.agi + 4
-                    let defensePool = target.defensePool()
+                    // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+                    let boltFlank = flankedDefensePenalty(target: target, attacker: enemy)
+                    let defensePool = max(1, target.defensePool() - boltFlank)
                     let net = max(0, DiceEngine.roll(pool: attackPool).hits - DiceEngine.roll(pool: defensePool).hits)
                     if net == 0 { addLog("→ \(label) — \(target.name) dives clear!"); return 0 }
                     let baseDmg = Int((Double(8 + net) * dmgScale).rounded())
@@ -725,16 +757,26 @@ extension GameState {
                 }
 
                 if afterDist <= 6 {
-                    let roll = Double.random(in: 0..<1)
-                    if roll < 0.28 {
+                    // BLOOD NOVA is now a SITUATIONAL trigger, not a blind
+                    // 28% coin flip: it fires only when the party is CLUSTERED
+                    // — ≥2 living runners inside the nova's footprint (the
+                    // closest runner + everyone within 1 of them, i.e. the
+                    // same `targets` filter the old roll computed after the
+                    // fact). Clustered → HIGH chance (70%, still a dash of
+                    // unpredictability); spread out → he never wastes the
+                    // AoE on one body and falls through to siphon/bolt.
+                    // Design intent: rewards the player for spreading out and
+                    // makes Sato read as a caster who PUNISHES clumping.
+                    let novaTargets = livingPlayers.filter {
+                        hexDistance(x1: $0.positionX, y1: $0.positionY,
+                                    x2: closestPlayer.positionX, y2: closestPlayer.positionY) <= 1
+                    }
+                    let partyClustered = novaTargets.count >= 2
+                    if partyClustered && Double.random(in: 0..<1) < 0.70 {
                         // BLOOD NOVA — AoE: the closest runner + everyone within 1.
                         addLog("🩸 \(enemy.name): \"Bleed, all of you.\" — BLOOD NOVA!")
-                        let targets = livingPlayers.filter {
-                            hexDistance(x1: $0.positionX, y1: $0.positionY,
-                                        x2: closestPlayer.positionX, y2: closestPlayer.positionY) <= 1
-                        }
-                        for t in targets { _ = castBolt(on: t, label: "\(enemy.name) blood nova", dmgScale: 0.7) }
-                    } else if roll < 0.52 {
+                        for t in novaTargets { _ = castBolt(on: t, label: "\(enemy.name) blood nova", dmgScale: 0.7) }
+                    } else if Double.random(in: 0..<1) < 0.5 {
                         // BLOOD SIPHON — drain a runner, heal himself for half.
                         let dealt = castBolt(on: closestPlayer, label: "\(enemy.name) blood siphon", dmgScale: 1.0)
                         if dealt > 0 {
@@ -812,19 +854,27 @@ extension GameState {
                         userInfo: ["enemyId": enemy.id.uuidString,
                                    "x": enemy.positionX, "y": enemy.positionY])
                 }
-                // Fire from new position. VARIETY: ~30% of the time the mech
-                // unloads a SUPPRESSING BARRAGE — the autocannon walks across
-                // the closest player AND anyone next to them (softer per hit).
-                // Otherwise it's a single heavy autocannon shot.
+                // Fire from new position. SUPPRESSING BARRAGE is a
+                // SITUATIONAL trigger now, not a blind 30% flip: the mech
+                // walks the autocannon across the party only when it's
+                // actually CLUSTERED — ≥2 living runners inside the barrage
+                // footprint (closest runner + anyone within 1, the same
+                // `inBlast` filter the old roll computed after committing).
+                // Clustered → HIGH chance (70%, a little randomness so it
+                // isn't clockwork); spread out → the barrage would be a
+                // single-target shot with a damage MALUS (0.75×), so it
+                // falls through to the full-power single autocannon shot.
+                // Design intent: rewards the player for spreading out.
                 let afterDist = hexDistance(x1: closestPlayer.positionX, y1: closestPlayer.positionY,
                                             x2: enemy.positionX, y2: enemy.positionY)
                 if afterDist <= 6 {
-                    if Double.random(in: 0..<1) < 0.30 {
+                    let inBlast = livingPlayers.filter {
+                        hexDistance(x1: $0.positionX, y1: $0.positionY,
+                                    x2: closestPlayer.positionX, y2: closestPlayer.positionY) <= 1
+                    }
+                    let partyClustered = inBlast.count >= 2
+                    if partyClustered && Double.random(in: 0..<1) < 0.70 {
                         addLog("⚠️ \(enemy.name) — SUPPRESSING BARRAGE!")
-                        let inBlast = livingPlayers.filter {
-                            hexDistance(x1: $0.positionX, y1: $0.positionY,
-                                        x2: closestPlayer.positionX, y2: closestPlayer.positionY) <= 1
-                        }
                         for t in inBlast {
                             bossRangedStrike(enemy: enemy, target: t,
                                              label: "\(enemy.name) barrage", dmgScale: 0.75)
@@ -890,7 +940,21 @@ extension GameState {
                                         x2: enemy.positionX, y2: enemy.positionY)
             if afterDist <= 6 {
                 bossRangedStrike(enemy: enemy, target: closestPlayer, label: "AGI-PRIME Reality Glitch")
-                if closestPlayer.isAlive && Double.random(in: 0..<1) < 0.30 {
+                // GLITCH ECHO is a SITUATIONAL trigger now, not a blind 30%
+                // flip: the echo re-fires only when the party is CLUSTERED —
+                // ≥2 living runners within 1 of the glitched target (inside
+                // the ability's reach). Clustered → HIGH chance (70%, small
+                // random element kept); spread out → the construct doesn't
+                // burn the echo and the turn stays a single Reality Glitch.
+                // Design intent: rewards the player for spreading out —
+                // bunching around a runner AGI-PRIME is targeting invites
+                // the double-hit, which reads as the AI exploiting density.
+                let nearGlitchTarget = livingPlayers.filter {
+                    hexDistance(x1: $0.positionX, y1: $0.positionY,
+                                x2: closestPlayer.positionX, y2: closestPlayer.positionY) <= 1
+                }
+                let partyClustered = nearGlitchTarget.count >= 2
+                if closestPlayer.isAlive && partyClustered && Double.random(in: 0..<1) < 0.70 {
                     addLog("✨ \(enemy.name) — GLITCH ECHO!")
                     bossRangedStrike(enemy: enemy, target: closestPlayer, label: "AGI-PRIME echo", dmgScale: 0.7)
                 }
@@ -959,12 +1023,31 @@ extension GameState {
                 // a smartlink burst with a chance at a rapid DOUBLE-TAP second
                 // shot for extra punch + attack variety.
                 let roll = Double.random(in: 0..<1)
+                // MARK targeting is board-state driven now: Vera flags the
+                // LOWEST-HP living runner in her engagement range (nearest
+                // breaks HP ties), not whoever happens to stand closest —
+                // she's an executive closing accounts, and it telegraphs a
+                // real threat the player must answer (heal, reposition, or
+                // kill her before the EXECUTE lands). The roll window (and
+                // her summon cap / drone count) are unchanged — the trigger
+                // frequency is the same, only the VICTIM selection got smart.
+                // Her DOUBLE-TAP follow-up below stays pure-chance as before.
+                let executeMark = livingPlayers
+                    .filter {
+                        hexDistance(x1: $0.positionX, y1: $0.positionY,
+                                    x2: enemy.positionX, y2: enemy.positionY) <= 6
+                    }
+                    .min { a, b in
+                        if a.currentHP != b.currentHP { return a.currentHP < b.currentHP }
+                        return hexDistance(x1: a.positionX, y1: a.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                             < hexDistance(x1: b.positionX, y1: b.positionY, x2: enemy.positionX, y2: enemy.positionY)
+                    }
                 if roll < 0.15 && corpBossSummons < 2 {
                     corpBossSummons += 1
                     summonCorpDrone(near: enemy)
-                } else if roll < 0.35 && corpBossMarkedId == nil && afterDist <= 6 {
-                    corpBossMarkedId = closestPlayer.id
-                    addLog("⊕ \(enemy.name): \"You're flagged.\" — \(closestPlayer.name) MARKED FOR TERMINATION.")
+                } else if roll < 0.35 && corpBossMarkedId == nil, let weakest = executeMark {
+                    corpBossMarkedId = weakest.id
+                    addLog("⊕ \(enemy.name): \"You're flagged.\" — \(weakest.name) MARKED FOR TERMINATION.")
                 } else if afterDist <= 6 {
                     bossRangedStrike(enemy: enemy, target: closestPlayer, label: "\(enemy.name) smartlink burst")
                     if closestPlayer.isAlive && Double.random(in: 0..<1) < 0.35 {
@@ -978,24 +1061,40 @@ extension GameState {
             // Stationary sentry — NEVER moves. Smartlinked (accurate despite
             // AGI 0), it fires at the closest player within its ~6-tile arc.
             // Players beat it by breaking the lane (cover) or destroying it.
+            //
+            // OVERWATCH: with no target in arc/LOS, the turret doesn't waste
+            // the turn "holding" — it banks a reaction shot instead. Any
+            // player MOVEMENT commit next round while the bank is live (and
+            // the turret has range + LOS) triggers reaction fire at halved
+            // net hits — see GameState.fireEnemyOverwatchShots. The stale
+            // bank is dropped first: the turret re-decides every turn.
+            enemyOverwatchers.removeValue(forKey: enemy.id)
+            let turretPool = (enemy.equippedWeapon?.accuracy ?? 6) + 2   // smartlink, not agi
             guard let target = livingPlayers.min(by: {
                 hexDistance(x1: $0.positionX, y1: $0.positionY, x2: enemy.positionX, y2: enemy.positionY) <
                 hexDistance(x1: $1.positionX, y1: $1.positionY, x2: enemy.positionX, y2: enemy.positionY)
             }) else { return }
             let dist = hexDistance(x1: target.positionX, y1: target.positionY,
                                    x2: enemy.positionX, y2: enemy.positionY)
-            guard dist <= 6 else {
-                addLog("→ \(enemy.name) holds — no target in arc.")
+            guard dist <= 6, !isLineBlockedByWall(fromX: enemy.positionX, fromY: enemy.positionY,
+                                                  toX: target.positionX, toY: target.positionY) else {
+                bankEnemyOverwatch(for: enemy, pool: turretPool)
                 return
             }
-            let attackPool = (enemy.equippedWeapon?.accuracy ?? 6) + 2   // smartlink, not agi
+            let attackPool = turretPool
             let cover = CombatMechanics.coverBetween(tiles: currentMissionTiles,
                                                      fromX: enemy.positionX, fromY: enemy.positionY,
                                                      toX: target.positionX, toY: target.positionY)
             let defendBonus = isCharacterDefending(target.id) ? 3 : 0
-            let defPool = target.defensePool()
-                + CombatMechanics.coverDefenseBonus(count: cover) + defendBonus
+            // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+            let turretFlank = flankedDefensePenalty(target: target, attacker: enemy)
+            let defPool = max(1, target.defensePool()
+                + CombatMechanics.coverDefenseBonus(count: cover) + defendBonus - turretFlank)
             let net = max(0, DiceEngine.roll(pool: attackPool).hits - DiceEngine.roll(pool: defPool).hits)
+            // Destructible cover — after the dice, hit or miss (see performAttack).
+            maybeDegradeCoverAlongShot(
+                fromX: enemy.positionX, fromY: enemy.positionY,
+                toX: target.positionX, toY: target.positionY)
             if net == 0 {
                 addLog("→ \(enemy.name) — \(target.name) stays out of the line of fire!")
             } else {
@@ -1104,6 +1203,12 @@ extension GameState {
                     }
                 }
                 HapticsManager.shared.playerDamaged()
+                // The grenadier's lob is a real AoE blast — explosive barrels
+                // within 1 of the impact tile go up too (and the 6P barrel
+                // AoE hits BOTH rosters, so a lob into the barrel stack the
+                // grenadier's own squadmate hides behind backfires). One
+                // pass, no chaining — see detonateBarrelsNear.
+                detonateBarrelsNear(impactTiles: [(x: target.positionX, y: target.positionY)])
             }
 
         case "repairdrone":
@@ -1249,6 +1354,13 @@ extension GameState {
             // Marksman identity: holds the long lane, KITES if a runner closes
             // inside 3 tiles, and lands a +2-dice AIMED SHOT when it holds
             // still. Previously ran the generic "walk up and plink" default.
+            //
+            // OVERWATCH: turns where the sniper holds still but has NO shot
+            // (lane too long / wall in the way) are banked as a reaction shot
+            // instead of wasted — see the bank below and
+            // GameState.fireEnemyOverwatchShots for the trigger. Stale bank
+            // dropped up front: the sniper re-decides every turn.
+            enemyOverwatchers.removeValue(forKey: enemy.id)
             let nearest = livingPlayers.min { a, b in
                 hexDistance(x1: a.positionX, y1: a.positionY, x2: enemy.positionX, y2: enemy.positionY) <
                 hexDistance(x1: b.positionX, y1: b.positionY, x2: enemy.positionX, y2: enemy.positionY)
@@ -1284,21 +1396,37 @@ extension GameState {
                 }
             }
             if enemyMovedThisTurn() { return }
+            let acc = enemy.equippedWeapon?.accuracy ?? 6
+            let aimPool = enemy.attributes.agi + acc / 2 + 1 + 1  // +1 = aimed shot (was +2 — near one-shot the mage from range)
             let shotDist = hexDistance(x1: nearest.positionX, y1: nearest.positionY, x2: enemy.positionX, y2: enemy.positionY)
-            if shotDist < 1 || shotDist > sniperRange { return }
+            // No shot this turn (lane too long / wall in the way) and it
+            // didn't reposition either → the sniper SETTLES INTO OVERWATCH,
+            // banking its aimed pool as reaction fire against player
+            // movement next round. (A moved sniper returned above — the turn
+            // went into repositioning, not a hold.)
+            if shotDist < 1 || shotDist > sniperRange
+                || isLineBlockedByWall(fromX: enemy.positionX, fromY: enemy.positionY,
+                                       toX: nearest.positionX, toY: nearest.positionY) {
+                bankEnemyOverwatch(for: enemy, pool: aimPool)
+                return
+            }
             NotificationCenter.default.post(name: .gunfireEffect, object: nil, userInfo: [
                 "fromX": enemy.positionX, "fromY": enemy.positionY,
                 "toX": nearest.positionX, "toY": nearest.positionY,
                 "weaponType": (enemy.equippedWeapon?.type ?? .rifle).rawValue,
                 "enemyArchetype": enemy.archetype])
-            let acc = enemy.equippedWeapon?.accuracy ?? 6
-            let aimPool = enemy.attributes.agi + acc / 2 + 1 + 1  // +1 = aimed shot (was +2 — near one-shot the mage from range)
             let sDefBonus = isCharacterDefending(nearest.id) ? 3 : 0
             let sCover = CombatMechanics.coverBetween(tiles: currentMissionTiles, fromX: enemy.positionX, fromY: enemy.positionY, toX: nearest.positionX, toY: nearest.positionY)
-            let sDefPool = nearest.defensePool() + sDefBonus + CombatMechanics.coverDefenseBonus(count: sCover)
+            // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+            let sniperFlank = flankedDefensePenalty(target: nearest, attacker: enemy)
+            let sDefPool = max(1, nearest.defensePool() + sDefBonus + CombatMechanics.coverDefenseBonus(count: sCover) - sniperFlank)
             let sAtk = DiceEngine.roll(pool: aimPool)
             let sDef = DiceEngine.roll(pool: sDefPool)
             let sNet = max(0, sAtk.hits - sDef.hits)
+            // Destructible cover — after the dice, hit or miss (see performAttack).
+            maybeDegradeCoverAlongShot(
+                fromX: enemy.positionX, fromY: enemy.positionY,
+                toX: nearest.positionX, toY: nearest.positionY)
             if sNet == 0 {
                 addLog("🎯 \(enemy.name) AIMS at \(nearest.name) — MISSED!")
             } else {
@@ -1345,8 +1473,10 @@ extension GameState {
                 let jAcc = enemy.equippedWeapon?.accuracy ?? 4
                 let jPool = enemy.attributes.agi + jAcc / 2 + 1
                 let jDefBonus = isCharacterDefending(prey.id) ? 3 : 0
+                // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+                let jFlank = flankedDefensePenalty(target: prey, attacker: enemy)
                 let jAtk = DiceEngine.roll(pool: jPool)
-                let jDef = DiceEngine.roll(pool: prey.defensePool() + jDefBonus)
+                let jDef = DiceEngine.roll(pool: max(1, prey.defensePool() + jDefBonus - jFlank))
                 let jNet = max(0, jAtk.hits - jDef.hits)
                 if jNet == 0 {
                     addLog("⛓ \(enemy.name) swings — \(prey.name) ducks the hydraulic fist!")
@@ -1614,7 +1744,9 @@ extension GameState {
                     toX: target.positionX, toY: target.positionY
                 )
                 let guardPlayerCoverBonus = CombatMechanics.coverDefenseBonus(count: guardCoverCount)
-                let playerDefensePool = target.defensePool() + defenseBonus + guardPlayerCoverBonus
+                // FLANKED runners defend at -2 (min-1 clamp) — see performAttack.
+                let guardFlank = flankedDefensePenalty(target: target, attacker: enemy)
+                let playerDefensePool = max(1, target.defensePool() + defenseBonus + guardPlayerCoverBonus - guardFlank)
 
                 // Post gunfire effect so SFXManager can play the right
                 // weapon clip (sniper enemies share the rifle WeaponType but
@@ -1635,6 +1767,13 @@ extension GameState {
                 let attackRoll = DiceEngine.roll(pool: enemyAttackPool)
                 let defenseRoll = DiceEngine.roll(pool: playerDefensePool)
                 let netHits = max(0, attackRoll.hits - defenseRoll.hits)
+                // Destructible cover — ranged shots only, after the dice,
+                // hit or miss (see performAttack).
+                if let wt = weaponType, wt != .blade && wt != .unarmed {
+                    maybeDegradeCoverAlongShot(
+                        fromX: enemy.positionX, fromY: enemy.positionY,
+                        toX: target.positionX, toY: target.positionY)
+                }
 
                 if netHits == 0 {
                     addLog("→ \(enemy.name) attacks \(target.name) — DODGED!")
