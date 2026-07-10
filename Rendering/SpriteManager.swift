@@ -192,13 +192,29 @@ final class SpriteManager {
             var walk:   [SKTexture] = []
             var attack: [SKTexture] = []
             var hit:    [SKTexture] = []
+            // PROBE loads (warnIfMissing: false): the naming convention allows
+            // up to 4 idle/walk and 2 attack/hit frames, but most art sets
+            // ship a subset (many types have 2 idles and no hit frames at
+            // all). A miss here is expected — the animation code handles any
+            // frame count ≥1 — so don't warn per miss; warn once below only
+            // if a type has NO idle art (that one IS a visible bug: the enemy
+            // would render as a blank/fallback).
             for i in 0..<4 {
-                if let t = loadTexture(named: "\(eType)_idle_\(i).png")   { idle.append(t) }
-                if let t = loadTexture(named: "\(eType)_walk_\(i).png")   { walk.append(t) }
+                if let t = loadTexture(named: "\(eType)_idle_\(i).png", warnIfMissing: false)   { idle.append(t) }
+                if let t = loadTexture(named: "\(eType)_walk_\(i).png", warnIfMissing: false)   { walk.append(t) }
             }
             for i in 0..<2 {
-                if let t = loadTexture(named: "\(eType)_attack_\(i).png") { attack.append(t) }
-                if let t = loadTexture(named: "\(eType)_hit_\(i).png")    { hit.append(t) }
+                if let t = loadTexture(named: "\(eType)_attack_\(i).png", warnIfMissing: false) { attack.append(t) }
+                if let t = loadTexture(named: "\(eType)_hit_\(i).png", warnIfMissing: false)    { hit.append(t) }
+            }
+            // Some art ships a single UN-numbered hit pose (bossmech_hit.png,
+            // bosscorp_hit.png) — those files sat in the bundle unused
+            // because the probe only tried the _hit_N convention.
+            if hit.isEmpty, let t = loadTexture(named: "\(eType)_hit.png", warnIfMissing: false) {
+                hit.append(t)
+            }
+            if idle.isEmpty {
+                dlog("[SpriteManager] WARNING: no idle frames found for enemy type '\(eType)' — it will render with the fallback sprite")
             }
             // Per-archetype frame filtering — some sprites have poses that at
             // our small render size + fast frame cycle read as a visual
@@ -495,7 +511,7 @@ final class SpriteManager {
         }
     }
 
-    private func loadTexture(named: String, linear: Bool = false) -> SKTexture? {
+    private func loadTexture(named: String, linear: Bool = false, warnIfMissing: Bool = true) -> SKTexture? {
         // ── Path 0: pre-decoded by preloadMissionSprites — skip disk + decode ──
         if let img = predecodedImages.removeValue(forKey: named) {
             return makeEnemyTexture(from: img, named: named, linear: linear)
@@ -539,7 +555,13 @@ final class SpriteManager {
             return makeEnemyTexture(from: image, named: named, linear: linear)
         }
 
-        dlog("[SpriteManager] WARNING: Could not load texture '\(named)' from any path")
+        // Probing callers (the frame loader tries idle_0..3 / walk_0..3 /
+        // attack_0..1 / hit_0..1 for EVERY type, and most art sets ship a
+        // subset) pass warnIfMissing: false — a miss there is expected, not
+        // an error, and used to spray ~90 warnings on every launch.
+        if warnIfMissing {
+            dlog("[SpriteManager] WARNING: Could not load texture '\(named)' from any path")
+        }
         return nil
     }
 
