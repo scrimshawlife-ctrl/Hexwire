@@ -337,26 +337,45 @@ final class TileMap {
             // EXPLOSIVE BARRELS are the exception: those cover tiles are a
             // combat mechanic (Fireball / grenade blasts detonate them for
             // 6P AoE — see GameState.detonateBarrelsNear), so the player MUST
-            // be able to tell them apart from inert crates at a glance. On
-            // barrel tiles we resurrect the procedural toxic-barrel props
-            // (dormant since cover art moved into the BG images) drawn OVER
-            // the background, plus a toxic-green outline instead of amber.
+            // be able to tell them apart from inert cover at a glance.
+            // IMPORTANT: this tile's actual prop art (crate/barrel/AC unit)
+            // is painted into the room BACKGROUND image — an earlier version
+            // drew procedural barrel props over it, double-exposing two art
+            // styles on one hex, which read as a glitch. So the explosive
+            // marker is a BADGE, not art: a pulsing toxic-green outline plus
+            // a small tinted ☣ glyph floated near the top of the hex.
             // TileMap.isBarrelTile is the shared deterministic rule, so the
-            // tiles drawn here are exactly the ones combat will detonate.
+            // badged tiles are exactly the ones combat will detonate.
             let isBarrel = TileMap.isBarrelTile(x: x, y: y)
             let outline = SKShapeNode(path: hPath)
-            outline.fillColor = .clear
+            outline.fillColor = isBarrel
+                ? UIColor(hex: "#AACC00").withAlphaComponent(0.06)
+                : .clear
             outline.strokeColor = isBarrel
-                ? UIColor(hex: "#AACC00").withAlphaComponent(0.35)
+                ? UIColor(hex: "#AACC00").withAlphaComponent(0.6)
                 : UIColor(hex: "#FF8800").withAlphaComponent(0.25)
-            outline.lineWidth = 1.0
+            outline.lineWidth = isBarrel ? 1.4 : 1.0
             outline.zPosition = 1.0
             tileNode.addChild(outline)
             if isBarrel {
-                // seed: 1 → abs(1) % 4 == 1 selects the chemical-barrel
-                // variant inside addCoverProps (the only variant we want on a
-                // tile flagged explosive — crates/racks would lie to the player).
-                addCoverProps(to: tileNode, R: R, seed: 1)
+                // \u{FE0E} forces TEXT presentation so fontColor tints the
+                // glyph (the emoji form ignores fontColor).
+                let glyph = SKLabelNode(text: "☣\u{FE0E}")
+                glyph.fontName = "Menlo-Bold"
+                glyph.fontSize = 11
+                glyph.fontColor = UIColor(hex: "#CCFF33")
+                glyph.verticalAlignmentMode = .center
+                glyph.horizontalAlignmentMode = .center
+                // Toward the hex's top edge so it stays readable when a unit
+                // stands on the tile (unit sprites anchor near center).
+                glyph.position = CGPoint(x: 0, y: R * 0.42)
+                glyph.zPosition = 1.2
+                glyph.alpha = 0.9
+                tileNode.addChild(glyph)
+                outline.run(SKAction.repeatForever(SKAction.sequence([
+                    SKAction.fadeAlpha(to: 0.35, duration: 0.9),
+                    SKAction.fadeAlpha(to: 1.0, duration: 0.9)
+                ])))
             }
 
         // ─────────────────────────────────────────── DOOR (transparent — door art is in BG)

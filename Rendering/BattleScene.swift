@@ -291,15 +291,18 @@ final class BattleScene: SKScene {
             self?.dropBarrierTiles(coords: coords)
         }
         // Cover destroyed mid-combat (barrel detonation / splintered crate).
-        // Same payload shape as .barriersDropped on purpose — the redraw need
-        // is identical (a tile just became floor: fade the tile node, stamp a
-        // matching floor patch sampled from the room BG, spark), so we reuse
-        // the exact dropBarrierTiles pass. Detonations additionally post
-        // .fireballEffect from GameState.detonateBarrelsNear, so the blast
-        // bloom + screen shake ride the existing explosion pipeline.
+        // NOT routed through dropBarrierTiles: that pass patches the tile by
+        // sampling "clean floor" pixels from the room background image, and
+        // the sample offset is only reliable for the one authored M1 barrier
+        // wall — on arbitrary cover tiles it grabbed mismatched chunks of BG
+        // art. Destroyed cover instead gets a SCORCH overlay (charred hex +
+        // soot), which is coordinate-exact by construction and thematically
+        // honest for a detonated barrel / shot-up crate. Detonations also
+        // post .fireballEffect from GameState.detonateBarrelsNear, so the
+        // blast bloom + screen shake ride the existing explosion pipeline.
         observe(.coverTileDestroyed) { [weak self] note in
             guard let coords = note.userInfo?["tiles"] as? [[String: Int]] else { return }
-            self?.dropBarrierTiles(coords: coords)
+            self?.stampScorchedFloor(coords: coords)
         }
         observe(.extractionAnimationRequested) { [weak self] note in
             guard let x = note.userInfo?["x"] as? Int,
@@ -1032,6 +1035,64 @@ final class BattleScene: SKScene {
     ///     barrier art is occluded with matching floor pixels (no flat-color
     ///     "patch" — actual sampled floor), and
     /// (c) fire a brief amber spark to sell the "barrier disengaged" beat.
+    /// Redraw for destroyed COVER tiles (detonated barrels, splintered
+    /// crates): fade the tile node (kills the ☣ badge/outline), stamp a
+    /// scorch scar over the BG-painted prop art. See the .coverTileDestroyed
+    /// observer for why this doesn't reuse dropBarrierTiles' BG sampling.
+    private func stampScorchedFloor(coords: [[String: Int]]) {
+        guard let mapNode = childNode(withName: "TileMap") else { return }
+        for c in coords {
+            guard let x = c["x"], let y = c["y"] else { continue }
+            mapNode.childNode(withName: "tile_\(x)_\(y)")?.run(SKAction.sequence([
+                SKAction.fadeOut(withDuration: 0.3),
+                SKAction.removeFromParent()
+            ]))
+            addScorchPatch(to: mapNode, x: x, y: y, animated: true)
+        }
+    }
+
+    /// Charred-floor overlay for a destroyed cover tile. Hex-shaped so it
+    /// clips exactly to the tile — no background sampling, so it can never
+    /// grab the wrong pixels. Deterministic debris flecks (hashed off the
+    /// coords) sell "rubble" without RNG that would shift between visits.
+    private func addScorchPatch(to mapNode: SKNode, x: Int, y: Int, animated: Bool) {
+        let nodeName = "scorchPatch_\(x)_\(y)"
+        guard mapNode.childNode(withName: nodeName) == nil else { return }
+        let group = SKNode()
+        group.name = nodeName
+        group.position = TileMap.tileCenter(x: x, y: y)
+        group.zPosition = -29   // just above the room BG (-30), below tile outlines
+
+        let hex = SKShapeNode(path: TileMap.hexPath(radius: TileMap.hexRadius * 0.94))
+        hex.fillColor = UIColor.black.withAlphaComponent(0.55)
+        hex.strokeColor = UIColor.black.withAlphaComponent(0.75)
+        hex.lineWidth = 1.5
+        group.addChild(hex)
+
+        let soot = SKShapeNode(circleOfRadius: TileMap.hexRadius * 0.42)
+        soot.fillColor = UIColor.black.withAlphaComponent(0.5)
+        soot.strokeColor = .clear
+        soot.glowWidth = 5
+        group.addChild(soot)
+
+        for i in 0..<4 {
+            let h = (x &* 31 &+ y &* 17 &+ i &* 7) % 100
+            let angle = CGFloat(h) / 100.0 * 2 * .pi
+            let dist = TileMap.hexRadius * (0.25 + 0.35 * CGFloat((h * 13) % 10) / 10.0)
+            let fleck = SKShapeNode(circleOfRadius: 1.6)
+            fleck.fillColor = UIColor(white: 0.35, alpha: 0.8)
+            fleck.strokeColor = .clear
+            fleck.position = CGPoint(x: cos(angle) * dist, y: sin(angle) * dist * 0.6)
+            group.addChild(fleck)
+        }
+
+        if animated {
+            group.alpha = 0
+            group.run(SKAction.fadeIn(withDuration: 0.35))
+        }
+        mapNode.addChild(group)
+    }
+
     private func dropBarrierTiles(coords: [[String: Int]]) {
         guard let mapNode = childNode(withName: "TileMap") else { return }
         let bg = childNode(withName: "roomBackground") as? SKSpriteNode
@@ -2209,6 +2270,18 @@ final class BattleScene: SKScene {
         return TileMap(tiles: visibleMap.map { row in row.map { TileType(rawValue: $0) ?? .floor } })
     }
 
+    /// Re-stamp the scorch scars for cover destroyed in a previous visit —
+    /// the prop art is painted into the room BACKGROUND image, so without an
+    /// overlay a detonated barrel's crate art would visually resurrect on
+    /// re-entry even though the tile is walkable floor. Call after the map
+    /// node is built and added for a room.
+    private func restampScorchScars(on mapNode: SKNode, room: Room) {
+        guard let destroyed = GameState.shared.destroyedCoverByRoom[room.id] else { return }
+        for pair in destroyed where pair.count == 2 {
+            addScorchPatch(to: mapNode, x: pair[0], y: pair[1], animated: false)
+        }
+    }
+
     private func refreshObjectiveMarkers() {
         guard let room = RoomManager.shared.currentRoom,
               let mapNode = childNode(withName: "TileMap") else { return }
@@ -2392,6 +2465,7 @@ final class BattleScene: SKScene {
         addChild(mapNode)
         if let room = RoomManager.shared.currentRoom {
             addObjectiveMarkers(to: mapNode, room: room)
+            restampScorchScars(on: mapNode, room: room)
         }
         // Helicopter arrives from the sky during the extraction sequence —
         // no parked heli on the pad at room load (player calls it in by
@@ -3170,6 +3244,7 @@ final class BattleScene: SKScene {
         addRoomBackgroundImage(for: newTileMap)
         addChild(mapNode)
         addObjectiveMarkers(to: mapNode, room: room)
+        restampScorchScars(on: mapNode, room: room)
         // Mission-specific ambient VFX — must run on every room load,
         // not just the initial loadMap path. Without this call, transitions
         // into room_1, room_2, etc. would show no VFX.
