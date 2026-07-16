@@ -2143,11 +2143,25 @@ final class BattleScene: SKScene {
         // top reservation was pulled from 32 → 16 → 0pt. The combat HUD's
         // proportional weight drops correspondingly.
         let scaleHeight = max(1, size.height - bottomHUDInset)
-        let targetMapScreenWidth = visibleWidth * 1.36
-        let targetMapScreenHeight = scaleHeight * 1.03
+        // DEVICE SPLIT (2026-07 iPad pass): the phone numbers are a
+        // tall-narrow-screen trick — the map deliberately bleeds 36% past
+        // the screen edges to fill the display, and the 0.68 zoom-in floor
+        // stops sprites ballooning. On iPad those same numbers marooned the
+        // ~396pt-wide map at the 0.68 floor in a huge 4:3 view (~40% of the
+        // screen, sea of empty backdrop). iPad instead FITS the map to the
+        // play corridor (no bleed — the whole board comfortably visible is
+        // the tablet payoff) and allows a much deeper zoom-in floor so the
+        // fit actually engages; sprite art (200px source frames) stays clean
+        // at that magnification.
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        let widthFactor: CGFloat  = isPad ? 0.92 : 1.36
+        let heightFactor: CGFloat = isPad ? 0.96 : 1.03
+        let zoomInFloor: CGFloat  = isPad ? 0.42 : 0.68
+        let targetMapScreenWidth = visibleWidth * widthFactor
+        let targetMapScreenHeight = scaleHeight * heightFactor
         let requiredScaleX = mapPixelWidth / targetMapScreenWidth
         let requiredScaleY = mapPixelHeight / targetMapScreenHeight
-        let scale = max(0.68, max(requiredScaleX, requiredScaleY))
+        let scale = max(zoomInFloor, max(requiredScaleX, requiredScaleY))
         cam.setScale(scale)
         return scale
     }

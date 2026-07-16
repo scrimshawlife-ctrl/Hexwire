@@ -2547,6 +2547,10 @@ struct CombatView: View {
                         extractionX: gameState.extractionX,
                         extractionY: gameState.extractionY
                     )
+                    // Same iPad width cap as the combat panel — the banner
+                    // stretched across the full tablet width read as a wall.
+                    // No-op on phones (≤620pt wide).
+                    .frame(maxWidth: 560)
                     .padding(.horizontal, 12)
                     .background(
                         GeometryReader { proxy in
@@ -2747,14 +2751,23 @@ struct CombatView: View {
                     onRecover: { gameState.performLayLow() },
                     onEndTurn: { gameState.endTurn() }
                 )
+                // iPad: cap the panel at a phone-ish column and center it —
+                // stretched across a full 834+pt tablet width the phone-sized
+                // buttons/fonts floated in empty chrome. ≤620pt devices
+                // (every iPhone) render exactly as before. The rounded top
+                // corners only ever show on iPad, where the panel edges sit
+                // inboard of the screen edges.
+                .frame(maxWidth: 620)
                 .background(
                     CombatTheme.background.opacity(0.92)
+                        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 14, topTrailingRadius: 14))
                 )
                 .background(
                     GeometryReader { proxy in
                         Color.clear.preference(key: CombatBottomOverlayHeightPreferenceKey.self, value: proxy.size.height)
                     }
                 )
+                .frame(maxWidth: .infinity)
             }
         }
         .ignoresSafeArea(edges: .bottom)
