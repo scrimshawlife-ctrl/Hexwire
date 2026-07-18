@@ -1272,6 +1272,10 @@ struct ContentView: View {
 
         _ = phaseManager.transition(to: .startGame)
         _ = phaseManager.transition(to: .selectMission(missionId))
+        // selectMission now routes through the mission-intro VN; the debug
+        // autostart predates that phase and stalled on the cutscene waiting
+        // for a tap. Skip the intro (and the briefing) explicitly.
+        _ = phaseManager.transition(to: .finishMissionIntro)
         _ = GameState.shared.prepareMissionForCombat(named: missionId)
         _ = phaseManager.transition(to: .beginMission)
         #endif
