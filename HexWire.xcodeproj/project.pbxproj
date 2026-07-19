@@ -440,6 +440,7 @@
 		799C126F6AA0442189514D5B /* slugger_light_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 6A570FF82BEC85E2C55DF753 /* slugger_light_0.png */; };
 		7A42ECEFDD264891874DA764 /* sprayer_hit_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 01AE8688D38EB62EA162B31B /* sprayer_hit_0.png */; };
 		7A466D20BB9AE5DB67038838 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = BED75A1F85DF4E57DBC13E9C /* LaunchScreen.storyboard */; };
+		7A9DC9A3D52BF85F0BEF1C11 /* IntentFacadeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 314D8FE0D2A7A8F59077B931 /* IntentFacadeTests.swift */; };
 		7AA231978CA47771FA52E038 /* sprayer_idle_1.png in Resources */ = {isa = PBXBuildFile; fileRef = CCA6D3C249A0DD5856B112EC /* sprayer_idle_1.png */; };
 		7AAA467A8182A1A4286AD612 /* vfx_code_red_01.png in Resources */ = {isa = PBXBuildFile; fileRef = CCCB08CF43E011D12E1CEEB3 /* vfx_code_red_01.png */; };
 		7B38B97A32ABE9D6F0FBE53F /* raze_right_hit_1.png in Resources */ = {isa = PBXBuildFile; fileRef = A72475E6F06609B16E904BDB /* raze_right_hit_1.png */; };
@@ -780,6 +781,7 @@
 		D59D4A853BB9CDE0DCAB1096 /* grenadier_attack_0.png in Resources */ = {isa = PBXBuildFile; fileRef = BE57D9CBA157DB251EA89352 /* grenadier_attack_0.png */; };
 		D66681867C070FC8C217F4AC /* data_terminal_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 0CD8110439B63D64F24D724A /* data_terminal_0.png */; };
 		D695A3E9ED631B6871EB1F24 /* boss_attack_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 97AA9799F5C1A4B2048083D0 /* boss_attack_0.png */; };
+		D6A19CF8FDB4CD5E5BE2E4A4 /* GameIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817066D9EADABFED56DC2350 /* GameIntents.swift */; };
 		D6ACD7E6B7A7AEA798C91BA0 /* DiceDeterminismTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12665DAB8F210C780CB1C292 /* DiceDeterminismTests.swift */; };
 		D6D6AB3057618DE61477C05A /* ambient_rain.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 669E6869BD5BE3A4DB18BA33 /* ambient_rain.mp3 */; };
 		D6F1267452BC8281E4C79D67 /* tilesheet_3_r4c0.png in Resources */ = {isa = PBXBuildFile; fileRef = 1FA5E36D95C88E44854956ED /* tilesheet_3_r4c0.png */; };
@@ -1103,6 +1105,7 @@
 		30D0D0BDDF0A65857D502E03 /* tilesheet_2_r3c0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_2_r3c0.png; sourceTree = "<group>"; };
 		311149E3F964D1A5C2CD4870 /* m6_b.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = m6_b.mp3; sourceTree = "<group>"; };
 		31319A23956550DB3C7D2D0A /* tilesheet_2_r0c2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_2_r0c2.png; sourceTree = "<group>"; };
+		314D8FE0D2A7A8F59077B931 /* IntentFacadeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentFacadeTests.swift; sourceTree = "<group>"; };
 		31B56D85AD7CA63473574DF1 /* cipher_avatar_command_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cipher_avatar_command_0.png; sourceTree = "<group>"; };
 		326FBAF27BC1FEB5AE6485CB /* vargas_block_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vargas_block_0.png; sourceTree = "<group>"; };
 		32AE46AD1B5912BE2AC5C5E4 /* Mission006_room_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Mission006_room_2.png; sourceTree = "<group>"; };
@@ -1379,6 +1382,7 @@
 		8008B81BB467E496E25350D8 /* cipher_avatar_victory_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cipher_avatar_victory_0.png; sourceTree = "<group>"; };
 		80C638F924118CA5A7DA5FBC /* drone_walk_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = drone_walk_2.png; sourceTree = "<group>"; };
 		813082D9FA5FDC426CDE0DB9 /* face_walk_3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = face_walk_3.png; sourceTree = "<group>"; };
+		817066D9EADABFED56DC2350 /* GameIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameIntents.swift; sourceTree = "<group>"; };
 		81CC26D33879C02DDC48A971 /* flight_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = flight_2.png; sourceTree = "<group>"; };
 		821666E9D0B7F2D3C27B4D06 /* departing_1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = departing_1.png; sourceTree = "<group>"; };
 		822A62185F4A9F37807A728B /* slugger_walk_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = slugger_walk_2.png; sourceTree = "<group>"; };
@@ -2666,6 +2670,7 @@
 				3949BE82CD4CF9DDFE4D9718 /* DiceEngine.swift */,
 				7385CD590A171519D924E2F9 /* EnemyAI.swift */,
 				15D1F20EA7AC797A4D883DA2 /* ExtractionController.swift */,
+				817066D9EADABFED56DC2350 /* GameIntents.swift */,
 				2AEDCD972C086CF8A1360295 /* GameNotifications.swift */,
 				AB953BE33C58F956FF94A4A3 /* GameSessionState.swift */,
 				6632FA33E898A48011AD1C19 /* GameState.swift */,
@@ -2913,6 +2918,7 @@
 				508E01A554C4069BA47EED28 /* CombatMathTests.swift */,
 				12665DAB8F210C780CB1C292 /* DiceDeterminismTests.swift */,
 				D9AD747B0BB8EF1D9B2E4970 /* EconomyPersistenceTests.swift */,
+				314D8FE0D2A7A8F59077B931 /* IntentFacadeTests.swift */,
 				E56C142FB9005C31E924D0E2 /* ReplaySpawnTests.swift */,
 				37BD8879A1281B72455E8028 /* test_consequence_engine.swift */,
 				902D06260F6E82C1A8D2EBF2 /* TurnAuthorityTests.swift */,
@@ -3889,6 +3895,7 @@
 				8240484269AAA631B737BA88 /* CombatMathTests.swift in Sources */,
 				D6ACD7E6B7A7AEA798C91BA0 /* DiceDeterminismTests.swift in Sources */,
 				C9FA408FECDAD36F152480AF /* EconomyPersistenceTests.swift in Sources */,
+				7A9DC9A3D52BF85F0BEF1C11 /* IntentFacadeTests.swift in Sources */,
 				6A57386BA07A6F741EB724D8 /* ReplaySpawnTests.swift in Sources */,
 				76343F06BEB1C5203EEA0D13 /* TurnAuthorityTests.swift in Sources */,
 				FCED7472DF49F975BBFA0E8A /* test_consequence_engine.swift in Sources */,
@@ -3920,6 +3927,7 @@
 				F0CC1AA95E66DC5BC7D8B2BD /* EndingScene.swift in Sources */,
 				57B0FDEC716BCC14965CE1E5 /* EnemyAI.swift in Sources */,
 				18BED35ADFA6D9D2FE884EA7 /* ExtractionController.swift in Sources */,
+				D6A19CF8FDB4CD5E5BE2E4A4 /* GameIntents.swift in Sources */,
 				168F9DA50F76271EE7BB1E44 /* GameNotifications.swift in Sources */,
 				226F6E4E1EFB89AD0F294CA5 /* GameSessionState.swift in Sources */,
 				A3B25954D95C3B95A728ACE6 /* GameState.swift in Sources */,

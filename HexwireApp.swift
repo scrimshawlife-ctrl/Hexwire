@@ -2743,7 +2743,7 @@ struct CombatView: View {
                     gameState: gameState,
                     diagnosticsVisible: showDiagnostics,
                     onToggleDiagnostics: { showDiagnostics.toggle() },
-                    onAttack: { gameState.performAttack() },
+                    onAttack: { _ = gameState.requestAttack() },
                     onShoot: { gameState.performShoot() },
                     onOverwatch: { gameState.performOverwatch() },
                     onDefend: { gameState.performDefend() },

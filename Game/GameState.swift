@@ -2289,7 +2289,7 @@ final class GameState: ObservableObject {
     }
 
     func endTurn() {
-        TurnManager.requestTurnAdvance(gameState: self)
+        _ = requestEndTurn()
     }
 
     /// Check if combat is over
