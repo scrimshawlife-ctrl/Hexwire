@@ -46,8 +46,12 @@ reproducible seed) with zero call-site changes.
 
 ## Known intentional behaviors pinned by tests
 
-- Cramped-room spawn overflow **stacks runners on the anchor** (documented in
-  `findGroupSpawnSlots`); the test pins walkable-tiles-first + anchor-overflow.
+- Spawn overflow **spreads runners across the room's walkable tiles from the
+  entry edge** — top rows first when the entry point is in the top half,
+  bottom rows first when it's in the bottom half (owner-directed fix
+  2026-07-18; the old behavior stacked overflow runners on the anchor tile).
+  Anchor-stacking survives only as the absolute last resort when a room has
+  fewer walkable tiles than runners — unreachable in authored rooms.
 - Replay squad rerolls preserve authored positions/delays, stay within ±1 threat
   cost, never touch boss/unknown slots, and are seeded by (attemptId, roomId).
 - A duplicate mission-finalize signal is swallowed whole (no double payout).

@@ -45,27 +45,58 @@ final class ReplaySpawnTests: XCTestCase {
         }
     }
 
-    func testGroupSpawnSlotsOnCrampedMapUseAnchorOverflowDeterministically() {
-        // Documented fallback contract: when the room genuinely can't fit the
-        // team, every DISTINCT walkable tile is used first, and the remainder
-        // repeat the anchor (runners stack visually rather than spawning
-        // out-of-bounds or on walls).
-        let map = [[1, 0, 1], [1, 0, 1]]   // only two walkable tiles
+    func testOverflowRunnersSpreadFromBottomRowsWhenEnteringLow() {
+        // Entry point in the BOTTOM half, entry row nearly full: overflow
+        // runners must fan out across walkable tiles sweeping from the bottom
+        // rows up — never stack on the anchor.
+        let map = [
+            [0, 0, 0, 0, 0, 0],   // y0 — open top row (should be used LAST)
+            [1, 1, 1, 1, 1, 0],   // y1
+            [1, 1, 1, 1, 1, 1],   // y2
+            [0, 1, 1, 1, 1, 1],   // y3 — entry corner, isolated from its row
+        ]
+        let anchor = SpawnPoint(x: 0, y: 3)
+        let slots = MissionSetupService.findGroupSpawnSlots(map: map, anchor: anchor, count: 4)
+        XCTAssertEqual(slots.count, 4)
+        XCTAssertEqual(Set(slots.map { "\($0.x),\($0.y)" }).count, 4,
+                       "runners must spread out, not stack")
+        for p in slots {
+            XCTAssertEqual(map[p.y][p.x], 0, "every slot is walkable")
+        }
+        // Bottom-up sweep: the isolated y1 tile seats before any top-row tile.
+        XCTAssertTrue(slots.contains { $0.x == 5 && $0.y == 1 },
+                      "bottom-up sweep must reach (5,1) before falling back to the top row")
+        let again = MissionSetupService.findGroupSpawnSlots(map: map, anchor: anchor, count: 4)
+        XCTAssertEqual(again.map { "\($0.x),\($0.y)" }, slots.map { "\($0.x),\($0.y)" },
+                       "placement is deterministic")
+    }
+
+    func testOverflowRunnersSpreadAcrossTopRowWhenEnteringHigh() {
+        // Entry point in the TOP half with a blocked entry row: the overflow
+        // sweep starts at the top row so the team lines the entry edge.
+        let map = [
+            [0, 1, 1, 0, 0, 0],   // y0 — entry row, anchor isolated at x0
+            [1, 1, 1, 1, 1, 1],   // y1
+            [1, 1, 1, 1, 1, 1],   // y2
+            [0, 0, 0, 0, 0, 0],   // y3 — open bottom row (should NOT be used)
+        ]
+        let anchor = SpawnPoint(x: 0, y: 0)
+        let slots = MissionSetupService.findGroupSpawnSlots(map: map, anchor: anchor, count: 4)
+        XCTAssertEqual(Set(slots.map { "\($0.x),\($0.y)" }).count, 4, "no stacking")
+        XCTAssertTrue(slots.allSatisfy { $0.y == 0 },
+                      "entering from the top must seat the whole team on top-row tiles")
+    }
+
+    func testAbsoluteLastResortStacksOnlyWhenRoomIsSmallerThanTeam() {
+        // Fewer walkable tiles than runners: the two real tiles are used
+        // first; only the unseatable remainder repeats the anchor.
+        let map = [[1, 0, 1], [1, 0, 1]]
         let anchor = SpawnPoint(x: 1, y: 0)
         let slots = MissionSetupService.findGroupSpawnSlots(map: map, anchor: anchor, count: 4)
         XCTAssertEqual(slots.count, 4, "caller always receives a slot per runner")
-        for p in slots {
-            XCTAssertTrue(p.y >= 0 && p.y < 2 && p.x >= 0 && p.x < 3, "in bounds")
-            XCTAssertEqual(map[p.y][p.x], 0, "walls are never spawn slots, even in overflow")
-        }
-        let unique = Set(slots.map { "\($0.x),\($0.y)" })
-        XCTAssertEqual(unique, ["1,0", "1,1"], "both walkable tiles are used")
-        let overflow = slots.dropFirst(unique.count)
-        XCTAssertTrue(overflow.allSatisfy { $0.x == anchor.x && $0.y == anchor.y },
-                      "overflow runners stack on the anchor, deterministically")
-        // And the whole placement is reproducible.
-        let again = MissionSetupService.findGroupSpawnSlots(map: map, anchor: anchor, count: 4)
-        XCTAssertEqual(again.map { "\($0.x),\($0.y)" }, slots.map { "\($0.x),\($0.y)" })
+        for p in slots { XCTAssertEqual(map[p.y][p.x], 0, "never on a wall") }
+        XCTAssertEqual(Set(slots.map { "\($0.x),\($0.y)" }), ["1,0", "1,1"],
+                       "every distinct walkable tile is used before any repeat")
     }
 
     // MARK: - NG+ extra enemy placement
