@@ -1,190 +1,68 @@
-# plans.md
+# Current Mission
 
-## Active Mission
-Stabilize authority seams and eliminate workspace ambiguity so collaborators can ship deterministic gameplay changes safely.
+Ship-readiness: the stabilization campaign (WP0–WP10) is complete through WP9.
+The repo is a **stabilized vertical slice** — reproducible builds, hosted CI,
+94 deterministic tests, machine-certified missions, certified persistence,
+tightened authority seams, and a hygienic repository. Remaining work is the
+WP10 release-candidate gate plus the owner's device pass.
 
-## Handoff (2026-04-27 Mission 1 parity fix)
+# Current Verified Baseline
 
-**Branch:** `fix/combat-first-turn`
+- Every PR runs `hexwire-ci`: hygiene, XcodeGen 2.45.4 drift gate + full test
+  suite (pre-booted simulator), Debug/Release × iPhone/iPad builds, unsigned
+  archive. `main` is only advanced through green PRs.
+- 94 tests / 0 flaky: dice determinism (seed-injectable RNG), turn/authority
+  exactly-once guards, economy math, persistence + migrations (incl. the fixed
+  veteran-save decode bug), seeded replay rerolls, spawn placement, per-mission
+  end-to-end certification (all 6 missions: setup → every room → clear →
+  extract → payout → persist → defeat path).
+- Runtime smoke: all 6 missions autostart and render on iPhone 17 + iPad Pro
+  13" (M5) sims (`SR_AUTOSTART_MISSION_ID`).
+- Evidence lives in `docs/audit/` — start with `CurrentRepositoryBaseline.md`
+  and `MissionCertificationMatrix.md`.
 
-**Changed:**
-- Normalized `Mission001_multi.json` to the same 12-row by 7-column room footprint used by the working multi-room missions.
-- Moved Mission 1 player spawns, enemy spawns, door triggers, transition spawns, and final extraction point onto that working grid scale so BattleScene uses the same effective tile sizing and combatant presentation path.
+# Active Work Package
 
-**Pending:**
-- Fresh iPhone simulator/device visual pass to confirm Mission 1 now shows player sprites, enemy sprites, and board scale at parity with Missions 2-5.
+WP9 — Documentation Reset (this change). Then WP10: Release Candidate Gate.
 
-**Blocked:**
-- Full iOS build/runtime validation is `NOT_COMPUTABLE` here because simulator availability remains constrained in this environment.
+# Completed Work Packages
 
-**Next:**
-- Launch Mission 1 locally and compare room_0 against Mission 2 room_0 for visible runner/enemy silhouettes and equivalent board scale.
+| WP | Deliverable | Evidence |
+|---|---|---|
+| WP0 repo truth | canonical workspace, weight analysis | docs/audit/CurrentRepositoryBaseline.md, PR #19 |
+| WP1 clean build | 4 build legs from fresh DerivedData, zero-drift project | docs/audit/BuildBaselineReport.md, PR #20 |
+| WP2 test baseline | 43 new tests, DiceEngine seed seam, spawn-spread fix | docs/audit/TestCoverageMap.md, PR #21/#24 |
+| WP3 hosted CI | hexwire-ci workflow, 7 jobs green | .github/workflows/hexwire-ci.yml, PR #22/#24 |
+| WP4 authority seams | intent facade, zero direct mutations from presentation | docs/audit/GameStateAuthorityMutationLedger.md, PR #23/#24 |
+| WP5 decomposition | GameState −497 / CombatUI −1,775 lines, pure moves | docs/architecture/StabilizationExtractionMap.md, PR #26 |
+| WP6 mission certification | all 6 missions machine-certified + sim smoke | docs/audit/MissionCertificationMatrix.md, PR #25 |
+| WP7 persistence | upgrade data-loss bug found+fixed, 10/10 cases | docs/audit/PersistenceCertificationReport.md, PR #27 |
+| WP8 repo hygiene | 16 legacy branches deleted, evidence out of tree, LFS decision recorded | docs/audit/RepositoryWeightAndAssetReport.md, PR #28 |
 
-## Handoff (2026-04-27)
+# Open Blockers
 
-**Branch:** `fix/combat-first-turn`
+- Owner device pass (touch combat feel, VN/mini-game scenes, on-screen ranged
+  damage numbers, audio mix) — listed in MissionCertificationMatrix.md.
+- Ship-build config: flip `devUnlockAllMissions` to false (HexwireApp.swift)
+  when cutting a release candidate.
+- Git LFS adoption: deferred owner decision (costs in RepositoryWeightAndAssetReport.md).
 
-**Changed:**
-- Fixed combat camera instability by making viewport inset updates reframe only when HUD measurements actually change, instead of refocusing on every SwiftUI update.
-- Locked normal focus requests to the board-centered camera frame so selecting/turn changes no longer make the grid drift around during play.
-- Increased combatant readability with larger player/enemy sprite targets and high-contrast under-sprite outlines, keeping actors above tile art in Mission 1.
-- Zoomed the board modestly larger inside the HUD corridor so playable tiles occupy more of the screen.
+# Next Three Actions
 
-**Pending:**
-- Fresh iPhone simulator/device visual pass from Xcode to confirm the larger board framing and actor silhouettes on Aaron's Mission 1 extraction screenshot path.
+1. Run WP10: assemble the release-candidate gate report from the WP0–WP9
+   evidence and issue the verdict.
+2. Owner device pass on real iPad; file findings as issues.
+3. Decide LFS (or explicitly accept the ~1 GiB clone) before the next asset push.
 
-**Blocked:**
-- `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' -derivedDataPath /tmp/HexWireDerivedData build` is `NOT_COMPUTABLE` here: CoreSimulator is unavailable and no iPhone 16 simulator destination exists in this environment.
+# Validation Receipt
 
-**Next:**
-- Run Mission 1 on a local iPhone 16/17 simulator and verify the board stays fixed while selecting, moving, ending turns, and enemy phase animations run.
+Latest full validation: 94/94 tests green + all CI jobs green on every WP PR
+(#19–#28); see the hexwire-ci history on GitHub Actions for per-run receipts.
 
-## Handoff (2026-04-26 evening)
+# Handoff
 
-**Branch:** `fix/combat-first-turn`
-
-**Changed:**
-- Fixed runner readability by demoting `SpriteManager.createCharacter`'s presence badge into a low-profile under-sprite label, so loaded character/enemy PNG art remains the dominant visible layer above tile art and the board backplate.
-- Added a DEBUG camera overlay/log line with `scene.size`, `mapOrigin`, camera position/scale, HUD insets, map pixel size, and first player final scene position.
-- Tightened camera framing by using the unobscured top-banner/bottom-panel corridor for vertical camera clamping and by passing the measured bottom combat panel height instead of forcing it to at least 280pt.
-
-**Pending:**
-- Fresh simulator/device visual pass to confirm runner art and camera placement on the target tall-phone viewport.
-
-**Blocked:**
-- `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build` is `NOT_COMPUTABLE` here: the named simulator is unavailable and CoreSimulator/actool report no available simulator runtimes.
-
-**Next:**
-- Run a manual iPhone 16/17 simulator playtest in a local Xcode environment with working simulator runtimes and compare the DEBUG overlay values against the visible HUD corridor.
-
-## Handoff (2026-04-23 evening — open to Danny)
-
-**Branch:** `fix/combat-first-turn` — PR open against `main` on `scrimshawlife-ctrl/HexWire`.
-
-**Playtest status (iPhone 17 Pro simulator, iOS 26.4) after `d041228` + camera-inset patch:**
-- P1 — Hex grid renders, but **character and enemy sprites are not visibly identifiable on their tiles**. Only partial colored glyphs read as runners. Root cause not fully isolated; likely interaction between the new board backplate / scanline layer, `SpriteManager.createCharacter`'s presence-badge hierarchy, and container `zPosition = 40`.
-- P1 — **Camera framing still wrong**. The HEAD commit restores HUD-inset compensation in `applyCameraScale` / `positionCameraOnMap` / `focusCamera(on:y:)`, but Aaron's 20:33 MDT playtest still shows the grid mispositioned relative to the strip between the top objective banner and bottom combat panel. More tuning needed — likely interaction with `scaleMode = .aspectFit`, `fitSceneToView()` writing `self.size = view.bounds.size` after `presentScene`, and `updateViewportInsets` only triggering on change > 0.5pt.
-- P2 — Mission briefing overflow and HUD density were addressed in `d041228` and need a fresh pass once the combat board renders correctly.
-
-**What shipped in this branch:**
-- `d041228` (Forge): unblock first turn, replace debug marker overlays with SpriteManager characters, opaque briefing backdrop, tighter CombatUI.
-- HEAD: re-add HUD-aware scale + `verticalBias` so the camera lands in the middle of the unobscured strip.
-
-**Blocked on:**
-- Xcode + physical playtest loop — sim screenshots alone aren't enough to iterate on board/sprite z-order. CLI tap automation isn't wired in this env, so handoff assumes Danny drives the sim manually.
-
-**Next suggested moves:**
-1. Drop a debug overlay that prints `scene.size`, `mapOrigin`, `cam.position`, `scale`, `topHUDInset`, `bottomHUDInset`, and the first character's final scene position — so the framing math can be diffed against a known-good baseline.
-2. Audit `SpriteManager.createCharacter`'s spritesheet lookup (`playerIdleTextures[archKey]`). Confirm whether the procedural fallback path is firing and whether fallback sprites actually sit above the tile layer + backplate.
-3. If framing keeps regressing on tall phones, consider reverting to the v17-style oversized "guaranteed visible" character container (`makeCharacterVisual`) as a short-term unblock and iterating from there.
-
-## Current State Snapshot (2026-04-23)
-- `GameState` remains gameplay authority for turn/missions/outcomes.
-- Rendering/UI are functional projections, but `BattleScene` still contains broad direct writes into authority state.
-- Duplicate nested workspace (`./HexWire/`) is still present and is the highest operational hygiene risk.
-- Container validation remains constrained: no `swift` or `xcodebuild` toolchains.
-
-## Priority Queue
-
-### P0 — Repository Source-of-Truth Hygiene
-- Choose and document one canonical workspace path.
-- Remove/archive or hard-exclude duplicate nested repo from day-to-day collaboration flow.
-- Prevent accidental cross-repo edits and commits.
-
-### P1 — Authority Seam Tightening
-- Reduce direct `GameState.shared` field mutation in rendering code.
-- Introduce intent-level façade calls for scene-triggered state transitions.
-- Preserve deterministic turn and mission state progression.
-
-### P2 — Validation Baseline
-- Run macOS simulator build and smoke plan (`NOT_COMPUTABLE` in current container).
-- Record pass/fail artifact for Survive and Eliminate mission types.
-
-### P3 — Playability + Feedback Expansion
-- Continue pressure/trace clarity tuning only after P0–P2 are stabilized.
-- Keep new mechanics additive via existing shared systems, not forks.
-
-## Decision Log
-- Preserve `GameState` as singular gameplay authority.
-- Treat repository path ambiguity as a production risk, not just cleanup debt.
-- Favor small, reviewable seam-tightening changes over broad rewrites.
-
-## Handoff Checklist (for next collaborator)
-1. Read `README.md`, `AGENTS.md`, and `docs/RepoAudit.md`.
-2. Confirm you are editing the canonical workspace only.
-3. Ship one focused P0 or P1 change.
-4. Update this file and include:
-   - what was completed
-   - what moved in priority
-   - what is blocked (`NOT_COMPUTABLE` where applicable)
-
-## Known Constraints
-- Container cannot execute Swift/iOS toolchain commands (`swift`, `xcodebuild`).
-- Full compile/runtime validation must be run on macOS with Xcode.
-
-## Next Suggested Move
-Create a focused hygiene PR that formally marks the canonical workspace and prevents accidental edits inside the nested duplicate tree.
-
-## Recommended Next Steps (Review: 2026-04-24)
-
-### Changed
-- Consolidated immediate execution guidance into a sequenced plan that starts with repository hygiene, then authority-seam refactors, then macOS validation.
-
-### Pending
-- Canonical workspace decision is still not codified in-repo (`CONTRIBUTING` or guardrails like `.gitignore`/CI checks).
-- `BattleScene` still performs direct authority writes that should move behind intent-level `GameState` APIs.
-- Mission smoke validation for both mission types remains unrecorded on macOS.
-
-### Blocked
-- iOS build/simulator verification is **NOT_COMPUTABLE** in this container because `xcodebuild` is unavailable.
-
-### Next (Explicit Execution Sequence)
-1. **Run 1 — P0 Hygiene PR (first):**
-   - Define canonical workspace path in docs (`README.md` + `plans.md` or `CONTRIBUTING.md` if added).
-   - Add guardrails preventing accidental nested-tree edits (for example: `.gitignore`, repo note, or CI/path lint if available).
-   - Record the exact files changed and the reason each file was touched.
-2. **Run 2 — P1 Authority PR (second):**
-   - Pick one high-frequency `BattleScene` mutation path into `GameState.shared`.
-   - Replace it with one intent-level `GameState` façade API call.
-   - Document before/after authority ownership in a short audit note under `docs/`.
-3. **Run 3 — P2 Validation artifact (third):**
-   - On macOS, run:
-     - `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build`
-   - Execute Survive + Eliminate smoke checks from `docs/SmokeTestPlan.md`.
-   - Save dated evidence to `docs/audit/SimulatorValidationReport.md`.
-4. **Run 4 — Handoff closeout:**
-   - Update this `plans.md` section with completed/pending/blocked/next.
-   - Call out remaining risks and the single highest-leverage follow-up action.
-
-### After First Run (Mandatory Explicit Report)
-After Run 1, post a complete status block using this exact shape so collaborators can see the full state without inference:
-
-- **Run Scope:** (what was attempted)
-- **Files Changed:** (explicit path list)
-- **Commands Executed:** (explicit command list, in order)
-- **Artifacts Produced:** (docs/reports/commits)
-- **Pass/Fail by Check:** (each check with outcome)
-- **Blocked:** (`NOT_COMPUTABLE` items with reason)
-- **Next Run Entry Conditions:** (what must be true before Run 2 starts)
-
-## Notion Sync (2026-04-24)
-
-Use this as the canonical payload when updating the Notion project tracker so repo state and planning state stay aligned.
-
-### Notion Fields
-- **Title:** HexWire — Execution Ladder (P0→P2)
-- **Date:** 2026-04-24
-- **Status:** In Progress
-- **Current Run:** Run 1 (P0 Hygiene)
-- **Priority:** P0
-- **Blocked:** `NOT_COMPUTABLE` for iOS build/simulator in container (requires macOS + Xcode)
-- **Source of Truth:** `plans.md`
-
-### Notion Update Body (Copy/Paste)
-- **Changed:** Sequenced runbook now explicit (Run 1–Run 4) with required outputs per run.
-- **Pending:** Canonical workspace guardrails, one authority seam refactor path, and macOS validation artifact.
-- **Blocked:** `xcodebuild` unavailable in container; simulator build must run on macOS.
-- **Next:** Execute Run 1 and publish mandatory explicit report (scope/files/commands/artifacts/pass-fail/blocked/entry conditions).
-
-### Sync Rule
-- Every time `plans.md` changes priority, run number, or blocked state, update Notion in the same work session before handoff.
+Read `AGENTS.md` for workflow rules. The most important invariants: GameState
+is the only authority (presentation emits intents via `Game/GameIntents.swift`),
+run `xcodegen generate` after any file add/remove, and nothing merges without
+green CI. Historical handoffs live in `docs/archive/` — they describe past
+states; do not act on them.
