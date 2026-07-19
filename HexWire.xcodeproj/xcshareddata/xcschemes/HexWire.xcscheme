@@ -15,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
+               BlueprintIdentifier = "8D35553639911A4428226142"
                BuildableName = "HexWire.app"
                BlueprintName = "HexWire"
                ReferencedContainer = "container:HexWire.xcodeproj">
@@ -32,7 +32,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
+            BlueprintIdentifier = "8D35553639911A4428226142"
             BuildableName = "HexWire.app"
             BlueprintName = "HexWire"
             ReferencedContainer = "container:HexWire.xcodeproj">
@@ -44,7 +44,7 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "77633622560624EF3CFF73CD"
+               BlueprintIdentifier = "96CD639027A3B564560879FF"
                BuildableName = "HexWireTests.xctest"
                BlueprintName = "HexWireTests"
                ReferencedContainer = "container:HexWire.xcodeproj">
@@ -68,7 +68,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
+            BlueprintIdentifier = "8D35553639911A4428226142"
             BuildableName = "HexWire.app"
             BlueprintName = "HexWire"
             ReferencedContainer = "container:HexWire.xcodeproj">
@@ -87,7 +87,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "234CC8E6B78DC9FA287A04BB"
+            BlueprintIdentifier = "8D35553639911A4428226142"
             BuildableName = "HexWire.app"
             BlueprintName = "HexWire"
             ReferencedContainer = "container:HexWire.xcodeproj">
