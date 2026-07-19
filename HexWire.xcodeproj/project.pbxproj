@@ -216,6 +216,7 @@
 		331ADF7C05AB51794D6ADB15 /* bodyguard_blocklow_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 4B892A104C4E443E4AB463D7 /* bodyguard_blocklow_0.png */; };
 		331F3361A9E3F196978E924D /* face_walk_1.png in Resources */ = {isa = PBXBuildFile; fileRef = B8E8B2B48AF7D92E6377360E /* face_walk_1.png */; };
 		338343FF4230CE8EE88B521F /* vargas_phase2_attack.png in Resources */ = {isa = PBXBuildFile; fileRef = B4C745D6DA58B87F29C07242 /* vargas_phase2_attack.png */; };
+		33EA2F7D2B78579224240336 /* PersistenceCertificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C177BD4B62002EC7E424852 /* PersistenceCertificationTests.swift */; };
 		3431A59D072448C76732B987 /* cipherwall_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 2B83D6BF1F492E7429DA5B7F /* cipherwall_idle_0.png */; };
 		34B57909D12E341A96490CF2 /* shopicon_stim.png in Resources */ = {isa = PBXBuildFile; fileRef = 64223882DC4E4554A135DEDE /* shopicon_stim.png */; };
 		350FED27EA7E2D8A6202F794 /* vfx_micro_flicker_05.png in Resources */ = {isa = PBXBuildFile; fileRef = 479B49FCA64B8398B080D06E /* vfx_micro_flicker_05.png */; };
@@ -1319,6 +1320,7 @@
 		6B3A1EBD7D7E9E19DAB5A64F /* bossagi_walk_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bossagi_walk_0.png; sourceTree = "<group>"; };
 		6B49E25D8FF81E59F9319793 /* vfx_blood_stream_03.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_blood_stream_03.png; sourceTree = "<group>"; };
 		6B8752F5DCD6A78FFF2B0916 /* armor_block.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = armor_block.mp3; sourceTree = "<group>"; };
+		6C177BD4B62002EC7E424852 /* PersistenceCertificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceCertificationTests.swift; sourceTree = "<group>"; };
 		6C26B03AD2A17F37806A123C /* vfx_aztech_gold_05.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_aztech_gold_05.png; sourceTree = "<group>"; };
 		6C62254D908281214C1DC17E /* Mission004_room_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Mission004_room_0.png; sourceTree = "<group>"; };
 		6C7EA959DD41900C6DDBE86F /* Mission004_room_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Mission004_room_2.png; sourceTree = "<group>"; };
@@ -2937,6 +2939,7 @@
 				D9AD747B0BB8EF1D9B2E4970 /* EconomyPersistenceTests.swift */,
 				314D8FE0D2A7A8F59077B931 /* IntentFacadeTests.swift */,
 				2C02C09D2C87FE4FB8E44805 /* MissionCertificationTests.swift */,
+				6C177BD4B62002EC7E424852 /* PersistenceCertificationTests.swift */,
 				E56C142FB9005C31E924D0E2 /* ReplaySpawnTests.swift */,
 				37BD8879A1281B72455E8028 /* test_consequence_engine.swift */,
 				902D06260F6E82C1A8D2EBF2 /* TurnAuthorityTests.swift */,
@@ -3915,6 +3918,7 @@
 				C9FA408FECDAD36F152480AF /* EconomyPersistenceTests.swift in Sources */,
 				7A9DC9A3D52BF85F0BEF1C11 /* IntentFacadeTests.swift in Sources */,
 				9328711035603ACA20F974B8 /* MissionCertificationTests.swift in Sources */,
+				33EA2F7D2B78579224240336 /* PersistenceCertificationTests.swift in Sources */,
 				6A57386BA07A6F741EB724D8 /* ReplaySpawnTests.swift in Sources */,
 				76343F06BEB1C5203EEA0D13 /* TurnAuthorityTests.swift in Sources */,
 				FCED7472DF49F975BBFA0E8A /* test_consequence_engine.swift in Sources */,
