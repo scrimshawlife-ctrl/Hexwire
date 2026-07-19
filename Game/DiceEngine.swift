@@ -35,6 +35,14 @@ struct DiceEngine {
     ///   - tn: Target Number to beat (each 5 or 6 = 1 hit)
     /// - Returns: RollResult with hits, glitch flags, and full roll breakdown
     static func roll(pool: Int, tn: Int = 4) -> RollResult {
+        var rng = SystemRandomNumberGenerator()
+        return roll(pool: pool, tn: tn, using: &rng)
+    }
+
+    /// Seed-injectable variant of `roll` — same rules, but every die comes
+    /// from the caller's RandomNumberGenerator, so a fixed generator produces
+    /// a fully reproducible RollResult (deterministic tests, future replays).
+    static func roll<G: RandomNumberGenerator>(pool: Int, tn: Int = 4, using rng: inout G) -> RollResult {
         guard pool > 0 else {
             return RollResult(hits: 0, glitch: false, criticalGlitch: false, rolls: [], originalPool: 0, netHits: 0)
         }
@@ -44,7 +52,7 @@ struct DiceEngine {
         var ones = 0
 
         // First roll
-        let firstRolls = rollDice(count: pool)
+        let firstRolls = rollDice(count: pool, using: &rng)
         allRolls.append(contentsOf: firstRolls)
 
         // Count hits and ones, collect 6s for exploding
@@ -65,7 +73,7 @@ struct DiceEngine {
         while !sixesToReroll.isEmpty {
             let rerollCount = sixesToReroll.count
             sixesToReroll.removeAll()
-            let rerolls = rollDice(count: rerollCount)
+            let rerolls = rollDice(count: rerollCount, using: &rng)
             allRolls.append(contentsOf: rerolls)
             for roll in rerolls {
                 if roll >= 5 {
@@ -109,8 +117,14 @@ struct DiceEngine {
     /// Opposed roll: attacker pool vs defender pool
     /// Net hits = attacker's hits - defender's hits
     static func opposedRoll(attackerPool: Int, defenderPool: Int, tn: Int = 4) -> RollResult {
-        let attackRoll = roll(pool: attackerPool, tn: tn)
-        let defenseRoll = roll(pool: defenderPool, tn: tn)
+        var rng = SystemRandomNumberGenerator()
+        return opposedRoll(attackerPool: attackerPool, defenderPool: defenderPool, tn: tn, using: &rng)
+    }
+
+    /// Seed-injectable variant of `opposedRoll` (see `roll(pool:tn:using:)`).
+    static func opposedRoll<G: RandomNumberGenerator>(attackerPool: Int, defenderPool: Int, tn: Int = 4, using rng: inout G) -> RollResult {
+        let attackRoll = roll(pool: attackerPool, tn: tn, using: &rng)
+        let defenseRoll = roll(pool: defenderPool, tn: tn, using: &rng)
 
         let netHits = max(0, attackRoll.hits - defenseRoll.hits)
         let criticalGlitch = attackRoll.criticalGlitch
@@ -135,11 +149,11 @@ struct DiceEngine {
     // MARK: - Private Helpers
 
     /// Roll `count` d6 dice, returning array of results
-    private static func rollDice(count: Int) -> [Int] {
+    private static func rollDice<G: RandomNumberGenerator>(count: Int, using rng: inout G) -> [Int] {
         var results: [Int] = []
         results.reserveCapacity(count)
         for _ in 0..<count {
-            results.append(Int.random(in: 1...6))
+            results.append(Int.random(in: 1...6, using: &rng))
         }
         return results
     }
@@ -159,6 +173,12 @@ struct DiceEngine {
     /// Returns number of damage actually soaked
     static func soakRoll(pool: Int, tn: Int = 4) -> (soaked: Int, rolls: [Int]) {
         let result = roll(pool: pool, tn: tn)
+        return (soaked: result.hits, rolls: result.rolls)
+    }
+
+    /// Seed-injectable variant of `soakRoll` (see `roll(pool:tn:using:)`).
+    static func soakRoll<G: RandomNumberGenerator>(pool: Int, tn: Int = 4, using rng: inout G) -> (soaked: Int, rolls: [Int]) {
+        let result = roll(pool: pool, tn: tn, using: &rng)
         return (soaked: result.hits, rolls: result.rolls)
     }
 }

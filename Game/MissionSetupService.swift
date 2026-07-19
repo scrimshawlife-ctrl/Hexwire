@@ -606,8 +606,26 @@ struct MissionSetupService {
             if picked.contains(where: { $0.x == cand.x && $0.y == cand.y }) { continue }
             picked.append(cand)
         }
-        // Fallback: if we somehow can't find enough walkable tiles, repeat the
-        // anchor (caller can still play, characters just stack visually).
+        // Fallback: the entry row + BFS ring couldn't seat the team. Spread
+        // the remainder across the room's walkable tiles, sweeping from the
+        // row band nearest the ENTRY point — entering high fills from the top
+        // row down, entering low fills from the bottom row up — so runners
+        // fan out along the entry edge instead of stacking on the anchor.
+        if picked.count < count {
+            let entersFromTop = anchor.y <= (map.count - 1) / 2
+            let rowOrder = entersFromTop ? Array(map.indices) : Array(map.indices.reversed())
+            for y in rowOrder {
+                guard picked.count < count else { break }
+                for x in map[y].indices where picked.count < count {
+                    if isWalkable(x, y) && !picked.contains(where: { $0.x == x && $0.y == y }) {
+                        picked.append(SpawnPoint(x: x, y: y))
+                    }
+                }
+            }
+        }
+        // Absolute last resort: the room has fewer walkable tiles than
+        // runners — repeat the anchor (caller can still play, characters
+        // stack visually). Unreachable in authored rooms.
         while picked.count < count {
             picked.append(SpawnPoint(x: anchor.x, y: anchor.y))
         }

@@ -900,9 +900,7 @@ final class BattleScene: SKScene {
             SKAction.wait(forDuration: totalDuration),
             SKAction.run { [weak self] in
                 guard let self = self else { return }
-                GameState.shared.extractionAnimationInProgress = false
-                NotificationCenter.default.post(name: .extractionAnimationCompleted, object: nil)
-                CombatFlowController.finalizeExtractionAfterAnimation(gameState: GameState.shared)
+                _ = GameState.shared.requestExtractionSequenceCompleted()
                 self.playerInputLocked = false
             }
         ]))
@@ -933,9 +931,7 @@ final class BattleScene: SKScene {
             SKAction.wait(forDuration: totalDuration),
             SKAction.run { [weak self] in
                 guard let self = self else { return }
-                GameState.shared.extractionAnimationInProgress = false
-                NotificationCenter.default.post(name: .extractionAnimationCompleted, object: nil)
-                CombatFlowController.finalizeExtractionAfterAnimation(gameState: GameState.shared)
+                _ = GameState.shared.requestExtractionSequenceCompleted()
                 self.playerInputLocked = false
             }
         ]))
@@ -982,9 +978,7 @@ final class BattleScene: SKScene {
             SKAction.wait(forDuration: totalDuration),
             SKAction.run { [weak self] in
                 guard let self = self else { return }
-                GameState.shared.extractionAnimationInProgress = false
-                NotificationCenter.default.post(name: .extractionAnimationCompleted, object: nil)
-                CombatFlowController.finalizeExtractionAfterAnimation(gameState: GameState.shared)
+                _ = GameState.shared.requestExtractionSequenceCompleted()
                 self.playerInputLocked = false
             }
         ])
@@ -1224,7 +1218,7 @@ final class BattleScene: SKScene {
         // Belt-and-suspenders reset of per-room first-kill state at the
         // earliest point of the transition, in case loadRoom's later reset is
         // shadowed by any state leak through async paths.
-        GameState.shared.firstKillProcessedInRoom = false
+        GameState.shared.resetFirstKillTracking()
 
         // Determine spawn position for this transition. Per playtest spec
         // 2026-05-23: spawn must always reflect which DOOR the party came
@@ -1330,81 +1324,15 @@ final class BattleScene: SKScene {
                 }
             }
         }
-        // Place the squad NOW that the on-board (delay-0) enemies exist: lay
-        // them HORIZONTALLY along the entry row (door target-spawn row),
-        // walking right then left, avoiding enemy hexes. Keeps them in a clean
-        // line on the back/entry row instead of scattering or overlapping.
-        if spawnX >= 0 {
-            let enemyTiles = Set(newEnemies.map { "\($0.positionX),\($0.positionY)" })
-            let livingIdx = GameState.shared.playerTeam.indices.filter { GameState.shared.playerTeam[$0].isAlive }
-            let slots = MissionSetupService.findGroupSpawnSlots(
-                map: targetRoom.map,
-                anchor: SpawnPoint(x: spawnX, y: spawnY),
-                count: livingIdx.count,
-                occupied: enemyTiles)
-            for (n, i) in livingIdx.enumerated() {
-                let p = slots[n]
-                GameState.shared.playerTeam[i].positionX = p.x
-                GameState.shared.playerTeam[i].positionY = p.y
-                dlog("Room transition: char=\(GameState.shared.playerTeam[i].name) x=\(p.x) y=\(p.y)")
-            }
-        }
-
-        // New Game+ extra enemies for this room (placed on free floor tiles).
-        // Only for uncleared rooms — a cleared room stays empty on re-entry.
-        if !RoomManager.shared.isRoomCleared(targetRoom.id) {
-            // Avoid the delay-0 enemies, queued spawns, AND the runners'
-            // ACTUAL placed tiles (the old code only reserved the room's
-            // default playerSpawn, so an NG+ extra could land on a runner).
-            let ngOccupied = Set(
-                newEnemies.map { "\($0.positionX),\($0.positionY)" }
-                + newPendingSpawns.map { "\($0.enemy.positionX),\($0.enemy.positionY)" }
-                + GameState.shared.playerTeam.filter { $0.isAlive }.map { "\($0.positionX),\($0.positionY)" }
-            )
-            newEnemies.append(contentsOf: MissionSetupService.ngPlusExtraEnemies(
-                gameState: GameState.shared, map: targetRoom.map, occupied: ngOccupied))
-        }
-        GameState.shared.enemies = newEnemies
-        GameState.shared.pendingSpawns = newPendingSpawns
-
-        RoomManager.shared.completeTransition(to: targetRoom)
-
-        // Sync GameState's current room ID
-        GameState.shared.currentRoomId = targetRoom.id
-
-        // Recompute extraction objective for the room we just entered.
-        // Priority:
-        // 1) explicit room extractionPoint
-        // 2) extraction tile embedded in map
-        // 3) first room connection trigger tile (fallback objective)
-        if let extraction = targetRoom.extractionPoint {
-            GameState.shared.extractionX = extraction.x
-            GameState.shared.extractionY = extraction.y
-            if RoomManager.shared.isExtractionActive(in: targetRoom) {
-                GameState.shared.addLog("Extraction active at (\(extraction.x), \(extraction.y))")
-            } else {
-                GameState.shared.addLog("Clear this room to activate extraction.")
-            }
-        } else if let mapExtraction = firstExtractionTile(in: targetRoom.map) {
-            GameState.shared.extractionX = mapExtraction.x
-            GameState.shared.extractionY = mapExtraction.y
-            if RoomManager.shared.isExtractionActive(in: targetRoom) {
-                GameState.shared.addLog("Extraction active at (\(mapExtraction.x), \(mapExtraction.y))")
-            } else {
-                GameState.shared.addLog("Clear this room to activate extraction.")
-            }
-        } else if let firstConn = targetRoom.connections.first {
-            GameState.shared.extractionX = firstConn.triggerTileX
-            GameState.shared.extractionY = firstConn.triggerTileY
-            GameState.shared.addLog("Find a way through to: \(firstConn.targetRoomId)")
-        }
-
-        // Update tiles for enemy pathfinding
-        GameState.shared.updateTilesForCurrentRoom(targetRoom.map)
-        // targetRoom.map is fresh from JSON — re-flatten any cover the player
-        // already destroyed in this room (barrels/crates), so cover math and
-        // walkability keep reading the destroyed state on re-entry.
-        GameState.shared.applyDestroyedCoverToCurrentTiles(roomId: targetRoom.id)
+        // WP4 seam: the scene CONSTRUCTS the room's authored spawn lists
+        // above; every gameplay mutation (squad placement, NG+ extras,
+        // roster swap, room bookkeeping, extraction objective, live tile
+        // map) happens inside authority. Render from GameState after this.
+        GameState.shared.applyRoomEntry(
+            to: targetRoom,
+            enemies: newEnemies,
+            pendingSpawns: newPendingSpawns,
+            spawnAnchor: spawnX >= 0 ? SpawnPoint(x: spawnX, y: spawnY) : nil)
 
         // Clear stale door-open state from previous room
         openedDoorKeys.removeAll()
@@ -1415,7 +1343,9 @@ final class BattleScene: SKScene {
 
         // Reload the room with living characters only; downed runners remain in
         // playerTeam for roster/history but are not active room participants.
-        loadRoom(targetRoom, characters: GameState.shared.livingPlayers, enemies: newEnemies)
+        // Render the roster the authority actually installed (includes NG+
+        // extras appended inside applyRoomEntry) — not the scene's local list.
+        loadRoom(targetRoom, characters: GameState.shared.livingPlayers, enemies: GameState.shared.enemies)
 
         // Start a fresh round in the new room
         GameState.shared.beginRound()
@@ -3213,10 +3143,9 @@ final class BattleScene: SKScene {
     /// Reload the scene with a new room's map after a transition fade completes.
     func loadRoom(_ room: Room, characters: [Character], enemies: [Enemy]) {
         currentRoomId = room.id
-        GameState.shared.currentRoomId = room.id
-        // Reset per-room first-kill tracking so the new room's
-        // `removeOnFirstKill` barriers will fire on the next kill.
-        GameState.shared.firstKillProcessedInRoom = false
+        // Sync authority room state (room id + per-room first-kill tracking
+        // so the new room's `removeOnFirstKill` barriers fire on next kill).
+        GameState.shared.syncRoomLoaded(roomId: room.id)
         // Re-arm the "Jack in and hack the terminal" warning. Stale
         // confirmations from the previous room shouldn't bypass the warning
         // in a new room that also has a terminal.
@@ -3773,9 +3702,7 @@ final class BattleScene: SKScene {
             if GameState.shared.activeCharacterId != nil || GameState.shared.selectedCharacterId != nil {
                 if let enemyId = UUID(uuidString: enemySprite.enemyId),
                    !enemySprite.enemyId.isEmpty,
-                   let enemy = GameState.shared.enemies.first(where: { $0.id == enemyId && $0.isAlive }) {
-                    GameState.shared.targetCharacterId = enemyId
-                    GameState.shared.addLog("🎯 Targeting: \(enemy.name) — tap ATK / SHT / HACK to fire.")
+                   GameState.shared.requestTargetSelection(enemyId: enemyId).isAccepted {
                     showTargetRing(for: enemyId)
                 } else {
                     GameState.shared.addLog("Cannot target this enemy.")
@@ -3803,8 +3730,7 @@ final class BattleScene: SKScene {
         let charId = charEntry.key
         guard GameState.shared.playerTeam.contains(where: { $0.id == charId && $0.isAlive }) else {
             deselectCurrent()
-            GameState.shared.selectedCharacterId = nil
-            GameState.shared.activeCharacterId = nil
+            _ = GameState.shared.requestSelectionCleared()
             return
         }
 
@@ -3864,7 +3790,7 @@ final class BattleScene: SKScene {
             }
             // Movement consumes the character's player turn. A turn is move OR action.
             animateCharacterMove(characterId: charId, toTileX: tileX, toTileY: tileY)
-            GameState.shared.moveCharacter(id: charId, toTileX: tileX, toTileY: tileY)
+            _ = GameState.shared.requestMove(unitID: charId, toTileX: tileX, toTileY: tileY)
             sprite.tileX = tileX
             sprite.tileY = tileY
             sprite.zPosition = playerDepthZ(forSprite: sprite)
@@ -3962,7 +3888,7 @@ final class BattleScene: SKScene {
                 return
             }
             animateCharacterMove(characterId: charId, toTileX: tileX, toTileY: tileY)
-            GameState.shared.moveCharacter(id: charId, toTileX: tileX, toTileY: tileY)
+            _ = GameState.shared.requestMove(unitID: charId, toTileX: tileX, toTileY: tileY)
             sprite.tileX = tileX
             sprite.tileY = tileY
             sprite.zPosition = playerDepthZ(forSprite: sprite)

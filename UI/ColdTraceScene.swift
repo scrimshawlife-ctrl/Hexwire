@@ -1666,7 +1666,7 @@ struct ColdTraceScene: View {
             // this it credited the data bonus in the stats store but still
             // showed "✗ DATA MISSED" and omitted the bonus from the on-screen
             // total. The Neural Imprint IS the objective of this run.
-            GameState.shared.dataAcquired = true
+            _ = GameState.shared.requestObjectiveDataAcquired(source: "coldtrace")
             // Flawless dive bonus — slipping the whole run without ever giving
             // the system a lock is the skill ceiling the trace meter creates.
             let flawless = (traceLockCount == 0) ? 250 : 0

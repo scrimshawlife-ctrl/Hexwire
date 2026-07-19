@@ -1560,9 +1560,10 @@ struct MirrorlineScene: View {
         if win {
             HapticsManager.shared.victory()
             SFXManager.shared.play("mission_victory")
-            // Set the live flag the debrief reads so it shows "✓ DATA RECOVERED"
-            // (+ counts the bonus) instead of a false "✗ DATA MISSED".
-            GameState.shared.dataAcquired = true
+            // Report the objective to authority so the debrief shows
+            // "✓ DATA RECOVERED" (+ counts the bonus) instead of a false
+            // "✗ DATA MISSED".
+            _ = GameState.shared.requestObjectiveDataAcquired(source: "mirrorline")
             let score = 300 + playerHP * 50 + 400
             MissionStatsStore.shared.recordVictory(
                 missionId: "Mission002_5",
