@@ -5,3 +5,7 @@ build/
 DerivedData/
 *.ipa
 *.dSYM.zip
+
+# Evidence/scratch — keep out of the source tree (WP8 asset policy)
+screenshots/
+*.log
