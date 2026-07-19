@@ -531,6 +531,7 @@
 		92AD5B82717C92CF8221A858 /* Mission004_room_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 6C62254D908281214C1DC17E /* Mission004_room_0.png */; };
 		92D50350BB8479827CBB17B0 /* shopicon_reaction_enhancer.png in Resources */ = {isa = PBXBuildFile; fileRef = 4E7D297BBAE04D9D8199F34A /* shopicon_reaction_enhancer.png */; };
 		93254364FB890A98EEFCA63A /* bosscorp_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 6892A1FB26E2C8D0E036CAE0 /* bosscorp_idle_0.png */; };
+		9328711035603ACA20F974B8 /* MissionCertificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C02C09D2C87FE4FB8E44805 /* MissionCertificationTests.swift */; };
 		9380D719A420E7E822FC6654 /* NeonLotusScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EB18125D987A4E8399B466 /* NeonLotusScene.swift */; };
 		93A37ED3E088A8B815DBD41B /* prologue_lotus.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 690EC2555268B6B9CB12B855 /* prologue_lotus.mp3 */; };
 		93ACB08EA28093C0160199FA /* face_walk_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 63A0BD38FEDE1E73F2F95015 /* face_walk_0.png */; };
@@ -1085,6 +1086,7 @@
 		2B8A2D7A0654E1CFA5AE1021 /* bossmage_walk_3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bossmage_walk_3.png; sourceTree = "<group>"; };
 		2BA9E8CF6149D9785C3CE204 /* slugger_hit_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = slugger_hit_0.png; sourceTree = "<group>"; };
 		2BCE6FC38001E7757725C41B /* Mission003_room_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Mission003_room_2.png; sourceTree = "<group>"; };
+		2C02C09D2C87FE4FB8E44805 /* MissionCertificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissionCertificationTests.swift; sourceTree = "<group>"; };
 		2C04EA9775A92DDCE0F17D5A /* corpmage_walk_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = corpmage_walk_2.png; sourceTree = "<group>"; };
 		2C374EEC292CE48E2B34AFED /* mech_walk_3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = mech_walk_3.png; sourceTree = "<group>"; };
 		2CED923405C08EEC151F4205 /* sable_astral_cast_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = sable_astral_cast_0.png; sourceTree = "<group>"; };
@@ -2919,6 +2921,7 @@
 				12665DAB8F210C780CB1C292 /* DiceDeterminismTests.swift */,
 				D9AD747B0BB8EF1D9B2E4970 /* EconomyPersistenceTests.swift */,
 				314D8FE0D2A7A8F59077B931 /* IntentFacadeTests.swift */,
+				2C02C09D2C87FE4FB8E44805 /* MissionCertificationTests.swift */,
 				E56C142FB9005C31E924D0E2 /* ReplaySpawnTests.swift */,
 				37BD8879A1281B72455E8028 /* test_consequence_engine.swift */,
 				902D06260F6E82C1A8D2EBF2 /* TurnAuthorityTests.swift */,
@@ -3896,6 +3899,7 @@
 				D6ACD7E6B7A7AEA798C91BA0 /* DiceDeterminismTests.swift in Sources */,
 				C9FA408FECDAD36F152480AF /* EconomyPersistenceTests.swift in Sources */,
 				7A9DC9A3D52BF85F0BEF1C11 /* IntentFacadeTests.swift in Sources */,
+				9328711035603ACA20F974B8 /* MissionCertificationTests.swift in Sources */,
 				6A57386BA07A6F741EB724D8 /* ReplaySpawnTests.swift in Sources */,
 				76343F06BEB1C5203EEA0D13 /* TurnAuthorityTests.swift in Sources */,
 				FCED7472DF49F975BBFA0E8A /* test_consequence_engine.swift in Sources */,
