@@ -47,6 +47,26 @@ struct MissionRecord: Codable, Equatable {
 
     static let empty = MissionRecord(bestScore: 0, attempts: 0, lastCompletedAt: nil, bestMiniGameScore: 0)
     var completed: Bool { lastCompletedAt != nil }
+
+    init(bestScore: Int, attempts: Int, lastCompletedAt: Date?, bestMiniGameScore: Int = 0) {
+        self.bestScore = bestScore
+        self.attempts = attempts
+        self.lastCompletedAt = lastCompletedAt
+        self.bestMiniGameScore = bestMiniGameScore
+    }
+
+    /// Tolerant decoder: every field falls back to its default when absent,
+    /// so blobs written BEFORE a field existed (e.g. pre-bestMiniGameScore
+    /// saves) keep decoding instead of wiping the player's records on
+    /// upgrade. Synthesized decoding treats a missing key as a hard failure,
+    /// which the WP7 certification proved loses veteran progress.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        bestScore = try c.decodeIfPresent(Int.self, forKey: .bestScore) ?? 0
+        attempts = try c.decodeIfPresent(Int.self, forKey: .attempts) ?? 0
+        lastCompletedAt = try c.decodeIfPresent(Date.self, forKey: .lastCompletedAt)
+        bestMiniGameScore = try c.decodeIfPresent(Int.self, forKey: .bestMiniGameScore) ?? 0
+    }
 }
 
 /// Persistent store of per-mission stats. Backed by UserDefaults so completion
@@ -153,7 +173,10 @@ final class MissionStatsStore: ObservableObject {
     /// so the mission card still shows as not-completed even though they
     /// played + won it. Detect that footprint — M1/M2/M3 done, M3.5 missing —
     /// and backfill a completion entry once. Flag persists, never replays.
-    private func migrateBackfillChaseCompletion() {
+    /// Internal (not private) so the persistence certification suite can
+    /// exercise the footprint/flag logic directly — init-time migrations
+    /// only run once per process, which tests can't observe.
+    func migrateBackfillChaseCompletion() {
         let flagKey = "HexWire.Migration.ChaseBackfill.v1"
         guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
 
@@ -371,17 +394,30 @@ final class MissionStatsStore: ObservableObject {
 
     // MARK: - Persistence
 
+    /// Decode the records dictionary from the live blob, falling back to the
+    /// last-good backup when the live blob is present but corrupt. Pure —
+    /// extracted from load() so the recovery chain is testable (load() itself
+    /// runs once per process at singleton init).
+    static func decodeRecords(live: Data?, backup: Data?) -> [String: MissionRecord]? {
+        if let data = live,
+           let decoded = try? JSONDecoder().decode([String: MissionRecord].self, from: data) {
+            return decoded
+        }
+        if live != nil, let backup,
+           let decoded = try? JSONDecoder().decode([String: MissionRecord].self, from: backup) {
+            dlog("[MissionStatsStore] records blob failed to decode — recovered from last-good backup")
+            return decoded
+        }
+        return nil
+    }
+
     private func load() {
         // Try the live blob, then the last-good backup — a corrupt blob used
         // to silently zero records/wallet, and the next save() permanently
         // overwrote the corrupt-but-inspectable data.
-        if let data = UserDefaults.standard.data(forKey: storageKey),
-           let decoded = try? JSONDecoder().decode([String: MissionRecord].self, from: data) {
-            records = decoded
-        } else if UserDefaults.standard.data(forKey: storageKey) != nil,
-                  let backup = UserDefaults.standard.data(forKey: storageKey + ".lastGood"),
-                  let decoded = try? JSONDecoder().decode([String: MissionRecord].self, from: backup) {
-            dlog("[MissionStatsStore] records blob failed to decode — recovered from last-good backup")
+        if let decoded = MissionStatsStore.decodeRecords(
+            live: UserDefaults.standard.data(forKey: storageKey),
+            backup: UserDefaults.standard.data(forKey: storageKey + ".lastGood")) {
             records = decoded
         }
         playerNuyen = UserDefaults.standard.integer(forKey: nuyenStorageKey)
