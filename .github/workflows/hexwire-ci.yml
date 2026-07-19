@@ -1,0 +1,241 @@
+# HexWire CI — the hosted truth surface (stabilization packet WP3).
+#
+# Job map:
+#   hygiene  (ubuntu)  — repo cleanliness + mission JSON + asset-name checks
+#   test     (macOS)   — xcodegen drift gate, then XCTest on a pre-booted sim
+#   build    (macOS)   — Debug/Release × iPhone/iPad simulator build matrix
+#   archive  (macOS)   — unsigned generic-iOS Release archive
+#
+# Environment pinning: jobs pin the macos-15 image family; the exact Xcode is
+# the image default (pinning a point version breaks when images rotate it out)
+# and every job prints xcodebuild -version + runtime list as its receipt.
+# Destinations are discovered deterministically (first available device of the
+# class, sorted by name) instead of hardcoding names that differ per image.
+#
+# WP2 finding baked in: xcodebuild test against a cold simulator intermittently
+# dies at app-launch ("SBMainWorkspace: Busy") before any test runs — the test
+# job pre-boots the sim and waits for bootstatus before testing.
+
+name: hexwire-ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: hexwire-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: repository hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No nested .git directories
+        run: |
+          found=$(find . -name .git -not -path ./.git)
+          if [ -n "$found" ]; then echo "::error::nested .git: $found"; exit 1; fi
+
+      - name: No tracked build output, DerivedData, or user state
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)(build|DerivedData)/|\.xcuserstate$|(^|/)xcuserdata/' || true)
+          if [ -n "$bad" ]; then echo "::error::tracked build/user-state files:"; echo "$bad"; exit 1; fi
+
+      - name: No backup Xcode projects or stray workspaces
+        run: |
+          bad=$(git ls-files | grep -E '\.xcodeproj\.backup-' || true)
+          # The only legitimate workspace is the one embedded in HexWire.xcodeproj.
+          stray=$(git ls-files | grep -E '\.xcworkspace/' | grep -v '^HexWire\.xcodeproj/project\.xcworkspace/' || true)
+          if [ -n "$bad$stray" ]; then echo "::error::backup projects or stray workspaces:"; echo "$bad"; echo "$stray"; exit 1; fi
+
+      - name: Mission JSON is well-formed with unique ids
+        run: |
+          python3 - <<'EOF'
+          import json, glob, collections, sys
+          ids = []
+          for f in sorted(glob.glob("Missions/*.json")):
+              try:
+                  data = json.load(open(f))
+              except Exception as e:
+                  print(f"::error file={f}::malformed JSON: {e}"); sys.exit(1)
+              ids.append(data.get("id"))
+          dupes = [k for k, v in collections.Counter(ids).items() if v > 1]
+          if dupes:
+              print(f"::error::duplicate mission ids: {dupes}"); sys.exit(1)
+          print(f"{len(ids)} mission files OK")
+          EOF
+
+      - name: No duplicate asset names (imagesets + sprite PNG stems)
+        run: |
+          python3 - <<'EOF'
+          import os, collections, sys
+          names = collections.Counter()
+          for root, dirs, files in os.walk("Assets.xcassets"):
+              for d in dirs:
+                  if d.endswith(".imageset"):
+                      names[d[:-9]] += 1
+          for root, dirs, files in os.walk("Sprites"):
+              for f in files:
+                  if f.endswith(".png"):
+                      names[os.path.splitext(f)[0]] += 1
+          dupes = [k for k, v in names.items() if v > 1]
+          if dupes:
+              print(f"::error::duplicate asset names (runtime lookup collisions): {sorted(dupes)[:20]}")
+              sys.exit(1)
+          print(f"{sum(names.values())} asset names unique")
+          EOF
+
+  test:
+    name: xcodegen drift gate + unit tests
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain receipt
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Install XcodeGen (pinned — must match the version that generated the committed project)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.45.4/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen-dist"
+          XCG=$(find "$RUNNER_TEMP/xcodegen-dist" -name xcodegen -type f | head -1)
+          chmod +x "$XCG"
+          echo "XCG=$XCG" >> "$GITHUB_ENV"
+
+      - name: Regenerate project and fail on drift
+        run: |
+          "$XCG" --version
+          "$XCG" generate
+          if ! git diff --quiet; then
+            echo "::error::project.yml and committed HexWire.xcodeproj have drifted — run 'xcodegen generate' and commit the result"
+            git diff --stat
+            exit 1
+          fi
+
+      - name: Pick and pre-boot an iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)['devices']
+          phones = sorted((d['name'], d['udid']) for devs in data.values() for d in devs
+                          if d['isAvailable'] and d['name'].startswith('iPhone'))
+          assert phones, 'no available iPhone simulator'
+          print(phones[0][1])")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project HexWire.xcodeproj \
+            -scheme HexWire \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd-test" \
+            2>&1 | tee "$RUNNER_TEMP/test.log" | grep -vE '^\s*$'
+
+      - name: Missing-resource warning gate
+        run: |
+          hits=$(grep -iE "warning:.*(missing|could not find).*(resource|asset|file)" "$RUNNER_TEMP/test.log" || true)
+          if [ -n "$hits" ]; then echo "::error::missing-resource warnings:"; echo "$hits"; exit 1; fi
+
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: ${{ runner.temp }}/test.log
+
+  build:
+    name: build ${{ matrix.configuration }} / ${{ matrix.device_class }}
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+        device_class: [iPhone, iPad]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain receipt
+        run: xcodebuild -version
+
+      - name: Pick a ${{ matrix.device_class }} simulator
+        id: sim
+        run: |
+          NAME=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)['devices']
+          matches = sorted(d['name'] for devs in data.values() for d in devs
+                           if d['isAvailable'] and d['name'].startswith('${{ matrix.device_class }}'))
+          assert matches, 'no available ${{ matrix.device_class }} simulator'
+          print(matches[0])")
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Using simulator: $NAME"
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project HexWire.xcodeproj \
+            -scheme HexWire \
+            -configuration ${{ matrix.configuration }} \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd-build" \
+            build 2>&1 | tee "$RUNNER_TEMP/build.log" | grep -E "error:|warning:|BUILD" || true
+          tail -3 "$RUNNER_TEMP/build.log" | grep -q "BUILD SUCCEEDED"
+
+      - name: Missing-resource warning gate
+        run: |
+          hits=$(grep -iE "warning:.*(missing|could not find).*(resource|asset|file)" "$RUNNER_TEMP/build.log" || true)
+          if [ -n "$hits" ]; then echo "::error::missing-resource warnings:"; echo "$hits"; exit 1; fi
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.configuration }}-${{ matrix.device_class }}
+          path: ${{ runner.temp }}/build.log
+
+  archive:
+    name: unsigned release archive
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain receipt
+        run: xcodebuild -version
+
+      - name: Archive (signing disabled)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project HexWire.xcodeproj \
+            -scheme HexWire \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/HexWire.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            archive 2>&1 | tee "$RUNNER_TEMP/archive.log" | grep -E "error:|ARCHIVE" || true
+          tail -3 "$RUNNER_TEMP/archive.log" | grep -q "ARCHIVE SUCCEEDED"
+          ls "$RUNNER_TEMP/HexWire.xcarchive"
+
+      - name: Upload archive log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-log
+          path: ${{ runner.temp }}/archive.log
