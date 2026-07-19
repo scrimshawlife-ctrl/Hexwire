@@ -1,194 +1,66 @@
 # HexWire
 
-> Tactical cyberpunk-fantasy strategy prototype built in SwiftUI + SpriteKit  
-> A pressure-driven combat system where every action trades power for exposure.
+> Tactical cyberpunk hex-grid RPG for iOS — SwiftUI + SpriteKit.
+> A pressure-driven combat loop where every action trades power for exposure:
+> **Signal → Power → Trace → Escalation → Lay Low → Tempo Tradeoff.**
 
----
+## Current state
 
-## 🚧 Status
+```yaml
+product_name: HexWire
+platform: iOS (iPhone + iPad)
+minimum_os: iOS 17.0
+current_state: STABILIZED_VERTICAL_SLICE   # was ADVANCED_PLAYABLE_PROTOTYPE pre-2026-07
+latest_verified_commit: see the latest green hexwire-ci run on main
+latest_build_result: PASS — Debug+Release × iPhone+iPad + unsigned archive, hosted CI on every PR
+latest_test_result: PASS — 94 deterministic tests, 0 flaky (unit + per-mission certification)
+mission_certification: docs/audit/MissionCertificationMatrix.md (all 6 missions machine-certified;
+  touch-layer items listed for device pass)
+supported_devices: iPhone (portrait, compact) + iPad (regular); verified on
+  iPhone 17 and iPad Pro 13-inch (M5) simulators, iOS 26.5
+known_release_blockers:
+  - owner device pass for touch-layer items (see certification matrix)
+  - devUnlockAllMissions=true must be flipped OFF for a ship build (HexwireApp.swift)
+  - App Store signing/metadata (outside stabilization scope)
+```
 
-| Category | Value |
-|--------|------|
-| Platform | iOS |
-| Engine | SwiftUI + SpriteKit |
-| State | Prototype |
-| Build | Xcode required |
-| Validation | NOT_COMPUTABLE (no xcodebuild in container) |
+## Working on this repo
 
----
+- **Project generation:** `HexWire.xcodeproj` is generated from `project.yml` by
+  **XcodeGen 2.45.4**. After adding/removing files: `xcodegen generate` and commit
+  the regenerated project — CI fails on drift.
+- **Build:** `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination
+  'platform=iOS Simulator,name=iPhone 17' build`
+- **Test:** same command with `test`. If running repeatedly, pre-boot the
+  simulator (`xcrun simctl boot <udid> && xcrun simctl bootstatus <udid> -b`) —
+  cold-sim launches flake before tests run.
+- **CI:** `.github/workflows/hexwire-ci.yml` runs hygiene checks, the XcodeGen
+  drift gate + tests, a Debug/Release × iPhone/iPad build matrix, and an
+  unsigned archive on every PR.
+- **Architecture rule:** `GameState` is the single gameplay authority. UI and
+  SpriteKit layers emit intents (`Game/GameIntents.swift`) and render from
+  state — never mutate authority state directly. See
+  `docs/audit/GameStateAuthorityMutationLedger.md`.
+- **Debug autostart:** DEBUG builds honor the `SR_AUTOSTART_MISSION_ID`
+  environment variable (e.g. `Mission003`) to launch straight into a mission.
 
-## 🤝 Collaborator Handoff
+## The game
 
-If you are picking this repo up from another contributor, start here:
-
-1. Read `plans.md` — the top "Handoff" section is the active status dispatch; it lists what just shipped, what's still broken, and the next suggested moves.
-2. Read `AGENTS.md` for workflow conventions, branch/commit expectations, and PR standards.
-3. Review `docs/TurnAuthorityReport.md` and `docs/TraceSystem.md` before touching gameplay logic.
-4. Keep `GameState` as runtime authority; rendering/UI should remain projection layers.
-
-Handoff updates should always include:
-- what changed
-- what remains
-- what is blocked
-- what should be tackled next
-
----
-
-## 🎮 Core Loop
+Four runners (street samurai, mage, decker, face) run six authored multi-room
+missions plus interstitial scene-missions, with a persistent economy (nuyen,
+black market, cyberware), faction heat that carries between missions, seeded
+replay rerolls, an endless gauntlet, and New Game+ scaling. The trace/heat
+pressure loop is documented in `docs/TraceSystem.md`.
 
 ![Loop](docs/assets/hexwire-loop.svg)
 
-- Signal → gain power, increase trace  
-- Trace → builds toward escalation  
-- Escalation → enemies hit harder  
-- Lay Low → reduce trace, lose tempo
+## Documentation map
 
----
-
-## 🧠 Roles
-
-![Roles](docs/assets/hexwire-roles.svg)
-
-| Role | Identity | Effect |
-|------|--------|--------|
-| Normal | baseline | no modifier |
-| Hacker | control | +1 trace recovery on Lay Low |
-| Street | resistance | -1 escalated damage |
-
----
-
-## 🗺️ Mission Types
-
-| Type | Objective |
-|------|----------|
-| Survive | Survive X turns |
-| Eliminate | Eliminate all enemies |
-
----
-
-## 🎚️ Pressure Presets
-
-| Preset | Trace Threshold | Feel |
-|--------|----------------|------|
-| Low | 5 | Forgiving |
-| Standard | 4 | Balanced |
-| High | 3 | Stressful |
-
----
-
-## 🔁 In-Combat Toggles (Dev/Test)
-
-- ROLE → cycle roles
-- PRESET → cycle pressure levels
-- TYPE → cycle mission type
-
-## ⚙️ Systems
-
-### GameState (Authority)
-- single source of truth
-- handles turn flow, trace, escalation
-
-### BattleScene (Rendering)
-- SpriteKit combat projection
-- reflects GameState, does not own logic
-
-### Trace System
-- Street / Signal modes
-- threshold-based escalation
-- deterministic pressure
-
----
-
-## 📊 Trace Model
-
-| State | Effect |
-|------|-------|
-| Signal | +trace |
-| Warning | threshold - 1 |
-| Escalation | +incoming damage |
-| Lay Low | -trace (costs turn) |
-
----
-
-## 🧱 Architecture
-
-![Architecture](docs/assets/hexwire-architecture.svg)
-
----
-
-## 📦 Project Structure
-
-```text
-.
-├── AGENTS.md
-├── plans.md
-├── Assets.xcassets/
-├── Entities/
-├── Game/
-├── Missions/
-├── Rendering/
-├── UI/
-├── docs/
-│   ├── assets/
-│   ├── DuplicateWorkspaceAudit.md
-│   ├── README.md
-│   ├── SmokeTestPlan.md
-│   ├── TraceSystem.md
-│   └── TurnAuthorityReport.md
-├── Info.plist
-├── HexwireApp.swift
-└── HexWire.xcodeproj/
-```
-
----
-
-## ▶️ Run
-
-### Xcode
-1. Open `HexWire.xcodeproj`
-2. Select scheme `HexWire`
-3. Run on an iOS simulator
-
-### CLI
-```bash
-xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination 'platform=iOS Simulator,name=iPhone 16' build
-```
-
-Note: iOS builds require macOS + Xcode.
-
----
-
-## 🧪 Validation
-
-- Container: NOT_COMPUTABLE
-- Use local Xcode for real runs
-
----
-
-## 📜 Patch History
-
-| Patch Drop | Scope | Result |
-|-----------|-------|--------|
-| 0 | Baseline combat prototype (phase flow + SpriteKit scene) | Playable prototype scaffold |
-| 1 | Turn authority mapping and diagnostics reporting | `GameState` documented as runtime authority |
-| 2 | Trace loop (`Street/Signal`), Lay Low, role modifiers, escalation hooks | Deterministic pressure loop integrated |
-| 3 | Docs + visual cleanup pass | README + SVG visual docs standardized |
-| 4 | Collaborator handoff docs (`README`, `AGENTS.md`, `plans.md`) | Team continuity and clearer execution lanes |
-
----
-
-## 🧭 Roadmap
-
-- role selection UI
-- mission presets
-- enemy pressure behaviors
-- additional roles
-
----
-
-## 🧠 Design Rules
-
-- GameState is authority
-- No system expansion without gameplay pressure
-- Roles modify systems, not replace them
-- Complexity must reduce ambiguity
+| Doc | What it is |
+|---|---|
+| `plans.md` | Current mission, verified baseline, next actions |
+| `AGENTS.md` | Contributor/agent workflow rules |
+| `docs/audit/` | Stabilization evidence: repo baseline, build baseline, test coverage map, authority ledger, mission certification, persistence certification, repo/asset report |
+| `docs/architecture/StabilizationExtractionMap.md` | Decomposition status + deferred candidates |
+| `docs/TraceSystem.md` | Trace/heat pressure-loop design |
+| `docs/archive/` | Historical audits and handoffs (superseded — do not act on) |
