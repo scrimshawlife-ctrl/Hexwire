@@ -157,6 +157,7 @@
 		24840F2DED8A7EA9E1D7DEB4 /* samurai_idle_2.png in Resources */ = {isa = PBXBuildFile; fileRef = C89C22E9A7EC1EE774FDC48B /* samurai_idle_2.png */; };
 		2566A0797B5FDA462C1B03C1 /* spinup_1.png in Resources */ = {isa = PBXBuildFile; fileRef = D606DB94C26FCBA640312989 /* spinup_1.png */; };
 		2567C668F79241A8F94FEE2F /* rigger_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 76BC90BC019D34C06A5BF2EB /* rigger_idle_0.png */; };
+		25A40376D5B6E3266E3E501B /* GameState+Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB65CB87B0AC73C7E7928603 /* GameState+Environment.swift */; };
 		25EFBBF8BF4F1EA6663CD5D9 /* tilesheet_1_r5c1.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A9FDF9A546E08F9FBF762E4 /* tilesheet_1_r5c1.png */; };
 		25EFBF64EDD95335FFA9CAB6 /* cipherwall_banish_0.png in Resources */ = {isa = PBXBuildFile; fileRef = F871E32CF8F14DC2F437A3E4 /* cipherwall_banish_0.png */; };
 		25F7CA76E075E45537D8553D /* tilesheet_1_r0c1.png in Resources */ = {isa = PBXBuildFile; fileRef = F466A4BEC6BFA78E04CA281A /* tilesheet_1_r0c1.png */; };
@@ -326,6 +327,7 @@
 		52B41FC43601F64889A8A513 /* gunshot_smg.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 41B5ABF2900FF97BD9E87A5D /* gunshot_smg.mp3 */; };
 		52E7C0914FA4B6CB1801BFEE /* vfx_ash_02.png in Resources */ = {isa = PBXBuildFile; fileRef = 3C6EC10C9B4F5CFD5F5A8E08 /* vfx_ash_02.png */; };
 		53252010175E4EF118811CE1 /* samurai_idle_3.png in Resources */ = {isa = PBXBuildFile; fileRef = E94BDF6F4145FEE2A7E8AE1F /* samurai_idle_3.png */; };
+		534709AFE8750FDF4447EE06 /* CombatPickerSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B7F91A47F448447CA7892D /* CombatPickerSheets.swift */; };
 		53BE6256128B0840979206B2 /* m5_a.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 69429C5C6936B3D638318C94 /* m5_a.mp3 */; };
 		53F57560D98655D6E914EBEC /* mech_idle_3.png in Resources */ = {isa = PBXBuildFile; fileRef = F365F6E9B27426DE0EFD6128 /* mech_idle_3.png */; };
 		5485FBCA247081787C69B034 /* mage_walk_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 7B1F0E997A9B7429C7BE42C9 /* mage_walk_0.png */; };
@@ -684,6 +686,7 @@
 		BA3483AE6698B129C1ECC9C4 /* drone_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = B8F75484A549F75D8D789A1B /* drone_idle_0.png */; };
 		BA4E17D0B224327C28F5E52B /* CombatResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2DA06B119E4401F92B81A80 /* CombatResolver.swift */; };
 		BAA513C484EDAC53F9732D3A /* samurai_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 07B988102C011CFAA64564C7 /* samurai_idle_0.png */; };
+		BB35EC1C259AF4068FD8A7DB /* CombatWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10B194B7D46D07DE19927A61 /* CombatWidgets.swift */; };
 		BB4DC8B379FBC4808FA73667 /* vfx_blood_stream_04.png in Resources */ = {isa = PBXBuildFile; fileRef = ED0BF63A0118EF05EA62269C /* vfx_blood_stream_04.png */; };
 		BB8D3A94F1C65284ADB33EA4 /* intro_m4_5_music.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 9F59D3F68BB8ACE67AD6062B /* intro_m4_5_music.mp3 */; };
 		BB8E8BFA1091D7276A5463AA /* tilesheet_2_r5c1.png in Resources */ = {isa = PBXBuildFile; fileRef = 48B62529A4535F360E369D33 /* tilesheet_2_r5c1.png */; };
@@ -741,6 +744,7 @@
 		C9FA408FECDAD36F152480AF /* EconomyPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9AD747B0BB8EF1D9B2E4970 /* EconomyPersistenceTests.swift */; };
 		CA494B472FD4B46093F988FF /* m1_b.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7A385A419DB57C833E99462E /* m1_b.mp3 */; };
 		CA6E451DB6E3516B57CE0A6F /* cluster_banish_0.png in Resources */ = {isa = PBXBuildFile; fileRef = F93B8E50034B3E2C4C37432B /* cluster_banish_0.png */; };
+		CA9FD8EC7CA791CBBBFC8314 /* GameState+CombatTactics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6EE5DF399CDE796EFB6ABF1 /* GameState+CombatTactics.swift */; };
 		CAC2ED3CE9D1D6FB1FC45F40 /* slugger_heavy_2.png in Resources */ = {isa = PBXBuildFile; fileRef = C6B01815E34F0B6922403AC4 /* slugger_heavy_2.png */; };
 		CB4BFFB45CD4B97C29651AC5 /* chase_hauler_c.png in Resources */ = {isa = PBXBuildFile; fileRef = 2B16E799C8A2447C21C70273 /* chase_hauler_c.png */; };
 		CC3689F0AE0E7009B837291E /* vfx_code_red_03.png in Resources */ = {isa = PBXBuildFile; fileRef = 9AA1FCEB878A5A56A69D3F32 /* vfx_code_red_03.png */; };
@@ -898,6 +902,7 @@
 		F9899C8F607D02500937D046 /* Mission006_room_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 145AD92FBDBBA52DB536BF48 /* Mission006_room_0.png */; };
 		FA0369B5D981DBB12600FFD7 /* mage_idle_2.png in Resources */ = {isa = PBXBuildFile; fileRef = 6A70E00A701DD034F7B8509D /* mage_idle_2.png */; };
 		FA16611B879DE08B816C1884 /* mission_victory.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = D53D1099F407ED9F97579EA1 /* mission_victory.mp3 */; };
+		FA8FC855B695490730BE03F7 /* HitPreviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237DFEC16CD5F2A4F5F235E6 /* HitPreviewViews.swift */; };
 		FA9784BE7806991B86965683 /* agi_data_hit.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = A02C55BD791B8B4133306B67 /* agi_data_hit.mp3 */; };
 		FAAE198E07C23BA032EB189D /* m6_boss_a.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 7AFAB652F5ED5C39E28BCA37 /* m6_boss_a.mp3 */; };
 		FAD46D97B5A18F50FFFE0C85 /* bossmage_attack_1.png in Resources */ = {isa = PBXBuildFile; fileRef = 2E80D02AF051A957A2DBB334 /* bossmage_attack_1.png */; };
@@ -997,6 +1002,7 @@
 		0F399C8A92E7629792B1EAC7 /* mech_walk_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = mech_walk_2.png; sourceTree = "<group>"; };
 		0FB09196B1514545CC9232D7 /* vfx_rune_02.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_rune_02.png; sourceTree = "<group>"; };
 		105E118D34B607598B4BED1D /* shopicon_armor_jacket.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = shopicon_armor_jacket.png; sourceTree = "<group>"; };
+		10B194B7D46D07DE19927A61 /* CombatWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatWidgets.swift; sourceTree = "<group>"; };
 		10E21A8AE3130C6304404E93 /* vfx_atlas_reference.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_atlas_reference.png; sourceTree = "<group>"; };
 		10E9C9D03DD6990647BA9185 /* tilesheet_2_r4c0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_2_r4c0.png; sourceTree = "<group>"; };
 		120F040DC54B32A2765F67D8 /* cipher_avatar_idle_1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cipher_avatar_idle_1.png; sourceTree = "<group>"; };
@@ -1054,6 +1060,7 @@
 		234D2A77A874FBFD7CFCF687 /* spider_walk_3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = spider_walk_3.png; sourceTree = "<group>"; };
 		235CCDA3D3F88BCCC7B97F11 /* ConsequenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsequenceEngine.swift; sourceTree = "<group>"; };
 		2365135BCCABF4CBDC39A237 /* decker_idle_3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = decker_idle_3.png; sourceTree = "<group>"; };
+		237DFEC16CD5F2A4F5F235E6 /* HitPreviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HitPreviewViews.swift; sourceTree = "<group>"; };
 		239249C99FA7106DD5482D62 /* cipherwall_attack_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cipherwall_attack_0.png; sourceTree = "<group>"; };
 		239B4C8DFF877123C0381862 /* tilesheet_3_r3c1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_3_r3c1.png; sourceTree = "<group>"; };
 		245F0C7DE8B1921F96B2F99F /* daemon_p1_strike.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = daemon_p1_strike.png; sourceTree = "<group>"; };
@@ -1682,6 +1689,7 @@
 		D1C51C628AB342F8FE9DD65C /* vfx_code_purple_05.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_code_purple_05.png; sourceTree = "<group>"; };
 		D21A49991830C5360D491DE7 /* player_hit.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = player_hit.mp3; sourceTree = "<group>"; };
 		D24CF18211D8E63648839C0B /* mech_death_explosion.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = mech_death_explosion.mp3; sourceTree = "<group>"; };
+		D2B7F91A47F448447CA7892D /* CombatPickerSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatPickerSheets.swift; sourceTree = "<group>"; };
 		D330F4766EAC435DD4B15572 /* boss_walk_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = boss_walk_2.png; sourceTree = "<group>"; };
 		D33A9825652040D9995086B1 /* shopicon_grenade.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = shopicon_grenade.png; sourceTree = "<group>"; };
 		D382F3C9C5DEE137073F9AD2 /* decker_idle_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = decker_idle_0.png; sourceTree = "<group>"; };
@@ -1776,6 +1784,7 @@
 		E9BE8532B1A819ECE964F3E1 /* vfx_glitch_bar_02.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_glitch_bar_02.png; sourceTree = "<group>"; };
 		EA51AA0C263D2185B4251A1C /* vfx_floor_arrow_03.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_floor_arrow_03.png; sourceTree = "<group>"; };
 		EB36A1E56AA4A8823208CB5B /* takeoff_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = takeoff_0.png; sourceTree = "<group>"; };
+		EB65CB87B0AC73C7E7928603 /* GameState+Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameState+Environment.swift"; sourceTree = "<group>"; };
 		EB6976ABF9B0666E457FA954 /* data_terminal_5.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = data_terminal_5.png; sourceTree = "<group>"; };
 		EB77BE6D06EA5F1E9E231679 /* chase_hauler.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = chase_hauler.png; sourceTree = "<group>"; };
 		EB917CDB16159A7C934D20F5 /* vargas_phase3_attack.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vargas_phase3_attack.png; sourceTree = "<group>"; };
@@ -1827,6 +1836,7 @@
 		F663BD6CDB27FDB0A8225D09 /* shade_idle_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = shade_idle_0.png; sourceTree = "<group>"; };
 		F692A1F5F8E8DFBF4E7CAA62 /* vfx_floor_arrow_01.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_floor_arrow_01.png; sourceTree = "<group>"; };
 		F6946118A7EFA87870ED10B7 /* trace_warning.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = trace_warning.mp3; sourceTree = "<group>"; };
+		F6EE5DF399CDE796EFB6ABF1 /* GameState+CombatTactics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GameState+CombatTactics.swift"; sourceTree = "<group>"; };
 		F7AA2B68E27E27254F28C270 /* ui_error.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = ui_error.mp3; sourceTree = "<group>"; };
 		F86F0E9EBA558F910B9C81F2 /* chase_drone_sniper.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = chase_drone_sniper.png; sourceTree = "<group>"; };
 		F871E32CF8F14DC2F437A3E4 /* cipherwall_banish_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = cipherwall_banish_0.png; sourceTree = "<group>"; };
@@ -1875,11 +1885,14 @@
 				C5721CB5F30DD619E6E9F062 /* CharacterInfoSheet.swift */,
 				A01923C15C4A8C87EC113038 /* ChiptunePlayer.swift */,
 				01239327C7E1BCCD8A6334CC /* ColdTraceScene.swift */,
+				D2B7F91A47F448447CA7892D /* CombatPickerSheets.swift */,
 				DD0C2D290FBD7ED1DF1D3AB9 /* CombatUI.swift */,
+				10B194B7D46D07DE19927A61 /* CombatWidgets.swift */,
 				ABDB600C5945772AC7E52618 /* CypherCrackerMiniGame.swift */,
 				C1DD8E93622A2FDAFA493EFF /* DropIntroScene.swift */,
 				0CC6CB69F5F1F6E481A2CB75 /* EndingScene.swift */,
 				6F7DAA8B8D6907DAA04F743C /* GlyphPatternMiniGame.swift */,
+				237DFEC16CD5F2A4F5F235E6 /* HitPreviewViews.swift */,
 				84FBC87C09E0194F71CFF3A2 /* HoverbikeChase.swift */,
 				14E734C9A3D273E9F5BE713A /* LaneRunnerMiniGame.swift */,
 				BCA30900AFF315BFB1DE4724 /* MatrixMiniGame.swift */,
@@ -2676,6 +2689,8 @@
 				2AEDCD972C086CF8A1360295 /* GameNotifications.swift */,
 				AB953BE33C58F956FF94A4A3 /* GameSessionState.swift */,
 				6632FA33E898A48011AD1C19 /* GameState.swift */,
+				F6EE5DF399CDE796EFB6ABF1 /* GameState+CombatTactics.swift */,
+				EB65CB87B0AC73C7E7928603 /* GameState+Environment.swift */,
 				624A16E2FFD54A87FB10E30F /* GauntletService.swift */,
 				E17D39567DF50F0B12D1622A /* HapticsManager.swift */,
 				FAD88C11CC90629008D22626 /* MissionSetupService.swift */,
@@ -3920,8 +3935,10 @@
 				C20B109CC71923EC6BA65F40 /* ChiptunePlayer.swift in Sources */,
 				4957F08B4A1A2A5309F8B035 /* ColdTraceScene.swift in Sources */,
 				738485464BD140AA43840F8A /* CombatFlowController.swift in Sources */,
+				534709AFE8750FDF4447EE06 /* CombatPickerSheets.swift in Sources */,
 				BA4E17D0B224327C28F5E52B /* CombatResolver.swift in Sources */,
 				4825157C6FE1D59C5AEC68AC /* CombatUI.swift in Sources */,
+				BB35EC1C259AF4068FD8A7DB /* CombatWidgets.swift in Sources */,
 				93C6DA36C66361E2F8481D2B /* ConsequenceEngine.swift in Sources */,
 				80BC80B182433F0ED8F387B2 /* CypherCrackerMiniGame.swift in Sources */,
 				61FD413723036BB197A7E404 /* DebugLog.swift in Sources */,
@@ -3934,11 +3951,14 @@
 				D6A19CF8FDB4CD5E5BE2E4A4 /* GameIntents.swift in Sources */,
 				168F9DA50F76271EE7BB1E44 /* GameNotifications.swift in Sources */,
 				226F6E4E1EFB89AD0F294CA5 /* GameSessionState.swift in Sources */,
+				CA9FD8EC7CA791CBBBFC8314 /* GameState+CombatTactics.swift in Sources */,
+				25A40376D5B6E3266E3E501B /* GameState+Environment.swift in Sources */,
 				A3B25954D95C3B95A728ACE6 /* GameState.swift in Sources */,
 				626113CCB03D501C69609343 /* GauntletService.swift in Sources */,
 				00FE784E24B12D82822DDEA7 /* GlyphPatternMiniGame.swift in Sources */,
 				A876BE3D9847A20FC3019127 /* HapticsManager.swift in Sources */,
 				A312918B4D4D3688452304B2 /* HexwireApp.swift in Sources */,
+				FA8FC855B695490730BE03F7 /* HitPreviewViews.swift in Sources */,
 				C2BF831ACD2F8C3DC115244E /* HoverbikeChase.swift in Sources */,
 				8E7733971CCB148A71FF49F4 /* LaneRunnerMiniGame.swift in Sources */,
 				404CCFB6435A5E30582D7459 /* MatrixMiniGame.swift in Sources */,

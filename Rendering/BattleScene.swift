@@ -1369,15 +1369,6 @@ final class BattleScene: SKScene {
         }
     }
 
-    private func firstExtractionTile(in map: [[Int]]) -> (x: Int, y: Int)? {
-        for (y, row) in map.enumerated() {
-            if let x = row.firstIndex(of: TileType.extraction.rawValue) {
-                return (x: x, y: y)
-            }
-        }
-        return nil
-    }
-
     private func setupEnemyNotifications() {
         observe(.characterLevelUp) { [weak self] notification in
             guard let userInfo = notification.userInfo,
