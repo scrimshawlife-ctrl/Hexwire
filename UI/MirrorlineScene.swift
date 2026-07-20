@@ -590,26 +590,17 @@ struct MirrorlineScene: View {
                     }
                 }
             }
-            // CURRENT-weakness badge, ALWAYS shown (over the sprite art too).
-            // Without this, an art-rendered spirit gave no cue when its
-            // weakness flickered — the player drew the kind's BASE weakness
-            // and got "wrong sigil" (e.g. soul drain vs ward on a hungerling
-            // that had flickered to ward).
-            VStack {
-                ZStack {
-                    Circle()
-                        .fill(Color.black.opacity(0.55))
-                        .frame(width: 26, height: 26)
-                    Circle()
-                        .stroke(Color(hex: s.effectiveWeakness.hex), lineWidth: 2)
-                        .frame(width: 26, height: 26)
-                    sigilIcon(s.effectiveWeakness, size: 16)
-                        .foregroundColor(Color(hex: s.effectiveWeakness.hex))
-                }
-                Spacer()
-            }
         }
         .frame(width: 80, height: 80)
+        // CURRENT-weakness badge, ALWAYS shown. Floats DIRECTLY ABOVE the
+        // sprite (playtest 2026-07-19: overlapping the head hid the art).
+        // Without it, an art-rendered spirit gave no cue when its weakness
+        // was static-scrambled — the player drew the kind's BASE weakness
+        // and got "wrong sigil".
+        .overlay(alignment: .top) {
+            weaknessBadge(s)
+                .offset(y: -32)
+        }
         .opacity(1.0 - s.banished)
         .scaleEffect(1.0 - s.banished * 0.4)
         // Wrong-sigil ding: a brief red overlay that fades, leaving the
@@ -621,6 +612,52 @@ struct MirrorlineScene: View {
                 .blendMode(.plusLighter)
                 .allowsHitTesting(false)
         )
+    }
+
+    /// The weakness badge shown above each spirit. A spirit whose weakness
+    /// was STATIC-SCRAMBLED (flickerWeakness set — its sigil no longer
+    /// matches its body color, e.g. a red wraith demanding LIGHTNING) gets a
+    /// dashed ring + rapid flicker so the mismatch reads as the static
+    /// mechanic doing its thing, not as a wrong badge.
+    @ViewBuilder
+    private func weaknessBadge(_ s: AstralSpirit) -> some View {
+        let color = Color(hex: s.effectiveWeakness.hex)
+        let scrambled = s.flickerWeakness != nil
+        ZStack {
+            Circle()
+                .fill(Color.black.opacity(0.55))
+                .frame(width: 26, height: 26)
+            if scrambled {
+                Circle()
+                    .stroke(color, style: StrokeStyle(lineWidth: 2, dash: [3, 2.5]))
+                    .frame(width: 26, height: 26)
+            } else {
+                Circle()
+                    .stroke(color, lineWidth: 2)
+                    .frame(width: 26, height: 26)
+            }
+            sigilIcon(s.effectiveWeakness, size: 16)
+                .foregroundColor(color)
+        }
+        .modifier(StaticScrambleFlicker(active: scrambled))
+    }
+
+    /// Rapid opacity flicker for static-scrambled weakness badges. Inert when
+    /// `active` is false so normal badges render rock-steady.
+    private struct StaticScrambleFlicker: ViewModifier {
+    let active: Bool
+    @State private var dim = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(active && dim ? 0.45 : 1.0)
+            .onAppear {
+                guard active else { return }
+                withAnimation(.easeInOut(duration: 0.13).repeatForever(autoreverses: true)) {
+                    dim = true
+                }
+            }
+        }
     }
 
     @ViewBuilder
