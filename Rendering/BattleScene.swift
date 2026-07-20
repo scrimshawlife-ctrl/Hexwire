@@ -2501,6 +2501,15 @@ final class BattleScene: SKScene {
         if let room = RoomManager.shared.currentRoom, !missionId.isEmpty {
             names.append("\(missionId)_\(room.id).png")
         }
+        // Arena-pool rooms (gauntlet floors / contracts) carry their own art
+        // slot by ROOM id ("arena_01.png"), with a story-room placeholder
+        // until that art is generated.
+        if let room = RoomManager.shared.currentRoom {
+            names.append("\(room.id).png")
+            if let placeholder = ArenaPool.placeholderBackgrounds[room.id] {
+                names.append(placeholder)
+            }
+        }
         if !missionId.isEmpty {
             names.append("\(missionId).png")
         }

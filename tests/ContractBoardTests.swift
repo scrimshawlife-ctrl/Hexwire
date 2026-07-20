@@ -70,7 +70,7 @@ final class ContractBoardTests: XCTestCase {
         let a = ContractStore.makeOffer(tier: 2, seed: 777)
         let b = ContractStore.makeOffer(tier: 2, seed: 777)
         XCTAssertEqual(a, b, "same seed must produce the identical offer")
-        XCTAssertTrue(ContractStore.missionPoolByTier[2]!.contains(a.sourceMissionId))
+        XCTAssertTrue(a.sourceMissionId.hasPrefix("arena_"), "contract sites come from the ArenaPool")
         XCTAssertEqual(a.id, "Contract_t2_777")
     }
 
@@ -98,6 +98,9 @@ final class ContractBoardTests: XCTestCase {
         XCTAssertFalse(room.enemies.isEmpty, "contract rooms ship an authored squad")
         XCTAssertTrue(RoomManager.shared.roomHasExtraction(room),
                       "a sealed room must resolve an extraction objective")
+        XCTAssertTrue(room.id.hasPrefix("arena_"), "contract site is an ArenaPool room")
+        XCTAssertFalse(room.map.contains { $0.contains(TileType.door.rawValue) },
+                       "the exit door became the extraction tile — no locked doors remain")
         XCTAssertTrue(ContractStore.shared.isActive, "loader must arm the contract")
         XCTAssertEqual(ContractStore.shared.activeOffer?.id, offer.id)
 
