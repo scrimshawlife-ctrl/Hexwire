@@ -103,6 +103,11 @@ final class MissionStatsStore: ObservableObject {
     // Cut ~45% across the board and crushed the M6 placeholder so gear is a
     // real choice — you can kit out a couple of runners per run, not everyone.
     static func basePayout(missionId: String) -> Int {
+        // Procedural side contracts price by the tier encoded in the id
+        // ("Contract_t<tier>_<seed>") — see ContractStore.
+        if missionId.hasPrefix("Contract_t3") { return ContractStore.basePay(tier: 3) }
+        if missionId.hasPrefix("Contract_t2") { return ContractStore.basePay(tier: 2) }
+        if missionId.hasPrefix(ContractStore.contractIdPrefix) { return ContractStore.basePay(tier: 1) }
         switch missionId {
         case "Mission001":   return 9_000
         case "Mission002":   return 16_000
@@ -144,6 +149,11 @@ final class MissionStatsStore: ObservableObject {
     /// HP-bar badge and the profile card always agree.
     static func enemyDisplayLevel(missionId: String?, archetype: String) -> Int {
         let base: Int
+        if let id = missionId, id.hasPrefix("Contract_t"),
+           let tier = Int(String(id.dropFirst("Contract_t".count).prefix(1))) {
+            let bossBump = archetype.lowercased().hasPrefix("boss") ? 1 : 0
+            return max(1, tier) + bossBump + NGPlusStore.shared.tier
+        }
         switch missionId ?? "" {
         case "Mission003", "Mission004":           base = 2
         case "Mission005", "Mission006":           base = 3

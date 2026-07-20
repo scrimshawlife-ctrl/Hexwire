@@ -26,6 +26,7 @@ final class IntentFacadeTests: XCTestCase {
         gs.missionComplete = false
         gs.combatEnded = false
         gs.extractionAnimationInProgress = false
+        gs.combatOutcome = .none   // stale terminal outcomes re-latch missionComplete via syncLegacyState
     }
 
     override func tearDown() async throws {
@@ -37,6 +38,7 @@ final class IntentFacadeTests: XCTestCase {
         gs.missionComplete = false
         gs.combatEnded = false
         gs.extractionAnimationInProgress = false
+        gs.combatOutcome = .none   // stale terminal outcomes re-latch missionComplete via syncLegacyState
         gs.selectedCharacterId = nil
         gs.activeCharacterId = nil
         gs.targetCharacterId = nil

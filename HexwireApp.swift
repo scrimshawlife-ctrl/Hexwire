@@ -1552,6 +1552,7 @@ struct TitleView: View {
 struct MissionSelectView: View {
     @ObservedObject var manager: PhaseManager
     @ObservedObject private var stats = MissionStatsStore.shared
+    @ObservedObject private var contracts = ContractStore.shared
     @State private var showShop = false
     @State private var showRoster = false
     @State private var showRecords = false
@@ -1800,6 +1801,7 @@ struct MissionSelectView: View {
                     // meet the campaign first; everyone else dives freely).
                     if stats.record(for: "Mission001").completed {
                         gauntletCard
+                        contractBoardSection
                     }
                 }
                 .padding(.bottom, 16)
@@ -1818,6 +1820,92 @@ struct MissionSelectView: View {
         }
         .fullScreenCover(isPresented: $showRecords) {
             AchievementsView(onDismiss: { showRecords = false })
+        }
+    }
+
+    /// Side-contract board: three procedural one-room jobs (one per tier),
+    /// recombining shipped rooms with seeded signature squads. Victory
+    /// consumes the offer and rolls a fresh one; defeat keeps it for a
+    /// retry. Launching routes through the normal mission-select flow via
+    /// the synthetic contract id (MissionLoader resolves it).
+    private var contractBoardSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "briefcase.fill")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundColor(Color(hex: "FFB020"))
+                Text("SIDE CONTRACTS")
+                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                    .tracking(3)
+                    .foregroundColor(Color(hex: "FFB020"))
+                Spacer()
+                if contracts.completedCount > 0 {
+                    Text("\(contracts.completedCount) FILLED")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.45))
+                }
+            }
+            ForEach(contracts.offers) { offer in
+                contractCard(offer)
+            }
+        }
+        .padding(.top, 12)
+    }
+
+    private func contractCard(_ offer: ContractOffer) -> some View {
+        let tierColor = Color(hex: offer.tier >= 3 ? "FF5500" : (offer.tier == 2 ? "FF8800" : "00FF88"))
+        let heat = min(3, MissionStatsStore.shared.loadFactionAttention()[.corp] ?? 0)
+        return Button(action: {
+            HapticsManager.shared.selectAffirm()
+            _ = manager.transition(to: .selectMission(offer.id))
+        }) {
+            HStack(spacing: 0) {
+                Rectangle().fill(tierColor).frame(width: 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(offer.title)
+                            .font(.system(size: 14, weight: .black, design: .monospaced))
+                            .foregroundColor(.white)
+                        HStack(spacing: 2) {
+                            ForEach(0..<offer.tier, id: \.self) { _ in
+                                Image(systemName: "skull.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(tierColor)
+                            }
+                        }
+                        Spacer()
+                        Text("¥\(offer.basePay.formatted())")
+                            .font(.system(size: 12, weight: .black, design: .monospaced))
+                            .foregroundColor(Color(hex: "FFE044"))
+                    }
+                    HStack(spacing: 8) {
+                        Text(offer.employer)
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .tracking(1)
+                            .foregroundColor(tierColor.opacity(0.9))
+                        if heat > 0 {
+                            Text(String(format: "HEAT ×%.2f", 1.0 + 0.15 * Double(heat)))
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundColor(Color(hex: "FF6600"))
+                        }
+                    }
+                    Text(offer.blurb)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.right")
+                    .foregroundColor(tierColor)
+                    .padding(.horizontal, 12)
+            }
+            .background(Color(hex: "12100A"))
+            .cornerRadius(12)
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .stroke(tierColor.opacity(0.35), lineWidth: 1))
         }
     }
 

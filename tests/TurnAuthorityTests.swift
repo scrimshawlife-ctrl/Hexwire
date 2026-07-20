@@ -45,6 +45,7 @@ final class TurnAuthorityTests: XCTestCase {
         gs.currentMissionType = savedMissionType
         gs.missionComplete = false
         gs.combatEnded = false
+        gs.combatOutcome = .none
         gs.currentMissionDisplayId = nil
         CombatFlowController.setCombatPhase(gameState: gs, .idle)
         MissionStatsStore.shared.resetAll()   // zero memory+disk BEFORE restoring
