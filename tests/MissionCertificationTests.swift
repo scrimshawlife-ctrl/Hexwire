@@ -59,9 +59,15 @@ final class MissionCertificationTests: XCTestCase {
         gs.missionComplete = false
         gs.combatEnded = false
         gs.extractionAnimationInProgress = false
+        gs.combatOutcome = .none   // stale terminal outcomes re-latch missionComplete via syncLegacyState
         gs.dataAcquired = false
         gs.currentMissionDisplayId = nil
         CombatFlowController.setCombatPhase(gameState: gs, .idle)
+        // Invalidate any pending 14s extraction safety-net timers scheduled
+        // during this test — their attempt-token guard makes this the
+        // designed kill switch (otherwise a timer fires mid-later-test and
+        // re-finalizes the mission).
+        gs.missionAttemptId += 1
         RoomManager.shared.unloadMission()
     }
 

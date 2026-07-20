@@ -762,7 +762,8 @@ struct MissionSetupService {
     static func replaySquad(for room: Room, gameState: GameState) -> [EnemySpawn] {
         let missionId = gameState.currentMissionDisplayId ?? ""
         let isReplay = MissionStatsStore.shared.record(for: missionId).attempts > 0
-        guard isReplay || GauntletStore.shared.isActive else { return room.enemies }
+        guard isReplay || GauntletStore.shared.isActive || ContractStore.shared.isActive
+        else { return room.enemies }
         guard let mission = RoomManager.shared.currentMission else { return room.enemies }
 
         // Pool = union of costed types authored anywhere in this mission.
@@ -775,7 +776,13 @@ struct MissionSetupService {
         // Launch-stable room hash (String.hashValue is salted per process).
         var roomHash: UInt64 = 5381
         for b in room.id.utf8 { roomHash = (roomHash << 5) &+ roomHash &+ UInt64(b) }
-        var rng = SquadRNG(seed: UInt64(bitPattern: Int64(gameState.missionAttemptId))
+        // Contracts use the OFFER's seed (not the attempt counter) so an
+        // offer has one signature squad: retries face the same opposition,
+        // fresh offers roll fresh squads.
+        let attemptSeed = ContractStore.shared.isActive
+            ? (ContractStore.shared.activeOffer?.seed ?? gameState.missionAttemptId)
+            : gameState.missionAttemptId
+        var rng = SquadRNG(seed: UInt64(bitPattern: Int64(attemptSeed))
                                 &* 0x9E37_79B9_7F4A_7C15 &+ roomHash)
 
         var rerolled = 0

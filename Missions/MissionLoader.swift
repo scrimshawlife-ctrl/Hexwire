@@ -154,11 +154,17 @@ final class MissionLoader {
         if name == GauntletStore.gauntletMissionId {
             return loadGauntletFloorMission()
         }
+        // ── SIDE CONTRACTS ── synthetic "Contract_t<tier>_<seed>" ids resolve
+        // to one sealed room of a story mission (see ContractStore).
+        if ContractStore.isContractId(name) {
+            return loadContractMission(id: name)
+        }
         // Any REAL mission load stands a previously-armed gauntlet down —
         // the player backed out of the gauntlet briefing and picked a story
         // mission, so no floor scaling may leak onto it and its victory must
         // not advance the floor. No-op when the gauntlet isn't armed.
         GauntletStore.shared.disarmForNonGauntletLoad()
+        ContractStore.shared.disarmForNonContractLoad()
         let multiName = name.hasSuffix("_multi") ? name : "\(name)_multi"
         // Try bundle Missions/ subdirectory first (preferred bundling)
         if let url = Bundle.main.url(forResource: multiName, withExtension: "json", subdirectory: "Missions") {
@@ -215,6 +221,48 @@ final class MissionLoader {
     /// select card needs no arm/disarm choreography: backing out of the
     /// briefing is harmless (the next real-mission load disarms, see above),
     /// and re-entering simply re-arms with the SAME persisted floor pick.
+    /// Resolve a contract id to a single-room synthetic mission: pick the
+    /// offer's vetted room, SEAL it (no connections, no boss), guarantee an
+    /// extraction objective, and override id/title so stats/payout record
+    /// under the contract. Arms ContractStore AFTER the underlying load
+    /// (whose normal branch runs the disarms).
+    private func loadContractMission(id: String) -> MultiRoomMission? {
+        let store = ContractStore.shared
+        guard let offer = store.offer(withId: id) else {
+            dlog("MissionLoader: ⚠️ contract id '\(id)' has no live offer")
+            return nil
+        }
+        guard let base = loadMultiRoomMission(named: offer.sourceMissionId),
+              let src = ContractStore.pickRoom(from: base, seed: offer.seed) else {
+            dlog("MissionLoader: ⚠️ contract '\(id)' failed to resolve a room from \(offer.sourceMissionId)")
+            return nil
+        }
+        let sealed = Room(
+            id: src.id,
+            title: offer.title,
+            map: src.map,
+            playerSpawn: src.playerSpawn,
+            extractionPoint: ContractStore.syntheticExtraction(for: src),
+            enemies: src.enemies,
+            connections: [],
+            removeOnFirstKill: src.removeOnFirstKill,
+            bossSpawn: nil
+        )
+        store.armForContractLoad(offer)
+        dlog("MissionLoader: contract \(id) → \(offer.sourceMissionId)/\(src.id)")
+        let difficulty = offer.tier >= 3 ? "HARD" : (offer.tier == 2 ? "HIGH" : "MODERATE")
+        return MultiRoomMission(
+            id: offer.id,
+            title: "CONTRACT — \(offer.title)",
+            description: offer.blurb,
+            difficulty: difficulty,
+            briefing: "\(offer.employer) is paying ¥\(offer.basePay.formatted()) base. \(offer.blurb) Clear the room and get to extraction.",
+            missionCompleteSummary: "Contract fulfilled. \(offer.employer) transfers the fee — no questions, no names.",
+            rooms: [sealed],
+            extractionType: "door"
+        )
+    }
+
     private func loadGauntletFloorMission() -> MultiRoomMission? {
         let store = GauntletStore.shared
         let underlyingId = store.missionIdForCurrentFloor()

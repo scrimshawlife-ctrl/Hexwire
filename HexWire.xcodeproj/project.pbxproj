@@ -185,6 +185,7 @@
 		2BD1F286D0DEA887F53B3AF5 /* vargas_walk_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 90EE53AA092266704E3CB813 /* vargas_walk_0.png */; };
 		2C000AD879BAF29825DCF475 /* DropIntroScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1DD8E93622A2FDAFA493EFF /* DropIntroScene.swift */; };
 		2C197C10DE7761038F48E612 /* vfx_arc_corrupt_06.png in Resources */ = {isa = PBXBuildFile; fileRef = 6024EA7893C1CC2C1F9FBB2D /* vfx_arc_corrupt_06.png */; };
+		2C1D3D7791199341AA645F4A /* ContractService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 461B3E0AD793F6F1757FB750 /* ContractService.swift */; };
 		2C75BE00BE9C312C6B40C7DB /* juggernaut_idle_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 2574D2EF923A17EF14E8D377 /* juggernaut_idle_0.png */; };
 		2CC43251B789C5F9E920250A /* bossmech_death.png in Resources */ = {isa = PBXBuildFile; fileRef = 9A003E4CC48F851AB1183BD8 /* bossmech_death.png */; };
 		2D28250F5E51639D968F4C37 /* tilesheet_1_r2c1.png in Resources */ = {isa = PBXBuildFile; fileRef = 1AE8FFCD8C10F387FBD60E53 /* tilesheet_1_r2c1.png */; };
@@ -270,6 +271,7 @@
 		43BF0BE43C85D5F345451D86 /* vfx_dust_03.png in Resources */ = {isa = PBXBuildFile; fileRef = AC9B6C1E575DCEA755CA3488 /* vfx_dust_03.png */; };
 		43CBBDB6803A1CEC20738B82 /* chase_drop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F4498EA0DA1CCF7E459E74A5 /* chase_drop.mp3 */; };
 		4400BF76873EF1F460B80700 /* vfx_embers_02.png in Resources */ = {isa = PBXBuildFile; fileRef = FEFEA0AB738E99346FDB6896 /* vfx_embers_02.png */; };
+		4401F541A541DBA9B68D147C /* ContractBoardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B03BE55F7CB99F5857FD3EA /* ContractBoardTests.swift */; };
 		4412000E0150EC47171D4AC5 /* vfx_digital_03.png in Resources */ = {isa = PBXBuildFile; fileRef = FF54A29C2E690DDE396DCB9B /* vfx_digital_03.png */; };
 		448E4FC8E3049ECCCA4E7250 /* Mission005_room_2.png in Resources */ = {isa = PBXBuildFile; fileRef = 78C8EFE4EC943DCCACB0D557 /* Mission005_room_2.png */; };
 		44B3057BF04056E654A7C511 /* sable_astral_cast_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 2CED923405C08EEC151F4205 /* sable_astral_cast_0.png */; };
@@ -1182,6 +1184,7 @@
 		456BA62CADA04E18BB9F9E96 /* raze_right_parry_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = raze_right_parry_0.png; sourceTree = "<group>"; };
 		45BDD2F26C549D950BE7E166 /* vfx_ritual_pulse_04.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_ritual_pulse_04.png; sourceTree = "<group>"; };
 		45DC3FFB7718701356EA8B71 /* slugger_light_1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = slugger_light_1.png; sourceTree = "<group>"; };
+		461B3E0AD793F6F1757FB750 /* ContractService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractService.swift; sourceTree = "<group>"; };
 		462741139AFE26B7DE9142A2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		46B0CCB2A85550D8E2F4360B /* vfx_arc_yellow_04.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_arc_yellow_04.png; sourceTree = "<group>"; };
 		47782FF46055837751F16843 /* Spell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spell.swift; sourceTree = "<group>"; };
@@ -1430,6 +1433,7 @@
 		8A2D03CE45A7CA28F75632DF /* vfx_code_purple_07.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_code_purple_07.png; sourceTree = "<group>"; };
 		8A5CDEFAD04F8F1818EEF80A /* brawler_crouch_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = brawler_crouch_0.png; sourceTree = "<group>"; };
 		8A7584618872EB7A71E8F636 /* tilesheet_2_r2c2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = tilesheet_2_r2c2.png; sourceTree = "<group>"; };
+		8B03BE55F7CB99F5857FD3EA /* ContractBoardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractBoardTests.swift; sourceTree = "<group>"; };
 		8B6DA48B84C3477D6A99E34F /* repairdrone_attack_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = repairdrone_attack_0.png; sourceTree = "<group>"; };
 		8B7FD0FD5BD241CCCAD53382 /* vfx_micro_flicker_02.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_micro_flicker_02.png; sourceTree = "<group>"; };
 		8C1174A8DD7FEA8869ED79EF /* raze_right_walk_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = raze_right_walk_2.png; sourceTree = "<group>"; };
@@ -2686,6 +2690,7 @@
 				8DA465D9DEFDBDD62EE0A6DD /* CombatFlowController.swift */,
 				B2DA06B119E4401F92B81A80 /* CombatResolver.swift */,
 				235CCDA3D3F88BCCC7B97F11 /* ConsequenceEngine.swift */,
+				461B3E0AD793F6F1757FB750 /* ContractService.swift */,
 				F2C863A926A23F8E370480BF /* DebugLog.swift */,
 				3949BE82CD4CF9DDFE4D9718 /* DiceEngine.swift */,
 				7385CD590A171519D924E2F9 /* EnemyAI.swift */,
@@ -2938,6 +2943,7 @@
 			isa = PBXGroup;
 			children = (
 				508E01A554C4069BA47EED28 /* CombatMathTests.swift */,
+				8B03BE55F7CB99F5857FD3EA /* ContractBoardTests.swift */,
 				12665DAB8F210C780CB1C292 /* DiceDeterminismTests.swift */,
 				D9AD747B0BB8EF1D9B2E4970 /* EconomyPersistenceTests.swift */,
 				314D8FE0D2A7A8F59077B931 /* IntentFacadeTests.swift */,
@@ -3917,6 +3923,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8240484269AAA631B737BA88 /* CombatMathTests.swift in Sources */,
+				4401F541A541DBA9B68D147C /* ContractBoardTests.swift in Sources */,
 				D6ACD7E6B7A7AEA798C91BA0 /* DiceDeterminismTests.swift in Sources */,
 				C9FA408FECDAD36F152480AF /* EconomyPersistenceTests.swift in Sources */,
 				7A9DC9A3D52BF85F0BEF1C11 /* IntentFacadeTests.swift in Sources */,
@@ -3947,6 +3954,7 @@
 				4825157C6FE1D59C5AEC68AC /* CombatUI.swift in Sources */,
 				BB35EC1C259AF4068FD8A7DB /* CombatWidgets.swift in Sources */,
 				93C6DA36C66361E2F8481D2B /* ConsequenceEngine.swift in Sources */,
+				2C1D3D7791199341AA645F4A /* ContractService.swift in Sources */,
 				80BC80B182433F0ED8F387B2 /* CypherCrackerMiniGame.swift in Sources */,
 				61FD413723036BB197A7E404 /* DebugLog.swift in Sources */,
 				F51BDF05339EBC2DC5027C9A /* DiceEngine.swift in Sources */,
