@@ -138,6 +138,55 @@ struct HoverbikeChaseScene: View {
     @State private var nearMissUntil: Double = 0
     @State private var nearMissCount: Int = 0
 
+    // MARK: - Campaign tie-ins (roster loadout, faction heat) + scorecard
+
+    /// What Lyra's ACTUAL roster build contributes to the chase — loaded once
+    /// per run from the persisted roster so black-market weapons and chrome
+    /// carry into the interstitial instead of it being a stat island.
+    private struct ChaseLoadout {
+        var bulletDamage: Int = 1          // heavy purchased gun = piercing rounds
+        var extraBullet: Bool = false      // smartlink-class targeting cyber
+        var boostBonus: Double = 0         // wired-reflex nitro stretch (seconds)
+        var bonusHP: Int = 0               // subdermal soak chrome
+        var briefingLines: [(String, String)] = []
+    }
+    @State private var loadout = ChaseLoadout()
+    /// Persisted corp attention at launch — drives drone pressure + pay.
+    @State private var corpHeat: Int = 0
+    private var heatRewardMultiplier: Double { 1.0 + 0.15 * Double(min(3, corpHeat)) }
+    /// Next extra heat-pressure chaser (pulseTime); 0 = disabled (no heat).
+    @State private var nextHeatDroneAt: Double = 0
+    /// Boss weak-point windows: vents open until / next window at (pulseTime).
+    @State private var bossVentUntil: Double = 0
+    @State private var nextVentAt: Double = 0
+    /// Run stats feeding the end-of-run scorecard.
+    @State private var killCount: Int = 0
+    @State private var hitsTaken: Int = 0
+    @State private var scorecard: [(String, String)] = []
+    @State private var walletLine: String = ""
+
+    private static func buildLoadout() -> ChaseLoadout {
+        var l = ChaseLoadout()
+        guard let lyra = RosterStore.shared.loadCanonical().first(where: { $0.name == "Lyra" }) else { return l }
+        if let w = lyra.equippedWeapon, w.damage >= 7 {
+            l.bulletDamage = 2
+            l.briefingLines.append((w.name.uppercased(), "Heavy rounds — every hit counts double"))
+        }
+        if lyra.cyberAccuracyDice >= 2 {
+            l.extraBullet = true
+            l.briefingLines.append(("SMARTLINK", "Targeting overlay — 4-round fan"))
+        }
+        if lyra.cyberInitiative >= 1 {
+            l.boostBonus = 0.5
+            l.briefingLines.append(("WIRED REFLEXES", "NITRO window stretched"))
+        }
+        if lyra.cyberSoak >= 2 {
+            l.bonusHP = 1
+            l.briefingLines.append(("SUBDERMAL PLATE", "+1 bike integrity"))
+        }
+        return l
+    }
+
     // MARK: - Models
 
     enum ObstacleKind: String {
@@ -719,7 +768,9 @@ struct HoverbikeChaseScene: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: size)
-                    .shadow(color: Color(hex: "FF3344").opacity(0.55), radius: 14)
+                    .shadow(color: Color(hex: pulseTime < bossVentUntil ? "FFA500" : "FF3344")
+                        .opacity(pulseTime < bossVentUntil ? 0.9 : 0.55),
+                            radius: pulseTime < bossVentUntil ? 24 : 14)
             } else {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(hex: "554433"))
@@ -742,7 +793,7 @@ struct HoverbikeChaseScene: View {
                         .tracking(2)
                         .foregroundColor(Color(hex: "FF3344"))
                     HStack(spacing: 4) {
-                        ForEach(0..<maxHp, id: \.self) { i in
+                        ForEach(0..<(maxHp + loadout.bonusHP), id: \.self) { i in
                             Image(systemName: i < hp ? "heart.fill" : "heart")
                                 .font(.system(size: 18))
                                 .foregroundColor(i < hp ? Color(hex: "FF3344") : .white.opacity(0.25))
@@ -885,6 +936,18 @@ struct HoverbikeChaseScene: View {
                                  title: "NEAR MISS", detail: "Skim a hazard to bank bonus score + NITRO — ride dirty")
                     briefingRule(icon: "exclamationmark.triangle.fill", color: Color(hex: "FFCC00"),
                                  title: "THREATS", detail: "Rammers charge · snipers paint you · gunners strafe · miners drop mines · wrong-way traffic · an ELITE enforcer mid-run")
+                    // Roster tie-ins: Lyra's actual gear/chrome, so shop
+                    // purchases visibly matter here too.
+                    ForEach(loadout.briefingLines.indices, id: \.self) { i in
+                        briefingRule(icon: "cpu.fill", color: Color(hex: "B080FF"),
+                                     title: loadout.briefingLines[i].0,
+                                     detail: loadout.briefingLines[i].1)
+                    }
+                    if corpHeat > 0 {
+                        briefingRule(icon: "flame.fill", color: Color(hex: "FF6600"),
+                                     title: "CORP HEAT \(min(3, corpHeat))",
+                                     detail: String(format: "Extra drone pressure · contract pays ×%.2f", heatRewardMultiplier))
+                    }
                 }
                 .padding(.top, 4)
                 Button(action: {
@@ -947,6 +1010,30 @@ struct HoverbikeChaseScene: View {
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundColor(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
+                // End-of-run scorecard — the payout is explainable, not a
+                // bare number (mirrors the tactical debrief factor lines).
+                if !scorecard.isEmpty {
+                    VStack(spacing: 4) {
+                        ForEach(scorecard.indices, id: \.self) { i in
+                            HStack {
+                                Text(scorecard[i].0)
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.65))
+                                Spacer()
+                                Text(scorecard[i].1)
+                                    .font(.system(size: 10, weight: .black, design: .monospaced))
+                                    .foregroundColor(Color(hex: "FFE044"))
+                            }
+                        }
+                        Text(walletLine)
+                            .font(.system(size: 12, weight: .black, design: .monospaced))
+                            .tracking(1)
+                            .foregroundColor(didWin ? Color(hex: "00FF88") : Color(hex: "FF3344"))
+                            .padding(.top, 6)
+                    }
+                    .frame(width: 290)
+                    .padding(.top, 6)
+                }
                 Button(action: {
                     HapticsManager.shared.buttonTap()
                     // Win → outro VN → debrief. Loss → straight to debrief.
@@ -1068,6 +1155,10 @@ struct HoverbikeChaseScene: View {
             bullets.append(Bullet(x: originX, y: originY, vx: vxStraight, vy: 0))
             bullets.append(Bullet(x: originX, y: originY, vx: vxAngled,   vy: -vyAngled))
             bullets.append(Bullet(x: originX, y: originY, vx: vxAngled,   vy:  vyAngled))
+            // Smartlink chrome: a 4th round splitting the lower gap.
+            if loadout.extraBullet {
+                bullets.append(Bullet(x: originX, y: originY, vx: vxAngled, vy: vxAngled * 0.045))
+            }
         }
         isFiring = true
         firingPulseEnd = pulseTime + 0.28   // longer flash so the firing
@@ -1081,7 +1172,14 @@ struct HoverbikeChaseScene: View {
     // MARK: - Lifecycle
 
     private func initialise() {
-        hp = maxHp
+        // Campaign tie-ins: Lyra's real build + persisted corp attention.
+        loadout = HoverbikeChaseScene.buildLoadout()
+        corpHeat = MissionStatsStore.shared.loadFactionAttention()[.corp] ?? 0
+        hp = maxHp + loadout.bonusHP
+        nextHeatDroneAt = corpHeat > 0 ? 12.0 : 0
+        killCount = 0; hitsTaken = 0
+        scorecard = []; walletLine = ""
+        bossVentUntil = 0; nextVentAt = 0
         bossHpRemaining = bossHp
         // Bike starts at center-bottom of play zone (visually anchored
         // over the road, with room to move in all 4 directions).
@@ -1141,6 +1239,16 @@ struct HoverbikeChaseScene: View {
         pulseTime += Double(dt)
         elapsed += Double(dt)
         distance += speed * dt * 30   // arbitrary unit
+
+        // Corp-heat pressure: persisted faction attention sends extra
+        // chasers on a cadence that tightens with heat. The contract pays
+        // proportionally more (heatRewardMultiplier at finish).
+        if nextHeatDroneAt > 0 && pulseTime >= nextHeatDroneAt && !bossActive {
+            var d = Drone(x: 1.08, y: randomPlayY(), nextFireAt: pulseTime + 1.2)
+            d.kind = .chaser
+            drones.append(d)
+            nextHeatDroneAt = pulseTime + max(6.0, 14.0 - 3.0 * Double(min(3, corpHeat)))
+        }
 
         // Ramp speed slowly up to 1.6× over the mission duration.
         speed = min(2.0, speed + dt * 0.009)
@@ -1500,6 +1608,7 @@ struct HoverbikeChaseScene: View {
         // Clear smaller threats — boss is the focal challenge.
         drones.removeAll()
         obstacles.removeAll()
+        nextVentAt = pulseTime + 6.0   // first weak-point window
         playSfx("agi_arrival_glitch", volume: 0.7)
     }
 
@@ -1520,9 +1629,19 @@ struct HoverbikeChaseScene: View {
         }
         guard bossX < targetX + 0.05 else { return }
 
+        // Weak-point windows: vents cycle open between barrages — the boss
+        // holds fire while exposed, so the window is both DPS and breather.
+        if nextVentAt > 0 && pulseTime >= nextVentAt {
+            bossVentUntil = pulseTime + 2.6
+            nextVentAt = pulseTime + (phase == 3 ? 6.5 : 8.5)
+            showBanner(title: "VENTS OPEN", subtitle: "Hull exposed — pour it on!", accent: "FFA500")
+            playSfx("hit_metal", volume: 0.9)
+        }
+        let ventsOpen = pulseTime < bossVentUntil
+
         // Spread barrage — cadence + count escalate by phase.
         let fireGap: Double = phase == 1 ? 1.4 : (phase == 2 ? 1.0 : 0.7)
-        if pulseTime.truncatingRemainder(dividingBy: fireGap) < Double(dt) {
+        if !ventsOpen, pulseTime.truncatingRemainder(dividingBy: fireGap) < Double(dt) {
             let offs: [CGFloat] = phase == 3
                 ? [-0.10, -0.06, -0.02, 0.02, 0.06, 0.10]
                 : [-0.08, -0.04, 0, 0.04, 0.08]
@@ -1559,7 +1678,7 @@ struct HoverbikeChaseScene: View {
             let b = bullets[bi]
             for di in drones.indices where !drones[di].consumed {
                 if abs(drones[di].x - b.x) < 0.07 && abs(drones[di].y - b.y) < 0.06 {
-                    drones[di].hp -= 1
+                    drones[di].hp -= loadout.bulletDamage
                     bullets.remove(at: bi)
                     playSfx("hit_metal", volume: 0.7)
                     if drones[di].hp <= 0 {
@@ -1577,9 +1696,12 @@ struct HoverbikeChaseScene: View {
             for bi in bullets.indices.reversed() where bi < bullets.count {
                 let b = bullets[bi]
                 if abs(bossX - b.x) < 0.10 && abs(bossYVisual - b.y) < 0.10 {
-                    bossHpRemaining -= 1
+                    // Weak-point windows: hull shots chip, vent shots CHUNK.
+                    let ventOpen = pulseTime < bossVentUntil
+                    bossHpRemaining -= (ventOpen ? 3 : 1) + (loadout.bulletDamage - 1)
                     bullets.remove(at: bi)
-                    playSfx("hit_metal")
+                    playSfx("hit_metal", volume: ventOpen ? SFXManager.shared.targetVolume * 1.25 : nil)
+                    if ventOpen { HapticsManager.shared.attackHit() }
                     if bossHpRemaining <= 0 {
                         bossActive = false; playSfx("agi_death"); finishGame(win: true); return
                     }
@@ -1682,6 +1804,7 @@ struct HoverbikeChaseScene: View {
     /// Drone/obstacle destroyed — combo, score, boost gain + a small
     /// explosion pop so kills read audibly (playtest: kills felt silent).
     private func registerKill() {
+        killCount += 1
         combo += 1
         comboExpiry = pulseTime + 3.0
         score += 50 * max(1, combo)
@@ -1696,6 +1819,7 @@ struct HoverbikeChaseScene: View {
         // a single frame dealt 3 stacked hits — instant death from full HP.
         guard pulseTime > iframeUntil && pulseTime >= shieldUntil else { return }
         hp -= 1
+        hitsTaken += 1
         iframeUntil = pulseTime + 1.2
         combo = 0
         playSfx("player_hit")
@@ -1710,7 +1834,7 @@ struct HoverbikeChaseScene: View {
     private func tryBoost() {
         guard boost >= 1.0, !gameOver, !showBriefing, pulseTime > boostUntil else { return }
         boost = 0
-        boostUntil = pulseTime + 1.0
+        boostUntil = pulseTime + 1.0 + loadout.boostBonus
         iframeUntil = max(iframeUntil, pulseTime + 1.0)
         playSfx("agi_arrival_glitch", volume: 0.8)
         HapticsManager.shared.victory()
@@ -1750,16 +1874,38 @@ struct HoverbikeChaseScene: View {
             // banks something and a clean win banks more.
             // Faster win = higher score (1500 floor at long fights, up to
             // ~1500 if the gunship drops fast). Caps so a slow win still pays.
-            let chaseScore = max(500, 1500 - Int(elapsed * 4) + hp * 100 + score / 3)
+            let speedBonus = max(0, 1000 - Int(elapsed * 4))
+            let integrityBonus = hp * 100
+            let styleBonus = score / 3
+            let chaseScore = 500 + speedBonus + integrityBonus + styleBonus
             MissionStatsStore.shared.recordVictory(
                 missionId: "Mission003_5",
                 score: chaseScore,
                 dataAcquired: false,
-                grimoireAcquired: false
+                grimoireAcquired: false,
+                rewardMultiplier: heatRewardMultiplier
             )
+            scorecard = [
+                ("RUN CLEARED", "500"),
+                ("SPEED BONUS", "\(speedBonus)"),
+                ("BIKE INTEGRITY ×\(hp)", "\(integrityBonus)"),
+                ("STYLE · \(killCount) KILLS · \(nearMissCount) NEAR MISS", "\(styleBonus)"),
+                ("SCORE — RANK \(MissionStatsStore.rank(forScore: chaseScore))", "\(chaseScore)"),
+            ]
+            if corpHeat > 0 {
+                scorecard.append(("CORP HEAT ×\(min(3, corpHeat))",
+                                  String(format: "PAY ×%.2f", heatRewardMultiplier)))
+            }
+            walletLine = "¥\(MissionStatsStore.shared.lastWalletCredit) CREDITED"
         } else {
             HapticsManager.shared.defeat()
             playSfx("mission_defeat")
+            scorecard = [
+                ("SURVIVED", String(format: "%.0fs", elapsed)),
+                ("DRONES DOWNED", "\(killCount)"),
+                ("HITS TAKEN", "\(hitsTaken)"),
+            ]
+            walletLine = "NO PAYOUT — DRIVE LOST"
         }
     }
 
