@@ -3133,6 +3133,7 @@ final class BattleScene: SKScene {
 
     /// Reload the scene with a new room's map after a transition fade completes.
     func loadRoom(_ room: Room, characters: [Character], enemies: [Enemy]) {
+        clearThreatPreview()
         currentRoomId = room.id
         // Sync authority room state (room id + per-room first-kill tracking
         // so the new room's `removeOnFirstKill` barriers fire on next kill).
@@ -3591,6 +3592,10 @@ final class BattleScene: SKScene {
             dlog("[BattleScene] Input locked — waiting for enemy phase")
             return
         }
+        // Any tap clears an open threat preview; remember which enemy owned
+        // it so tapping the SAME enemy again reads as dismiss, not re-show.
+        let threatWas = threatEnemyId
+        clearThreatPreview()
         // Check extraction tile — win immediately if all enemies are cleared and player stands on it
         if isExtractionTile(tileX, tileY) {
             // Extraction resolution is GameState-authoritative.
@@ -3700,7 +3705,13 @@ final class BattleScene: SKScene {
                 }
                 return
             } else {
-                GameState.shared.addLog("Select a character first.")
+                // No runner selected: show this enemy's THREAT RANGE instead
+                // of a dead tap (tap the same enemy again to dismiss).
+                if let enemyId = UUID(uuidString: enemySprite.enemyId),
+                   !enemySprite.enemyId.isEmpty,
+                   threatWas != enemyId {
+                    showThreatPreview(for: enemyId)
+                }
                 return
             }
         }
@@ -4008,8 +4019,118 @@ final class BattleScene: SKScene {
     /// Play a clear enemy attack animation: slash line from enemy to player, player flash.
     /// Called when the .playerHit notification is received (during enemy phase).
     func playEnemyAttackEffect(enemyId: UUID, playerId: UUID, damage: Int) {
-        showEnemyAttackSlash(fromEnemy: enemyId, toPlayer: playerId)
-        playPlayerHitEffect(on: playerId, damage: damage, enemyIdStr: enemyId.uuidString)
+        // Readability beat: pulse the victim's tile + name the attack in the
+        // HUD ticker, THEN land the slash/flash/SFX together 0.3s later.
+        // (Damage is already applied by authority — this shifts visuals only,
+        // keeping hit SFX/haptics synced with the on-screen impact.)
+        pulseVictimTile(playerId: playerId)
+        if let foe = GameState.shared.enemies.first(where: { $0.id == enemyId }),
+           let victim = GameState.shared.playerTeam.first(where: { $0.id == playerId }) {
+            GameState.shared.postTransientWarning("⚠︎ \(foe.name) → \(victim.name)", duration: 1.6)
+        }
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.30),
+            SKAction.run { [weak self] in
+                self?.showEnemyAttackSlash(fromEnemy: enemyId, toPlayer: playerId)
+                self?.playPlayerHitEffect(on: playerId, damage: damage, enemyIdStr: enemyId.uuidString)
+            }
+        ]))
+    }
+
+    // MARK: - Enemy Threat Preview (tap an enemy with no runner selected)
+    //
+    // Anti-clutter rules (learned from the earlier jumbled attempt):
+    //   • everything draws in TILE space inside the map node, in the tile
+    //     z-band (2.35) — under every prop, sprite, and HP bar by construction
+    //   • only ONE enemy's zone can exist at a time (toggle semantics)
+    //   • auto-clears on any other tap, on enemy phase, and on room load
+    //   • RANGE truth only — never a target prediction (the AI's actual pick
+    //     varies per archetype and a wrong guess is worse than nothing)
+
+    private var threatNodes: [SKNode] = []
+    private var threatEnemyId: UUID?
+
+    func clearThreatPreview() {
+        guard !threatNodes.isEmpty || threatEnemyId != nil else { return }
+        for n in threatNodes { n.removeFromParent() }
+        threatNodes = []
+        threatEnemyId = nil
+    }
+
+    private func showThreatPreview(for enemyId: UUID) {
+        clearThreatPreview()
+        guard let enemy = GameState.shared.enemies.first(where: { $0.id == enemyId && $0.isAlive }),
+              let mapNode = childNode(withName: "TileMap") else { return }
+        let tiles = GameState.shared.currentMissionTiles
+        guard !tiles.isEmpty else { return }
+
+        // Weapon reach (same table as the dice engine) + a ~2-tile
+        // repositioning allowance. Inner band = in reach right now.
+        let reach: Int
+        switch enemy.equippedWeapon?.type {
+        case .pistol:                  reach = 3
+        case .smg:                     reach = 5
+        case .rifle:                   reach = 8
+        case .blade, .unarmed, .none:  reach = 1
+        }
+        let radius = reach + 2
+
+        for y in tiles.indices {
+            for x in tiles[y].indices where tiles[y][x] != TileType.wall.rawValue {
+                let d = CombatMechanics.hexDistance(x1: enemy.positionX, y1: enemy.positionY, x2: x, y2: y)
+                guard d <= radius else { continue }
+                let hex = SKShapeNode(path: TileMap.hexPath(radius: TileMap.hexRadius * 0.92))
+                hex.position = TileMap.tileCenter(x: x, y: y)
+                hex.zPosition = 2.35
+                hex.fillColor = UIColor(red: 1.0, green: 0.18, blue: 0.25,
+                                        alpha: d <= reach ? 0.17 : 0.08)
+                hex.strokeColor = UIColor(red: 1.0, green: 0.2, blue: 0.27, alpha: 0.30)
+                hex.lineWidth = 0.8
+                hex.alpha = 0
+                mapNode.addChild(hex)
+                hex.run(SKAction.fadeIn(withDuration: 0.15))
+                threatNodes.append(hex)
+            }
+        }
+        // Pulsing hex ring on the enemy's own tile marks WHOSE zone this is.
+        let ring = SKShapeNode(path: TileMap.hexPath(radius: TileMap.hexRadius))
+        ring.position = TileMap.tileCenter(x: enemy.positionX, y: enemy.positionY)
+        ring.zPosition = 2.36
+        ring.fillColor = .clear
+        ring.strokeColor = UIColor(red: 1.0, green: 0.25, blue: 0.3, alpha: 0.95)
+        ring.lineWidth = 2.5
+        ring.glowWidth = 3
+        ring.run(SKAction.repeatForever(SKAction.sequence([
+            SKAction.scale(to: 1.08, duration: 0.45),
+            SKAction.scale(to: 1.0, duration: 0.45),
+        ])))
+        mapNode.addChild(ring)
+        threatNodes.append(ring)
+        threatEnemyId = enemyId
+
+        let reachLabel = reach == 1 ? "melee" : "range \(reach)"
+        GameState.shared.addLog("⚠️ \(enemy.name) — \(reachLabel) + movement. Red = can be hit next turn. Tap again to dismiss.")
+        HapticsManager.shared.buttonTap()
+    }
+
+    /// Pre-strike beat: pulse the victim's tile just before the slash lands,
+    /// so incoming enemy hits are readable. Tile-space + transient.
+    private func pulseVictimTile(playerId: UUID) {
+        guard let victim = GameState.shared.playerTeam.first(where: { $0.id == playerId }),
+              let mapNode = childNode(withName: "TileMap") else { return }
+        let ring = SKShapeNode(path: TileMap.hexPath(radius: TileMap.hexRadius * 0.95))
+        ring.position = TileMap.tileCenter(x: victim.positionX, y: victim.positionY)
+        ring.zPosition = 2.37
+        ring.fillColor = UIColor(red: 1, green: 0.15, blue: 0.2, alpha: 0.22)
+        ring.strokeColor = UIColor(red: 1, green: 0.2, blue: 0.25, alpha: 0.9)
+        ring.lineWidth = 2.5
+        ring.setScale(0.6)
+        mapNode.addChild(ring)
+        ring.run(SKAction.sequence([
+            SKAction.scale(to: 1.05, duration: 0.28),
+            SKAction.fadeOut(withDuration: 0.25),
+            SKAction.removeFromParent()
+        ]))
     }
 
     // MARK: - Enemy Phase Tint
@@ -4020,6 +4141,7 @@ final class BattleScene: SKScene {
 
 
     private func fadeInEnemyPhaseTint() {
+        clearThreatPreview()
         // Dedupe: a second .enemyPhaseBegan would overwrite the pointer and
         // orphan the first tint node, which could then never be removed.
         childNode(withName: "enemyPhaseTint")?.removeFromParent()

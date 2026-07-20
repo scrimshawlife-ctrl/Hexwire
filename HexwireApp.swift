@@ -1377,6 +1377,7 @@ struct TitleView: View {
     private var btnH: CGFloat { isPad ? 60 : 50 }
     @State private var showResetConfirm = false
     @State private var showRoster = false
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -1452,6 +1453,16 @@ struct TitleView: View {
                                 .stroke(Color(hex: "00D4FF").opacity(0.8), lineWidth: 2))
                             .shadow(color: Color(hex: "00D4FF").opacity(0.35), radius: 6)
                     }
+                    Button(action: { HapticsManager.shared.buttonTap(); showSettings = true }) {
+                        Text("SETTINGS")
+                            .font(.headline)
+                            .foregroundColor(Color(hex: "B080FF"))
+                            .frame(width: btnW, height: btnH)
+                            .background(Color.black.opacity(0.35))
+                            .overlay(RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(hex: "B080FF").opacity(0.8), lineWidth: 2))
+                            .shadow(color: Color(hex: "B080FF").opacity(0.35), radius: 6)
+                    }
                     // Fresh start — wipe all saved progression and begin anew.
                     Button(action: { HapticsManager.shared.back(); showResetConfirm = true }) {
                         Text("FRESH START")
@@ -1485,6 +1496,8 @@ struct TitleView: View {
                 } message: {
                     Text("Resets all runners to Level 1, nuyen to ¥0, mission ranks, gear, and New Game+. This can't be undone.")
                 }
+                .sheet(isPresented: $showSettings) { SettingsSheet() }
+                .onAppear { PlayerSettings.applyAll() }
                 .fullScreenCover(isPresented: $showRoster) {
                     RosterView(onDismiss: { showRoster = false })
                 }
@@ -2120,6 +2133,28 @@ struct MissionCard: View {
                                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                                     .foregroundColor(Color(hex: "AA66FF"))
                                     .tracking(1)
+                            }
+                        }
+                    }
+                    // Contract payout preview — base pay, the heat bonus when corp
+                    // attention is up, and the residual note once paid this run.
+                    if !isLocked {
+                        HStack(spacing: 6) {
+                            let base = MissionStatsStore.basePayout(missionId: id)
+                            let heat = min(3, MissionStatsStore.shared.loadFactionAttention()[.corp] ?? 0)
+                            let paid = MissionStatsStore.shared.paidThisRun.contains(id)
+                            Text("PAY ¥\(base.formatted())")
+                                .font(.system(size: 10, weight: .black, design: .monospaced))
+                                .foregroundColor(Color(hex: "FFE044"))
+                            if heat > 0 && !paid {
+                                Text(String(format: "HEAT ×%.2f", 1.0 + 0.15 * Double(heat)))
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundColor(Color(hex: "FF6600"))
+                            }
+                            if paid {
+                                Text("PAID — REPLAYS ¥25%")
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.45))
                             }
                         }
                     }

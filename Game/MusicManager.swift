@@ -138,6 +138,16 @@ final class MusicManager {
     /// dropped the boost, leaving e.g. M2 ~25% quieter after any mini-game.
     private var activeEndVolume: Float = 0.55
 
+    /// User-settings volume: updates the master cap AND the currently playing
+    /// track, preserving the active track's per-track boost ratio.
+    func applyUserVolume(_ v: Float) {
+        let clamped = max(0, min(1, v))
+        let boost = targetVolume > 0 ? activeEndVolume / targetVolume : 1.0
+        targetVolume = clamped
+        activeEndVolume = clamped * boost
+        player?.volume = activeEndVolume
+    }
+
     // MARK: - Public API
 
     /// Start playing music for `missionId` ("Mission001" .. "Mission006").
