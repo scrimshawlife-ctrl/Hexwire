@@ -194,6 +194,45 @@ struct BasementBrawlScene: View {
     @State private var razeImg: UIImage?
     @State private var enemyImg: UIImage?
 
+    // MARK: Campaign tie-ins + run stats (playtest bundle 2026-07-19)
+
+    /// Raze's ACTUAL roster build carried into the pit — chrome and blades
+    /// bought at the black market matter here too.
+    private struct BrawlLoadout {
+        var bonusHP: Int = 0            // BOD + subdermal soak chrome
+        var heavyBonus: Int = 0         // purchased heavy blade sharpens HEAVY
+        var briefingLines: [(String, String)] = []
+    }
+    @State private var loadout = BrawlLoadout()
+    /// Persisted corp attention: tougher pit fighters, richer purse.
+    @State private var corpHeat = 0
+    private var heatRewardMultiplier: Double { 1.0 + 0.15 * Double(min(3, corpHeat)) }
+    /// Scorecard stats.
+    @State private var perfectRounds = 0
+    @State private var hpAtWaveStart = 14
+    @State private var maxComboRun = 0
+    @State private var scorecard: [(String, String)] = []
+    @State private var walletLine = ""
+    /// GRAB — beats block, loses to active attacks. Cooldown-gated.
+    @State private var throwCD: Double = 0
+    /// HP patched up during the last round break (shown on the VS card).
+    @State private var healedLastBreak = 0
+
+    private static func buildLoadout() -> BrawlLoadout {
+        var l = BrawlLoadout()
+        guard let raze = RosterStore.shared.loadCanonical().first(where: { $0.name == "Raze" }) else { return l }
+        let hpBonus = min(4, raze.cyberSoak + max(0, raze.attributes.bod - 5))
+        if hpBonus > 0 {
+            l.bonusHP = hpBonus
+            l.briefingLines.append(("CHROME + MUSCLE", "+\(hpBonus) HP — BOD \(raze.attributes.bod), soak \(raze.cyberSoak)"))
+        }
+        if let w = raze.equippedWeapon, w.type == .blade, w.damage >= 8 {
+            l.heavyBonus = 1
+            l.briefingLines.append((w.name.uppercased(), "HEAVY strikes hit +1 harder"))
+        }
+        return l
+    }
+
     private let ticker = Timer.publish(every: 1.0 / 60.0, on: .main, in: .common).autoconnect()
 
     private var currentEnemy: WaveEnemy { WaveEnemy.allCases[min(waveIndex, 4)] }
@@ -275,6 +314,7 @@ struct BasementBrawlScene: View {
             // / parrying is a read rather than a guess.
             if enemy.phase == .windup, enemy.attack != nil, enemy.hp > 0 {
                 telegraphBadge(height: enemy.height, heavy: enemy.attack == .heavy || enemy.special)
+                    .scaleEffect(1 + CGFloat(sin(clock * 14)) * 0.10)
                     .position(x: enemy.x, y: groundY - enemyH * 1.02 + enemy.jumpY)
             }
             // Blood-splatter impact bursts at the struck fighter's torso —
@@ -460,6 +500,7 @@ struct BasementBrawlScene: View {
                     HStack(spacing: 9) {
                         attackButton("DASH", player.dashCD > 0 ? "555555" : "FFE044") { tryDash() }
                         attackButton("PARRY", player.parryCD > 0 ? "555555" : "00FF88") { tryParry() }
+                        attackButton("GRAB", throwCD > 0 ? "555555" : "FF00AA") { tryThrow() }
                         attackButton("LIGHT", "00DDFF") { tryAttack(.light) }
                         attackButton("HEAVY", "FF6633") { tryAttack(.heavy) }
                         attackButton("SP", specialCD > 0 ? "555555" : "AA66FF") { trySpecial() }
@@ -494,10 +535,39 @@ struct BasementBrawlScene: View {
                 .blendMode(.plusLighter).allowsHitTesting(false)
         }
         if roundIntro > 0 {
-            Text(roundIntro > 0.7 ? profile.label : "FIGHT!")
-                .font(.system(size: roundIntro > 0.7 ? 30 : 46, weight: .black, design: .monospaced)).tracking(3)
-                .foregroundColor(roundIntro > 0.7 ? Color(hex: "FFC844") : Color(hex: "00FF88"))
+            if roundIntro > 0.7 {
+                // Fight-night VS card — names the bout, shows the patch-up.
+                VStack(spacing: 4) {
+                    Text("RAZE")
+                        .font(.system(size: 22, weight: .black, design: .monospaced)).tracking(4)
+                        .foregroundColor(Color(hex: "00DDFF"))
+                    Text("— VS —")
+                        .font(.system(size: 11, weight: .black, design: .monospaced)).tracking(3)
+                        .foregroundColor(.white.opacity(0.6))
+                    Text(currentEnemy == .vargas ? "★ \(profile.label) ★" : profile.label)
+                        .font(.system(size: 26, weight: .black, design: .monospaced)).tracking(3)
+                        .foregroundColor(Color(hex: "FFC844"))
+                    if waveIndex > 0 {
+                        Text("ROUND \(waveIndex + 1) OF 5")
+                            .font(.system(size: 10, weight: .black, design: .monospaced)).tracking(2)
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    if healedLastBreak > 0 {
+                        Text("PATCHED UP  +\(healedLastBreak) HP")
+                            .font(.system(size: 11, weight: .black, design: .monospaced)).tracking(1)
+                            .foregroundColor(Color(hex: "00FF88"))
+                    }
+                }
+                .padding(.horizontal, 26).padding(.vertical, 14)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.72))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(hex: "FFC844").opacity(0.6), lineWidth: 1.5)))
                 .shadow(color: .black, radius: 8)
+            } else {
+                Text("FIGHT!")
+                    .font(.system(size: 46, weight: .black, design: .monospaced)).tracking(3)
+                    .foregroundColor(Color(hex: "00FF88"))
+                    .shadow(color: .black, radius: 8)
+            }
         }
         if bannerHold > 0 {
             VStack {
@@ -514,6 +584,26 @@ struct BasementBrawlScene: View {
                 Text(didWin ? "FLAWLESS — FILE SECURED" : "YOU'RE DOWN")
                     .font(.system(size: 26, weight: .black, design: .monospaced)).tracking(2)
                     .foregroundColor(didWin ? Color(hex: "00FF88") : Color(hex: "FF3344"))
+                if !scorecard.isEmpty {
+                    VStack(spacing: 4) {
+                        ForEach(scorecard.indices, id: \.self) { i in
+                            HStack {
+                                Text(scorecard[i].0)
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.65))
+                                Spacer()
+                                Text(scorecard[i].1)
+                                    .font(.system(size: 10, weight: .black, design: .monospaced))
+                                    .foregroundColor(Color(hex: "FFE044"))
+                            }
+                        }
+                        Text(walletLine)
+                            .font(.system(size: 12, weight: .black, design: .monospaced)).tracking(1)
+                            .foregroundColor(didWin ? Color(hex: "00FF88") : Color(hex: "FF3344"))
+                            .padding(.top, 5)
+                    }
+                    .frame(width: 280)
+                }
                 Button(action: exit) {
                     Text("CONTINUE").font(.system(size: 14, weight: .black, design: .monospaced)).tracking(2)
                         .foregroundColor(.white).padding(.horizontal, 26).padding(.vertical, 12)
@@ -541,8 +631,15 @@ struct BasementBrawlScene: View {
                     howToRow("RIGHT", "LIGHT = MID jab   HEAVY = HIGH swing   SP   PARRY")
                     howToRow("PARRY", "tap PARRY the instant a hit lands → deflect + free COUNTER")
                     howToRow("TELLS", "▲ HIGH = duck   ▼ LOW = stand-block   ● MID = block")
+                    howToRow("GRAB", "beats BLOCK · loses to attacks · short range")
                     howToRow("SUPER", "gold gauge fills as you fight (parries fill it fast)")
                     howToRow("GOAL", "beat all 5 — Vargas is the boss")
+                    ForEach(loadout.briefingLines.indices, id: \.self) { i in
+                        howToRow(loadout.briefingLines[i].0, loadout.briefingLines[i].1)
+                    }
+                    if corpHeat > 0 {
+                        howToRow("HEAT \(min(3, corpHeat))", String(format: "tougher fighters · purse pays ×%.2f", heatRewardMultiplier))
+                    }
                 }
                 .padding(13)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.5))
@@ -571,10 +668,21 @@ struct BasementBrawlScene: View {
     private func setupWave(initial: Bool) {
         let W = canvasW
         let p = enemyProfile(for: currentEnemy, vargasPhase: vargasPhase)
-        if initial { player = FighterState(x: W * 0.40, hp: playerMaxHP, maxHP: playerMaxHP) }
+        if initial {
+            loadout = BasementBrawlScene.buildLoadout()
+            corpHeat = MissionStatsStore.shared.loadFactionAttention()[.corp] ?? 0
+            perfectRounds = 0; maxComboRun = 0
+            scorecard = []; walletLine = ""; healedLastBreak = 0
+            let hp = playerMaxHP + loadout.bonusHP
+            player = FighterState(x: W * 0.40, hp: hp, maxHP: hp)
+        }
         else { player.x = W * 0.40; player.jumpY = 0; player.jumpVel = 0; player.phase = .none
                player.hitstun = 0; player.blockstun = 0; player.crouching = false }
-        enemy = FighterState(x: W * 0.74, hp: p.maxHP, maxHP: p.maxHP, facing: 1)
+        // Corp heat toughens every non-boss fighter (+1 HP per point, cap 3) —
+        // the purse pays proportionally more (heatRewardMultiplier at the end).
+        let heatHP = currentEnemy == .vargas ? 0 : min(3, corpHeat)
+        enemy = FighterState(x: W * 0.74, hp: p.maxHP + heatHP, maxHP: p.maxHP + heatHP, facing: 1)
+        hpAtWaveStart = player.hp
         roundIntro = initial ? 1.0 : 1.4
         comboCount = 0
         enemySuperCD = 5.0
@@ -624,6 +732,40 @@ struct BasementBrawlScene: View {
     /// DASH — a quick step toward the enemy with ~0.2s of i-frames + the
     /// `dash_0` lunge pose. The footsies tool: read an enemy's `windup_0` tell,
     /// dash through the strike, and punish the recovery. Cooldown-gated.
+    /// GRAB — the anti-turtle option: beats BLOCK outright, loses to an
+    /// enemy's ACTIVE attack frames, and whiffs (punishably) at range.
+    private func tryThrow() {
+        guard !gameOver, !showTurnPrompt, roundIntro <= 0, !koActive,
+              throwCD <= 0, !player.busy, player.jumpY >= -4 else { return }
+        throwCD = 1.1
+        HapticsManager.shared.combatInput()
+        let dx = abs(player.x - enemy.x)
+        let range = PlayerAttack.light.reach * canvasW * 0.85
+        if dx <= range, enemy.jumpY >= -4, enemy.hp > 0, enemy.phase != .active {
+            enemy.blocking = false
+            enemyBlockHold = 0
+            var dmg = 2 + loadout.heavyBonus
+            if profile.armorBreakLevel >= 1 { dmg = max(1, dmg - 1) }  // chrome resists grapples a bit
+            enemy.hp = max(0, enemy.hp - dmg)
+            enemy.hitstun = 0.55
+            enemy.hitFlash = 0.2
+            enemy.hitSplat = 0.35
+            enemy.splatDir = player.facing
+            enemy.x += 46 * player.facing
+            meter = min(1.0, meter + 0.10)
+            hitStop = 0.08; shake = 9
+            SFXManager.shared.play("melee_hit", volume: 0.8)
+            HapticsManager.shared.attackHit()
+            showBanner("THROWN!")
+        } else {
+            // Whiffed grab — locked into recovery, punishable.
+            player.attack = .light
+            player.phase = .recover
+            player.phaseTimer = 0.45
+            SFXManager.shared.play("miss_whoosh", volume: 0.5)
+        }
+    }
+
     private func tryDash() {
         guard !gameOver, roundIntro <= 0, superActive <= 0,
               player.hitstun <= 0, player.blockstun <= 0,
@@ -683,6 +825,7 @@ struct BasementBrawlScene: View {
         if shake > 0 { shake = max(0, shake - dt * 60) }
         if flashAlpha > 0 { flashAlpha = max(0, flashAlpha - dt * 3.0) }
         if specialCD > 0 { specialCD -= dt }
+        if throwCD > 0 { throwCD -= dt }
         if enemySuperCD > 0 { enemySuperCD -= dt }
         if hitStop > 0 { hitStop -= dt; return }   // freeze frame
         guard !gameOver else { return }
@@ -974,6 +1117,7 @@ struct BasementBrawlScene: View {
             if playerIsAttacker { comboCount = 0 }
         } else {
             var dmg = atk.damage
+            if playerIsAttacker && atk == .heavy { dmg += loadout.heavyBonus }
             if attacker.special { dmg += 2 }
             defender.hp = max(0, defender.hp - dmg)
             defender.hitstun = atk == .heavy ? 0.42 : 0.24
@@ -990,6 +1134,7 @@ struct BasementBrawlScene: View {
                 meter = min(1.0, meter + 0.14)
                 if attacker.special { shake += 4; flashAlpha = max(flashAlpha, 0.4) }
                 // Combo callout — escalating juice the longer the string runs.
+                maxComboRun = max(maxComboRun, comboCount)
                 if comboCount >= 2 {
                     showBanner("\(comboCount)× COMBO!")
                     flashAlpha = max(flashAlpha, Double(min(comboCount, 6)) * 0.06)
@@ -1047,6 +1192,10 @@ struct BasementBrawlScene: View {
     /// Begin the downed-enemy beat: freeze the fight, let the loser drop, hold
     /// for ~1.7s before the next challenger walks in.
     private func startKO() {
+        if player.hp == hpAtWaveStart {
+            perfectRounds += 1
+            showBanner("PERFECT!")
+        }
         koActive = true
         koTimer = 1.7
         enemy.phase = .none
@@ -1067,7 +1216,9 @@ struct BasementBrawlScene: View {
     private func performAdvance() {
         if waveIndex >= 4 { endGame(win: true); return }
         waveIndex += 1
-        showBanner("NEXT CHALLENGER")
+        // Round-break patch-up: corner crew tapes you up between bouts.
+        healedLastBreak = min(3, player.maxHP - player.hp)
+        if healedLastBreak > 0 { player.hp += healedLastBreak }
         setupWave(initial: false)
     }
 
@@ -1079,12 +1230,33 @@ struct BasementBrawlScene: View {
         if win {
             HapticsManager.shared.victory()
             SFXManager.shared.play("mission_victory")
-            let score = 400 + player.hp * 60 + 500
+            let standingBonus = player.hp * 60
+            let perfectBonus = perfectRounds * 150
+            let comboBonus = maxComboRun * 20
+            let score = 400 + 500 + standingBonus + perfectBonus + comboBonus
             MissionStatsStore.shared.recordVictory(missionId: "Mission004_5", score: score,
-                                                   dataAcquired: true, grimoireAcquired: false)
+                                                   dataAcquired: true, grimoireAcquired: false,
+                                                   rewardMultiplier: heatRewardMultiplier)
+            scorecard = [
+                ("GAUNTLET CLEARED", "900"),
+                ("LEFT STANDING ×\(player.hp) HP", "\(standingBonus)"),
+                ("PERFECT ROUNDS ×\(perfectRounds)", "\(perfectBonus)"),
+                ("BEST COMBO ×\(maxComboRun)", "\(comboBonus)"),
+                ("SCORE — RANK \(MissionStatsStore.rank(forScore: score))", "\(score)"),
+            ]
+            if corpHeat > 0 {
+                scorecard.append(("CORP HEAT ×\(min(3, corpHeat))",
+                                  String(format: "PAY ×%.2f", heatRewardMultiplier)))
+            }
+            walletLine = "¥\(MissionStatsStore.shared.lastWalletCredit) CREDITED"
         } else {
             HapticsManager.shared.defeat()
             SFXManager.shared.play("mission_defeat")
+            scorecard = [
+                ("ROUNDS CLEARED", "\(waveIndex)"),
+                ("BEST COMBO", "\(maxComboRun)"),
+            ]
+            walletLine = "NO PURSE — CARRIED OUT"
         }
     }
 
