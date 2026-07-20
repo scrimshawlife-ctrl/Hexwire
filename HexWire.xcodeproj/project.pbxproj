@@ -802,6 +802,7 @@
 		D8E5A868B5D8E440D6620992 /* Mission002_room_1.png in Resources */ = {isa = PBXBuildFile; fileRef = 4FCE251C8F87B7ADBA0AA4EF /* Mission002_room_1.png */; };
 		D91DCA674C692F8AC6186DA7 /* intro_m3_music.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = AC6E28A3A798B06BCEC3C289 /* intro_m3_music.mp3 */; };
 		D950982B10CE250B9B028E77 /* wraith_attack_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 1605D2F4E8ED7D933D16C115 /* wraith_attack_0.png */; };
+		D966D0EEAEAE0AAD6D4BDE8D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462741139AFE26B7DE9142A2 /* SettingsView.swift */; };
 		D96F8815DA72C382FECD7161 /* vfx_ash_06.png in Resources */ = {isa = PBXBuildFile; fileRef = FC17733CB285BFE32031C2FB /* vfx_ash_06.png */; };
 		DA24AD756DAFD4EC31189E5F /* vfx_ritual_pulse_04.png in Resources */ = {isa = PBXBuildFile; fileRef = 45BDD2F26C549D950BE7E166 /* vfx_ritual_pulse_04.png */; };
 		DAA8D65A710A63EB4F7E1DDD /* flight_0.png in Resources */ = {isa = PBXBuildFile; fileRef = 4F669FE034AB4479A70F9DE4 /* flight_0.png */; };
@@ -1181,6 +1182,7 @@
 		456BA62CADA04E18BB9F9E96 /* raze_right_parry_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = raze_right_parry_0.png; sourceTree = "<group>"; };
 		45BDD2F26C549D950BE7E166 /* vfx_ritual_pulse_04.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_ritual_pulse_04.png; sourceTree = "<group>"; };
 		45DC3FFB7718701356EA8B71 /* slugger_light_1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = slugger_light_1.png; sourceTree = "<group>"; };
+		462741139AFE26B7DE9142A2 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		46B0CCB2A85550D8E2F4360B /* vfx_arc_yellow_04.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = vfx_arc_yellow_04.png; sourceTree = "<group>"; };
 		47782FF46055837751F16843 /* Spell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spell.swift; sourceTree = "<group>"; };
 		478B2BC016AF1DE7CB4E39A8 /* decker_walk_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = decker_walk_2.png; sourceTree = "<group>"; };
@@ -1905,6 +1907,7 @@
 				032AC0BEEC1DA29962DD7D16 /* MissionOutroScene.swift */,
 				F2EB18125D987A4E8399B466 /* NeonLotusScene.swift */,
 				6577C2B907AA84AFFE00927A /* PacketRouterMiniGame.swift */,
+				462741139AFE26B7DE9142A2 /* SettingsView.swift */,
 				D7BE872FB7C5B5FDB26C3215 /* TutorialCoach.swift */,
 			);
 			path = UI;
@@ -3983,6 +3986,7 @@
 				037AE5B6B0C9A67BBED5211F /* Room.swift in Sources */,
 				0728B83F40DEC266A41C0E34 /* RoomManager.swift in Sources */,
 				EAFA840A60B7118E395E2D77 /* SFXManager.swift in Sources */,
+				D966D0EEAEAE0AAD6D4BDE8D /* SettingsView.swift in Sources */,
 				AC5017FEEF1118BD284D162E /* Spell.swift in Sources */,
 				4E503E5B2E08EA22F8FA7F30 /* SpellResolver.swift in Sources */,
 				3D3CE0A636CC180FA5275B49 /* SpriteManager.swift in Sources */,
