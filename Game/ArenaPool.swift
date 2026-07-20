@@ -49,6 +49,16 @@ enum ArenaPool {
         "arena_08": "Mission004_room_0.png",   // casino mezzanine
         "arena_09": "Mission003_room_0.png",   // rooftop greenhouse → ritual
         "arena_10": "Mission005_room_0.png",   // flooded substation
+        "arena_11": "Mission005_room_1.png",   // chop shop → industrial
+        "arena_12": "Mission004_room_1.png",   // cryo vault → corp tech
+        "arena_13": "Mission003_room_1.png",   // neon temple → ritual
+        "arena_14": "Mission004_room_0.png",   // broadcast studio
+        "arena_15": "Mission001_room_0.png",   // arcade ruins → street
+        "arena_16": "Mission004_room_2.png",   // penthouse suite
+        "arena_17": "Mission005_room_0.png",   // sewer junction
+        "arena_18": "Mission005_room_2.png",   // drydock → mech bay
+        "arena_19": "Mission002_room_2.png",   // data haven
+        "arena_20": "Mission002_room_0.png",   // skybridge atrium
     ]
 
     private static var cache: [Entry]?

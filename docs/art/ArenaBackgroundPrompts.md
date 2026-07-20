@@ -82,3 +82,65 @@ Half-flooded electrical substation: shallow dark water covering the floor
 with neon reflections, transformer banks and coiled cables along the walls,
 sparking junction box in one corner, catwalk grating at the edges, a bulkhead
 door at the top edge above the waterline, teal emergency lighting.
+
+---
+
+**arena_11 — Chop Shop**
+Underground vehicle chop shop: half-disassembled hover-cars on lifts along the
+walls, tool chests and hanging pneumatic wrenches, oil stains on cracked
+concrete, harsh work lamps with cyan undertones, a corrugated roll-up door at
+the top edge glowing amber.
+
+**arena_12 — Cryo Vault**
+Corporate cryo-storage vault: frosted glass cryopods in racks along both side
+walls with pale blue internal glow, vapor drifting across a frost-slick metal
+floor, ice crystals on pipes, cold sterile lighting, a heavy freezer door at
+the top edge with warning strobes.
+
+**arena_13 — Neon Temple**
+Back-alley techno-shrine: rows of votive candles and incense smoke along the
+walls, holographic prayer banners scrolling glyphs, a small altar with neon
+halo in one corner, worn stone floor with faded painted mandala at center, a
+lacquered wooden door at the top edge under a red paper lamp.
+
+**arena_14 — Broadcast Studio**
+Hijacked news broadcast studio: dead camera rigs and boom mics along the
+edges, a wall of static-filled monitors, tangled cable snakes on the floor,
+dramatic rim lighting in magenta and blue, a soundproofed studio door at the
+top edge with a glowing ON AIR lamp.
+
+**arena_15 — Arcade Ruins**
+Derelict arcade hall: rows of dead and flickering game cabinets along the
+walls, one machine sparking, sticky checkered floor with scattered tokens,
+faded neon wall art of pixel monsters, a fire-exit door at the top edge lit
+by a buzzing green lamp.
+
+**arena_16 — Penthouse Suite**
+Corporate penthouse under lockdown: overturned designer furniture pushed to
+the walls, floor-to-ceiling windows with the night skyline and rain, a marble
+floor with a huge abstract rug at center, bar cart and shattered glass in a
+corner, gilded elevator doors at the top edge glowing white.
+
+**arena_17 — Sewer Junction**
+Grimy sewer junction chamber: massive outflow pipes in the side walls
+trickling glowing runoff, slick brick and biofilm surfaces, shallow channel
+grooves in the stone floor, bioluminescent moss in the corners, a rusted
+bulkhead hatch at the top edge with a green service light.
+
+**arena_18 — Drydock**
+Shipyard drydock at night: the hull of a docked gunboat looming along one
+wall, scaffolding and welding rigs on the other, sparks drifting, wet dock
+planking with painted alignment lines, crane hooks overhead, a watertight
+door at the top edge under sodium floodlights.
+
+**arena_19 — Data Haven**
+Pirate data-haven library: floor-to-ceiling shelves of salvaged drives and
+tape reels along the walls, desk clusters with jury-rigged terminals and
+tangled fiber lines, motes of dust in projector light, warm amber lamps over
+a worn parquet floor, a reinforced reading-room door at the top edge.
+
+**arena_20 — Skybridge Atrium**
+Glass skybridge atrium between towers: transparent floor-edge panels showing
+the city hundreds of meters below, planter boxes and benches along the sides,
+struts and cables framing the ceiling, cool moonlight mixed with billboard
+glow from outside, an automatic glass door at the top edge pulsing cyan.

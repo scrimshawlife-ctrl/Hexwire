@@ -36,10 +36,10 @@ final class ArenaPoolTests: XCTestCase {
             : [(x, y-1), (x, y+1), (x-1, y), (x-1, y+1), (x+1, y), (x+1, y+1)]
     }
 
-    func testPoolShipsTenStructurallySoundArenas() {
+    func testPoolShipsTwentyStructurallySoundArenas() {
         let pool = ArenaPool.load()
-        XCTAssertEqual(pool.count, 10)
-        XCTAssertEqual(Set(pool.map(\.room.id)).count, 10, "arena ids unique")
+        XCTAssertEqual(pool.count, 20)
+        XCTAssertEqual(Set(pool.map(\.room.id)).count, 20, "arena ids unique")
         for e in pool {
             let m = e.room.map
             XCTAssertEqual(m.count, 12, "\(e.room.id): 12 rows")
