@@ -232,31 +232,23 @@ final class MissionLoader {
             dlog("MissionLoader: ⚠️ contract id '\(id)' has no live offer")
             return nil
         }
-        guard let base = loadMultiRoomMission(named: offer.sourceMissionId),
-              let src = ContractStore.pickRoom(from: base, seed: offer.seed) else {
-            dlog("MissionLoader: ⚠️ contract '\(id)' failed to resolve a room from \(offer.sourceMissionId)")
+        guard let arenaId = ArenaPool.arenaId(forSeed: offer.seed),
+              let entry = ArenaPool.entry(id: arenaId) else {
+            dlog("MissionLoader: ⚠️ contract '\(id)' failed to resolve an arena")
             return nil
         }
-        let sealed = Room(
-            id: src.id,
-            title: offer.title,
-            map: src.map,
-            playerSpawn: src.playerSpawn,
-            extractionPoint: ContractStore.syntheticExtraction(for: src),
-            enemies: src.enemies,
-            connections: [],
-            removeOnFirstKill: src.removeOnFirstKill,
-            bossSpawn: nil
-        )
+        // Any real-mission state currently armed stands down first.
+        GauntletStore.shared.disarmForNonGauntletLoad()
+        let sealed = ArenaPool.finalRoom(from: entry, title: offer.title)
         store.armForContractLoad(offer)
-        dlog("MissionLoader: contract \(id) → \(offer.sourceMissionId)/\(src.id)")
+        dlog("MissionLoader: contract \(id) → \(arenaId)")
         let difficulty = offer.tier >= 3 ? "HARD" : (offer.tier == 2 ? "HIGH" : "MODERATE")
         return MultiRoomMission(
             id: offer.id,
             title: "CONTRACT — \(offer.title)",
             description: offer.blurb,
             difficulty: difficulty,
-            briefing: "\(offer.employer) is paying ¥\(offer.basePay.formatted()) base. \(offer.blurb) Clear the room and get to extraction.",
+            briefing: "\(offer.employer) is paying ¥\(offer.basePay.formatted()) base. \(offer.blurb) Site: \(entry.room.title). Clear the room and take the door.",
             missionCompleteSummary: "Contract fulfilled. \(offer.employer) transfers the fee — no questions, no names.",
             rooms: [sealed],
             extractionType: "door"
@@ -265,25 +257,26 @@ final class MissionLoader {
 
     private func loadGauntletFloorMission() -> MultiRoomMission? {
         let store = GauntletStore.shared
-        let underlyingId = store.missionIdForCurrentFloor()
-        // Recursive call — takes the normal (non-gauntlet) branch above,
-        // which also runs the disarm; we arm AFTER it returns.
-        guard let base = loadMultiRoomMission(named: underlyingId) else {
-            dlog("MissionLoader: ⚠️ Gauntlet floor \(store.currentFloor) failed to load underlying mission '\(underlyingId)'")
+        ContractStore.shared.disarmForNonContractLoad()
+        let arenaIds = store.arenaIdsForCurrentFloor()
+        let names = arenaIds.compactMap { ArenaPool.entry(id: $0)?.room.title }
+            .joined(separator: " → ")
+        // NO story reuse: the gauntlet is its own thing — random arenas,
+        // generic pit flavor, extraction door on the last room.
+        guard let mission = ArenaPool.chainedMission(
+            id: GauntletStore.gauntletMissionId,
+            title: "GAUNTLET — FLOOR \(store.currentFloor)",
+            briefing: "The pit broadcasts floor \(store.currentFloor): \(names). No fixer, no story — just the next squad and the exit door. Clear every arena and walk out.",
+            summary: "Floor \(store.currentFloor) cleared. The pit is already loading the next one.",
+            difficulty: store.currentFloor >= 6 ? "EXTREME" : (store.currentFloor >= 3 ? "HARD" : "HIGH"),
+            arenaIds: arenaIds
+        ) else {
+            dlog("MissionLoader: ⚠️ Gauntlet floor \(store.currentFloor) failed to build from arenas \(arenaIds)")
             return nil
         }
         store.armForGauntletLoad()
-        dlog("MissionLoader: Gauntlet floor \(store.currentFloor) → \(underlyingId) (\(base.title))")
-        return MultiRoomMission(
-            id: GauntletStore.gauntletMissionId,
-            title: "GAUNTLET — FLOOR \(store.currentFloor): \(base.title)",
-            description: base.description,
-            difficulty: base.difficulty,
-            briefing: base.briefing,
-            missionCompleteSummary: base.missionCompleteSummary,
-            rooms: base.rooms,
-            extractionType: base.extractionType
-        )
+        dlog("MissionLoader: Gauntlet floor \(store.currentFloor) → \(arenaIds)")
+        return mission
     }
 
     /// Load multi-room mission from URL.

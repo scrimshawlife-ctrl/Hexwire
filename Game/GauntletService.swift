@@ -76,11 +76,11 @@ final class GauntletStore: ObservableObject {
     /// penalty (session-only, matching the spec).
     @Published private(set) var isActive: Bool = false
 
-    /// The underlying story mission chosen for the CURRENT floor. Persisted
-    /// alongside the floor so the pick is stable within a floor attempt —
-    /// re-entering the briefing (or relaunching the app) doesn't reroll the
-    /// map. Cleared (→ reroll) whenever the floor changes.
-    private var floorMissionId: String?
+    /// The arena rooms chosen for the CURRENT floor (ArenaPool ids).
+    /// Persisted alongside the floor so the pick is stable within a floor
+    /// attempt — re-entering the briefing (or relaunching the app) doesn't
+    /// reroll the maps. Cleared (→ reroll) whenever the floor changes.
+    private var floorArenaIds: [String]?
 
     /// Enemies already scaled for this attempt, by UUID. scaleForFloor is
     /// called from several sweep points that can see the same enemy more
@@ -92,19 +92,19 @@ final class GauntletStore: ObservableObject {
     // ── Storage keys (versioned, "HexWire.Gauntlet.*" namespace) ──
     private let currentFloorKey = "HexWire.Gauntlet.CurrentFloor.v1"
     private let bestFloorKey    = "HexWire.Gauntlet.BestFloor.v1"
-    private let floorMissionKey = "HexWire.Gauntlet.FloorMission.v1"
+    private let floorMissionKey = "HexWire.Gauntlet.FloorMission.v1"   // legacy story pick (unused)
+    private let floorArenasKey  = "HexWire.Gauntlet.FloorArenas.v1"
 
     private init() {
         let d = UserDefaults.standard
         // integer(forKey:) returns 0 when unset — floor is 1-based.
         currentFloor = max(1, d.integer(forKey: currentFloorKey))
         bestFloor = max(0, d.integer(forKey: bestFloorKey))
-        // Only honor a persisted pick that's still in the pool — if a future
-        // build shrinks the pool, a stale pick silently rerolls instead of
-        // loading a mission the mode no longer supports.
-        if let saved = d.string(forKey: floorMissionKey),
-           GauntletStore.missionPool.contains(saved) {
-            floorMissionId = saved
+        // Only honor persisted arena picks that still exist in the pool —
+        // a stale pick silently rerolls instead of loading a room the pool
+        // no longer ships.
+        if let saved = d.stringArray(forKey: floorArenasKey), !saved.isEmpty {
+            floorArenaIds = saved
         }
     }
 
@@ -112,23 +112,24 @@ final class GauntletStore: ObservableObject {
         let d = UserDefaults.standard
         d.set(currentFloor, forKey: currentFloorKey)
         d.set(bestFloor, forKey: bestFloorKey)
-        if let floorMissionId {
-            d.set(floorMissionId, forKey: floorMissionKey)
+        if let floorArenaIds {
+            d.set(floorArenaIds, forKey: floorArenasKey)
         } else {
-            d.removeObject(forKey: floorMissionKey)
+            d.removeObject(forKey: floorArenasKey)
         }
+        d.removeObject(forKey: floorMissionKey)   // retire the legacy story pick
     }
 
-    // MARK: - Floor mission pick
+    // MARK: - Floor arena picks
 
-    /// The underlying story mission for the current floor. Reuses the
-    /// persisted pick if one exists (stable within a floor attempt — the
-    /// briefing can be entered and backed out of without rerolling);
-    /// otherwise rolls a fresh random pick from the pool and persists it.
-    func missionIdForCurrentFloor() -> String {
-        if let picked = floorMissionId { return picked }
-        let picked = GauntletStore.missionPool.randomElement() ?? "Mission001"
-        floorMissionId = picked
+    /// The arena rooms for the current floor: 2 rooms on floors 1–3, 3 from
+    /// floor 4 on. Reuses the persisted picks if they exist (stable within a
+    /// floor attempt); otherwise rolls fresh distinct arenas and persists.
+    func arenaIdsForCurrentFloor() -> [String] {
+        if let picked = floorArenaIds, !picked.isEmpty { return picked }
+        let count = currentFloor >= 4 ? 3 : 2
+        let picked = ArenaPool.randomArenaIds(count: count)
+        floorArenaIds = picked
         persist()
         return picked
     }
@@ -170,7 +171,7 @@ final class GauntletStore: ObservableObject {
         let completed = currentFloor
         currentFloor += 1
         bestFloor = max(bestFloor, completed)
-        floorMissionId = nil          // next floor rerolls its mission
+        floorArenaIds = nil           // next floor rerolls its arenas
         isActive = false
         scaledEnemyIds.removeAll()
         persist()
@@ -182,7 +183,7 @@ final class GauntletStore: ObservableObject {
     /// the whole point of the leaderboard stat).
     func recordFloorDefeat() {
         currentFloor = 1
-        floorMissionId = nil
+        floorArenaIds = nil
         isActive = false
         scaledEnemyIds.removeAll()
         persist()

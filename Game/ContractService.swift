@@ -48,15 +48,9 @@ final class ContractStore: ObservableObject {
         id?.hasPrefix(contractIdPrefix) == true
     }
 
-    /// Source pool per tier. Same exclusions as the Gauntlet: no Mission003
-    /// (scripted Sato boss keys off the display id) and no Mission006 (its
-    /// completion fires campaign-terminal side effects). Tiering leans on
-    /// the missions' inherent difficulty curve.
-    static let missionPoolByTier: [Int: [String]] = [
-        1: ["Mission001", "Mission002"],
-        2: ["Mission002", "Mission004"],
-        3: ["Mission004", "Mission005"],
-    ]
+    /// Contracts draw their sites from the ArenaPool (dedicated replay
+    /// rooms with their own art) — the arena is picked deterministically
+    /// from the offer seed at load time.
 
     static func basePay(tier: Int) -> Int {
         switch tier {
@@ -122,11 +116,9 @@ final class ContractStore: ObservableObject {
     }
 
     static func makeOffer(tier: Int, seed: Int) -> ContractOffer {
-        let pool = missionPoolByTier[tier] ?? ["Mission001"]
-        let mission = pool[mix(seed, 1) % pool.count]
         return ContractOffer(
             seed: seed,
-            sourceMissionId: mission,
+            sourceMissionId: ArenaPool.arenaId(forSeed: seed) ?? "arena_01",
             tier: tier,
             employer: employers[mix(seed, 2) % employers.count],
             title: jobTitles[mix(seed, 3) % jobTitles.count],
@@ -157,14 +149,6 @@ final class ContractStore: ObservableObject {
     }
 
     // MARK: - Room resolution helpers (used by MissionLoader)
-
-    /// Rooms eligible to become a contract site: no scripted boss, has an
-    /// authored squad. Deterministic pick by seed.
-    static func pickRoom(from mission: MultiRoomMission, seed: Int) -> Room? {
-        let candidates = mission.rooms.filter { $0.bossSpawn == nil && !$0.enemies.isEmpty }
-        guard !candidates.isEmpty else { return nil }
-        return candidates[mix(seed, 5) % candidates.count]
-    }
 
     /// A sealed contract room must resolve an extraction objective. If the
     /// source room has neither an explicit extractionPoint nor a map

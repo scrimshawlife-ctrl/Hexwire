@@ -152,7 +152,35 @@ final class MusicManager {
 
     /// Start playing music for `missionId` ("Mission001" .. "Mission006").
     /// Idempotent — calling again with the same id is a no-op.
+    /// Every combat-appropriate track in the game — story beds, boss
+    /// themes, .5-mission tracks, intro stingers. Gauntlet floors and
+    /// contracts draw a RANDOM track from this pool per run, so replay
+    /// modes cycle the whole soundtrack. (Menu-context tracks — title,
+    /// shop, briefing — deliberately excluded.)
+    static let randomizedRunPool = [
+        "m1_a", "m1_b", "m2_a", "m2_b", "m2_5_mirrorline",
+        "m3_a", "m3_b", "m4_a", "m4_b", "m4_5_brawl",
+        "m5_a", "m5_b", "m5_5_coldtrace", "m5_boss",
+        "m6_a", "m6_b", "m6_boss_a", "m6_boss_b",
+        "mage_boss_theme", "chase_drop", "drop_intro", "prologue_lotus",
+        "ending_theme",
+        "intro_m1_music", "intro_m2_music", "intro_m2_5_music",
+        "intro_m3_music", "intro_m4_music", "intro_m4_5_music",
+        "intro_m5_music", "intro_m5_5_music",
+    ]
+
     func playMissionMusic(missionId: String) {
+        // Replay modes: random pick from the full soundtrack, fresh per run.
+        if missionId == GauntletStore.gauntletMissionId || ContractStore.isContractId(missionId) {
+            var pick = MusicManager.randomizedRunPool.randomElement() ?? "m1_a"
+            // Avoid replaying the exact track that's already on.
+            if currentTrackId == "loop:\(pick)",
+               let other = MusicManager.randomizedRunPool.filter({ "loop:\($0)" != currentTrackId }).randomElement() {
+                pick = other
+            }
+            playLoop(filename: pick, startOffset: 2)
+            return
+        }
         let id = "mission:\(missionId)"
         guard id != currentTrackId else { return }
         // While the music bed is ducked (mini-game open), defer the actual
