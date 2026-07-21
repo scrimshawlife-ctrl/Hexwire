@@ -11,8 +11,8 @@ import Foundation
 // Each arena ships:
 //   • a 12×7 authored tile layout with ONE exit door and an authored squad
 //   • its own background art slot: "Sprites/backgrounds/<arenaId>.png"
-//     (e.g. arena_01.png). Until that art lands, a placeholder mapping to an
-//     existing story background keeps rooms fully dressed.
+//     (e.g. arena_01.png). Arenas render only their own art — they never
+//     fall back to a story-mission room background.
 //
 // Generation rules:
 //   • Gauntlet floor = 2–3 random arenas CHAINED by their exit doors; the
@@ -34,32 +34,6 @@ enum ArenaPool {
         struct DoorEntry: Codable { let id: String; let exitDoor: SpawnPoint }
         let rooms: [DoorEntry]
     }
-
-    /// Placeholder background art per arena until the dedicated
-    /// "<arenaId>.png" files are generated — mapped to tonally-close story
-    /// rooms so pool rooms are never artless.
-    static let placeholderBackgrounds: [String: String] = [
-        "arena_01": "Mission002_room_0.png",   // freight bay → corp interior
-        "arena_02": "Mission001_room_0.png",   // neon court → street mission
-        "arena_03": "Mission004_room_1.png",   // server vault → corp tech
-        "arena_04": "Mission005_room_1.png",   // chem works → industrial
-        "arena_05": "Mission001_room_1.png",   // transit platform
-        "arena_06": "Mission002_room_1.png",   // night market
-        "arena_07": "Mission005_room_2.png",   // foundry → mech bay
-        "arena_08": "Mission004_room_0.png",   // casino mezzanine
-        "arena_09": "Mission003_room_0.png",   // rooftop greenhouse → ritual
-        "arena_10": "Mission005_room_0.png",   // flooded substation
-        "arena_11": "Mission005_room_1.png",   // chop shop → industrial
-        "arena_12": "Mission004_room_1.png",   // cryo vault → corp tech
-        "arena_13": "Mission003_room_1.png",   // neon temple → ritual
-        "arena_14": "Mission004_room_0.png",   // broadcast studio
-        "arena_15": "Mission001_room_0.png",   // arcade ruins → street
-        "arena_16": "Mission004_room_2.png",   // penthouse suite
-        "arena_17": "Mission005_room_0.png",   // sewer junction
-        "arena_18": "Mission005_room_2.png",   // drydock → mech bay
-        "arena_19": "Mission002_room_2.png",   // data haven
-        "arena_20": "Mission002_room_0.png",   // skybridge atrium
-    ]
 
     private static var cache: [Entry]?
 
