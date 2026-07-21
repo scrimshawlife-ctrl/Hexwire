@@ -105,7 +105,7 @@ jobs:
       - name: Install XcodeGen (pinned — must match the version that generated the committed project)
         run: |
           curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" \
-            https://github.com/yonaskolb/XcodeGen/releases/download/2.45.4/xcodegen.zip
+            https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
           unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/xcodegen-dist"
           XCG=$(find "$RUNNER_TEMP/xcodegen-dist" -name xcodegen -type f | head -1)
           chmod +x "$XCG"

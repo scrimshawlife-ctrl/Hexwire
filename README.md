@@ -27,7 +27,7 @@ known_release_blockers:
 ## Working on this repo
 
 - **Project generation:** `HexWire.xcodeproj` is generated from `project.yml` by
-  **XcodeGen 2.45.4**. After adding/removing files: `xcodegen generate` and commit
+  **XcodeGen 2.46.0**. After adding/removing files: `xcodegen generate` and commit
   the regenerated project — CI fails on drift.
 - **Build:** `xcodebuild -project HexWire.xcodeproj -scheme HexWire -destination
   'platform=iOS Simulator,name=iPhone 17' build`
