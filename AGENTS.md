@@ -23,7 +23,7 @@ observed reality, fix THIS file in the same PR.
 
 ## Build / test workflow
 
-- The Xcode project is GENERATED: `project.yml` + XcodeGen 2.45.4 →
+- The Xcode project is GENERATED: `project.yml` + XcodeGen 2.46.0 →
   `HexWire.xcodeproj`. After adding/removing/renaming files:
   `xcodegen generate` and commit the regenerated project. CI fails on drift.
 - Build: `xcodebuild -project HexWire.xcodeproj -scheme HexWire

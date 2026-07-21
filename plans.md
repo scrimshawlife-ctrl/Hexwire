@@ -8,7 +8,7 @@ WP10 release-candidate gate plus the owner's device pass.
 
 # Current Verified Baseline
 
-- Every PR runs `hexwire-ci`: hygiene, XcodeGen 2.45.4 drift gate + full test
+- Every PR runs `hexwire-ci`: hygiene, XcodeGen 2.46.0 drift gate + full test
   suite (pre-booted simulator), Debug/Release × iPhone/iPad builds, unsigned
   archive. `main` is only advanced through green PRs.
 - 94 tests / 0 flaky: dice determinism (seed-injectable RNG), turn/authority
