@@ -48,7 +48,7 @@ What each logic column certifies (per mission, all six):
 - **Save/resume** — completion decoded back from the raw UserDefaults blob
   (what a relaunch loads), plus WP2's corruption/migration coverage.
 - **Room-graph integrity** — unique room ids, valid connection targets/triggers,
-  known enemy/boss types only (17 spawn + 3 boss types, all mapped to factories),
+  known enemy/boss types only (22 spawn + 3 boss types, all mapped to factories),
   spawns in-bounds and never in walls, an extraction room exists.
 
 ## Runtime launch smoke receipts
