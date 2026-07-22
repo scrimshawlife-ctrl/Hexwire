@@ -2640,7 +2640,9 @@ struct CombatView: View {
         case "Mission004": return "Dead Man's Switch"
         case "Mission005": return "Mekton Blues"
         case "Mission006": return "Ghost Signal"
-        default:            return "Unknown Mission"
+        // Replay modes (gauntlet floors, contracts) build their own mission
+        // objects and carry a real title — use it instead of a stub.
+        default:            return RoomManager.shared.currentMission?.title ?? "Unknown Mission"
         }
     }
 
