@@ -119,8 +119,15 @@ final class MusicManager {
         case mission(missionId: String)
         case bossTrack(filename: String, startOffset: TimeInterval)
         case bossChain(filenames: [String], startOffset: TimeInterval, endTrimSeconds: TimeInterval)
+        case shuffleRun
     }
     private var currentMissionId: String?
+    /// Active for gauntlet/contract runs: the run keeps advancing to a FRESH
+    /// random pick each time a track ends, instead of looping one forever.
+    private var shuffleRunActive = false
+    /// The pool track currently playing under `shuffleRunActive` — used to
+    /// avoid picking the same track twice in a row.
+    private var shuffleCurrentTrack: String?
     /// 'a' or 'b' — flips on every track-end so we alternate.
     private var currentSlot: String = "a"
     /// Identifies what's currently playing — "mission:Mission001", "loop:title",
@@ -170,17 +177,16 @@ final class MusicManager {
     ]
 
     func playMissionMusic(missionId: String) {
-        // Replay modes: random pick from the full soundtrack, fresh per run.
+        // Replay modes: shuffle the whole soundtrack — a random track now,
+        // then a fresh random pick each time one ends. Idempotent: a run
+        // already shuffling keeps playing across room transitions rather
+        // than restarting on a new track.
         if missionId == GauntletStore.gauntletMissionId || ContractStore.isContractId(missionId) {
-            var pick = MusicManager.randomizedRunPool.randomElement() ?? "m1_a"
-            // Avoid replaying the exact track that's already on.
-            if currentTrackId == "loop:\(pick)",
-               let other = MusicManager.randomizedRunPool.filter({ "loop:\($0)" != currentTrackId }).randomElement() {
-                pick = other
-            }
-            playLoop(filename: pick, startOffset: 2)
+            guard !shuffleRunActive else { return }
+            startShuffledRun()
             return
         }
+        shuffleRunActive = false
         let id = "mission:\(missionId)"
         guard id != currentTrackId else { return }
         // While the music bed is ducked (mini-game open), defer the actual
@@ -218,6 +224,7 @@ final class MusicManager {
     func playLoop(filename: String, startOffset: TimeInterval = 0, loopEnd: TimeInterval? = nil) {
         let id = "loop:\(filename)"
         guard id != currentTrackId else { return }
+        shuffleRunActive = false   // menu/loop music outranks a run shuffle
         // When set, the track loops back to `startOffset` at `loopEnd` seconds
         // instead of playing to the end — used to skip a track's outro and
         // loop a clean section (e.g. M1 intro loops the first 52s).
@@ -251,6 +258,7 @@ final class MusicManager {
     /// any current track first.
     func playBossTrack(filename: String, startOffset: TimeInterval = 0) {
         bossChain = nil
+        shuffleRunActive = false   // a boss track takes over the run shuffle
         if isDucked {
             currentMissionId = nil
             currentTrackId = "boss:\(filename)"
@@ -268,6 +276,7 @@ final class MusicManager {
     /// Protocol 2".
     func playBossChain(_ filenames: [String], startOffset: TimeInterval = 0, endTrimSeconds: TimeInterval = 3.0) {
         guard !filenames.isEmpty else { return }
+        shuffleRunActive = false   // a boss chain takes over the run shuffle
         bossChain = (filenames, startOffset, endTrimSeconds)
         bossChainIndex = 0
         if isDucked {
@@ -395,6 +404,10 @@ final class MusicManager {
             case .bossChain(let filenames, let offset, let trim):
                 currentTrackId = nil
                 playBossChain(filenames, startOffset: offset, endTrimSeconds: trim)
+            case .shuffleRun:
+                currentTrackId = nil
+                shuffleRunActive = false   // let startShuffledRun re-arm the run
+                startShuffledRun()
             }
             return
         }
@@ -412,6 +425,8 @@ final class MusicManager {
         currentMissionId = nil
         currentTrackId = nil
         deferredResumeKind = nil
+        shuffleRunActive = false
+        shuffleCurrentTrack = nil
         // An explicit stop outranks any in-flight transition: drop a pending
         // crossfade completion outright so it can't start a track post-stop.
         discardPendingFade()
@@ -604,6 +619,120 @@ final class MusicManager {
         }
     }
 
+    // MARK: - Shuffle run (gauntlet floors / contracts)
+
+    /// Random pool pick that isn't `excluding` — so the shuffle never plays
+    /// the same track twice back to back.
+    private static func pickShuffleTrack(excluding current: String?) -> String {
+        let pool = randomizedRunPool.filter { $0 != current }
+        return pool.randomElement() ?? randomizedRunPool.randomElement() ?? "m1_a"
+    }
+
+    /// Begin a replay-mode run: play a random track, then hand off to another
+    /// random pick when it ends, for as long as the run lasts.
+    func startShuffledRun() {
+        shuffleRunActive = true
+        bossChain = nil
+        if isDucked {
+            currentMissionId = nil
+            deferredResumeKind = .shuffleRun
+            return
+        }
+        crossFadeOut { [weak self] in
+            guard let self = self else { return }
+            self.currentMissionId = nil
+            let pick = MusicManager.pickShuffleTrack(excluding: self.shuffleCurrentTrack)
+            // Skip the pre-roll on the first track only; chained picks start
+            // at 0 so we don't shave the intro off every song in the run.
+            self.startShuffleTrack(pick, fadeIn: false, startOffset: 2)
+        }
+    }
+
+    /// Play one shuffle track to its end, then advance. `attempt` guards
+    /// against a missing file stranding the run in silence.
+    private func startShuffleTrack(_ filename: String, fadeIn: Bool,
+                                   startOffset: TimeInterval, attempt: Int = 0) {
+        guard shuffleRunActive else { return }
+        if isDucked {
+            deferredResumeKind = .shuffleRun
+            return
+        }
+        guard let url = locateTrack(filename: filename) else {
+            dlog("[MusicManager] Shuffle track not found: \(filename).mp3")
+            guard attempt < 3 else { shuffleRunActive = false; currentTrackId = nil; return }
+            let next = MusicManager.pickShuffleTrack(excluding: filename)
+            startShuffleTrack(next, fadeIn: fadeIn, startOffset: startOffset, attempt: attempt + 1)
+            return
+        }
+        // Same per-track scaler the mission chain applies — M2's pair comes
+        // out of generation quieter than the rest of the pool.
+        let trackBoost: Float = (filename == "m2_a" || filename == "m2_b") ? 1.33 : 1.00
+        let endVolume = min(1.0, targetVolume * trackBoost)
+        do {
+            let p = try AVAudioPlayer(contentsOf: url)
+            p.numberOfLoops = 0   // play once — we hand off to a fresh pick at the end
+            p.volume = fadeIn ? 0.0 : endVolume
+            p.prepareToPlay()
+            if startOffset > 0, startOffset < p.duration {
+                p.currentTime = startOffset
+            }
+            p.play()
+            player = p
+            activeEndVolume = endVolume
+            activeLoopReset = nil
+            shuffleCurrentTrack = filename
+            currentTrackId = "shuffle:\(filename)"
+            if fadeIn { fade(toVolume: endVolume, duration: 1.5) }
+            dlog("[MusicManager] Shuffle → \(filename) (\(String(format: "%.0f", p.duration))s)")
+            scheduleShuffleHandoff(for: p)
+        } catch {
+            dlog("[MusicManager] Failed to load shuffle \(filename): \(error)")
+            currentTrackId = nil
+        }
+    }
+
+    /// Fires 1s before the track ends so the next pick is already fading in —
+    /// same pause-aware re-arm pattern as the mission and boss chains.
+    private func scheduleShuffleHandoff(for player: AVAudioPlayer) {
+        let remaining = max(0.5, player.duration - player.currentTime - 1.0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining) { [weak self, weak player] in
+            guard let self = self, let p = player, self.player === p else { return }
+            guard self.shuffleRunActive else { return }
+            if self.isDucked || !p.isPlaying {
+                self.endObserverNeedsRearm = true
+                return
+            }
+            if p.duration - p.currentTime > 1.5 {
+                self.scheduleShuffleHandoff(for: p)
+                return
+            }
+            self.advanceShuffleRun()
+        }
+    }
+
+    /// Crossfade from the finishing track into a fresh random pick.
+    private func advanceShuffleRun() {
+        guard shuffleRunActive else { return }
+        guard !isDucked else { endObserverNeedsRearm = true; return }
+        if let outgoing = self.player {
+            outgoingPlayer = outgoing
+            let steps = 12
+            let startVol = outgoing.volume
+            for i in 1...steps {
+                let t = Double(i) / Double(steps)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4 * t) { [weak outgoing] in
+                    outgoing?.volume = startVol * Float(1.0 - t)
+                    if i == steps { outgoing?.stop() }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
+                self?.outgoingPlayer = nil
+            }
+        }
+        let next = MusicManager.pickShuffleTrack(excluding: shuffleCurrentTrack)
+        startShuffleTrack(next, fadeIn: true, startOffset: 0)
+    }
+
     /// Boss-chain early handoff, same pause-aware pattern as
     /// scheduleEndObserver: fires `endTrimSeconds` before the natural end,
     /// re-arms across ducks/interruptions instead of dying.
@@ -639,6 +768,8 @@ final class MusicManager {
             scheduleEndObserver(for: p)
         } else if let chain = bossChain {
             scheduleBossHandoff(for: p, endTrimSeconds: chain.endTrimSeconds)
+        } else if shuffleRunActive {
+            scheduleShuffleHandoff(for: p)
         }
     }
 
