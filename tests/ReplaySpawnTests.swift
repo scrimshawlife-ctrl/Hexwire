@@ -7,6 +7,102 @@ import XCTest
 @MainActor
 final class ReplaySpawnTests: XCTestCase {
 
+    // MARK: - Backtrack patrols
+
+    private func patrolRoom(id: String = "patrol_room") -> Room {
+        Room(id: id, title: "t",
+             map: [
+                [1, 1, 1, 1, 1, 1],
+                [1, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1],
+             ],
+             playerSpawn: SpawnPoint(x: 1, y: 1),
+             extractionPoint: nil,
+             enemies: [
+                EnemySpawn(type: "guard", x: 1, y: 3, delay: 0),
+                EnemySpawn(type: "juggernaut", x: 4, y: 3, delay: 0),
+                EnemySpawn(type: "drone", x: 4, y: 1, delay: 0),
+             ],
+             connections: [], removeOnFirstKill: nil, bossSpawn: nil)
+    }
+
+    /// The roll must be fixed for a given visit — walking out and back in
+    /// cannot be used to re-roll a patrol the player didn't like.
+    func testBacktrackPatrolIsDeterministicForAGivenVisit() {
+        let room = patrolRoom()
+        RoomManager.shared.patrolRespawnedRoomIds.removeAll()
+        let a = MissionSetupService.backtrackPatrol(
+            for: room, gameState: GameState.shared, entryX: 1, entryY: 1)
+        let b = MissionSetupService.backtrackPatrol(
+            for: room, gameState: GameState.shared, entryX: 1, entryY: 1)
+        XCTAssertEqual(a.map { "\($0.type)@\($0.x),\($0.y)" },
+                       b.map { "\($0.type)@\($0.x),\($0.y)" },
+                       "same attempt + room + visit must roll identically")
+    }
+
+    /// Occasional means occasional: across many rooms it must fire sometimes
+    /// and stay quiet sometimes. A patrol every single time turns backtracking
+    /// into a chore; never firing means the feature does nothing.
+    func testBacktrackPatrolFiresSometimesNotAlways() {
+        var fired = 0
+        let trials = 60
+        for i in 0..<trials {
+            RoomManager.shared.patrolRespawnedRoomIds.removeAll()
+            let room = patrolRoom(id: "room_\(i)")
+            if !MissionSetupService.backtrackPatrol(
+                for: room, gameState: GameState.shared, entryX: 1, entryY: 1).isEmpty {
+                fired += 1
+            }
+        }
+        XCTAssertGreaterThan(fired, 0, "patrols must actually happen")
+        XCTAssertLessThan(fired, trials, "patrols must not be guaranteed")
+    }
+
+    /// One patrol per room per attempt — otherwise a corridor between two
+    /// objectives becomes an infinite XP/nuyen faucet.
+    func testBacktrackPatrolOnlyOncePerRoom() {
+        RoomManager.shared.patrolRespawnedRoomIds.removeAll()
+        // Find a room id that does roll a patrol, then re-ask after marking it.
+        var seeded: Room?
+        for i in 0..<80 {
+            let candidate = patrolRoom(id: "once_\(i)")
+            if !MissionSetupService.backtrackPatrol(
+                for: candidate, gameState: GameState.shared, entryX: 1, entryY: 1).isEmpty {
+                seeded = candidate
+                break
+            }
+        }
+        guard let room = seeded else {
+            return XCTFail("no seed produced a patrol — chance constant may be broken")
+        }
+        RoomManager.shared.patrolRespawnedRoomIds.insert(room.id)
+        XCTAssertTrue(MissionSetupService.backtrackPatrol(
+            for: room, gameState: GameState.shared, entryX: 1, entryY: 1).isEmpty,
+            "a room that already coughed up a patrol must not do it again")
+        RoomManager.shared.patrolRespawnedRoomIds.removeAll()
+    }
+
+    /// A patrol must never draw the room's heaviest authored type, and must
+    /// never materialise on top of the party's entry tile.
+    func testBacktrackPatrolStaysCheapAndAwayFromEntry() {
+        RoomManager.shared.patrolRespawnedRoomIds.removeAll()
+        for i in 0..<80 {
+            let room = patrolRoom(id: "cheap_\(i)")
+            let patrol = MissionSetupService.backtrackPatrol(
+                for: room, gameState: GameState.shared, entryX: 1, entryY: 1)
+            guard !patrol.isEmpty else { continue }
+            for s in patrol {
+                XCTAssertNotEqual(s.type, "juggernaut",
+                                  "patrol must draw the cheapest authored type, not the heaviest")
+                XCTAssertFalse(s.x == 1 && s.y == 1, "patrol must not spawn on the entry tile")
+            }
+            XCTAssertLessThanOrEqual(patrol.count, 2, "patrol is a squad of 1-2")
+        }
+        RoomManager.shared.patrolRespawnedRoomIds.removeAll()
+    }
+
     // MARK: - Party spawn placement (pure)
 
     func testGroupSpawnSlotsAreDeterministicDistinctAndWalkable() {

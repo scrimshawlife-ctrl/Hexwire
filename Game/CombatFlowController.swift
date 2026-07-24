@@ -1015,6 +1015,19 @@ struct CombatFlowController {
         }
         checkDataTerminalPickup(gameState: gameState, atX: tileX, y: tileY, by: char)
         checkGrimoirePickup(gameState: gameState, atX: tileX, y: tileY, by: char)
+        // STEPPING ONTO EXTRACTION RESOLVES IT. Previously the pad only
+        // adjudicated on an explicit tap, or at the end of an enemy phase —
+        // and once the last enemy is dead there IS no enemy phase. A player who
+        // walked the final runner onto the pad (rather than tapping it) got the
+        // objective pulse above and then nothing at all: no extraction, no
+        // message, since every messaged rejection lives inside requestExtraction
+        // and that was never reached. Data terminals already get a step-on
+        // handler one line up; extraction deserves the same.
+        // adjudicate* is internally guarded (enemies clear, pendingSpawns empty,
+        // extraction active, data satisfied, runner actually on the pad) and is
+        // idempotent via extractionAnimationInProgress, so this is safe to call
+        // on every move commit.
+        adjudicateExtractionIfEligible(gameState: gameState)
         // Movement consumes the character's action choice, but does not auto-advance.
         // Keep player input open so the player can explicitly end early via END.
     }

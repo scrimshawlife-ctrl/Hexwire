@@ -1087,7 +1087,18 @@ final class BattleScene: SKScene {
         mapNode.addChild(group)
     }
 
-    private func dropBarrierTiles(coords: [[String: Int]]) {
+    /// Re-apply the background floor patches for barriers this room already
+    /// dropped, so a re-entered room doesn't show its retracted wall again.
+    private func replayDroppedBarrierPatches(for room: Room) {
+        guard RoomManager.shared.barrierDroppedRoomIds.contains(room.id),
+              let drops = room.removeOnFirstKill, !drops.isEmpty else { return }
+        dropBarrierTiles(coords: drops.map { ["x": $0.x, "y": $0.y] }, animated: false)
+    }
+
+    /// `animated: false` replays the patch silently on room re-entry — the
+    /// barrier already dropped in an earlier visit, so it must look gone the
+    /// instant the room appears, with no fade or spark to re-sell the moment.
+    private func dropBarrierTiles(coords: [[String: Int]], animated: Bool = true) {
         guard let mapNode = childNode(withName: "TileMap") else { return }
         let bg = childNode(withName: "roomBackground") as? SKSpriteNode
         let bgTex = bg?.texture
@@ -1096,10 +1107,14 @@ final class BattleScene: SKScene {
         for c in coords {
             guard let x = c["x"], let y = c["y"] else { continue }
             // Fade + remove the wall sprite so pathfinding visualisation matches.
-            mapNode.childNode(withName: "tile_\(x)_\(y)")?.run(SKAction.sequence([
-                SKAction.fadeOut(withDuration: 0.35),
-                SKAction.removeFromParent()
-            ]))
+            if animated {
+                mapNode.childNode(withName: "tile_\(x)_\(y)")?.run(SKAction.sequence([
+                    SKAction.fadeOut(withDuration: 0.35),
+                    SKAction.removeFromParent()
+                ]))
+            } else {
+                mapNode.childNode(withName: "tile_\(x)_\(y)")?.removeFromParent()
+            }
 
             let center = TileMap.tileCenter(x: x, y: y)
 
@@ -1171,8 +1186,16 @@ final class BattleScene: SKScene {
                 // The patch is added to mapNode so it scrolls with the map.
                 mapNode.addChild(patch)
                 _ = bg  // keep ref-warm in case future code wants it
-                patch.run(SKAction.fadeIn(withDuration: 0.4))
+                if animated {
+                    patch.run(SKAction.fadeIn(withDuration: 0.4))
+                } else {
+                    patch.alpha = 1
+                }
             }
+
+            // The spark sells the drop as it happens; on a silent replay the
+            // barrier fell minutes ago, so skip straight past it.
+            guard animated else { continue }
 
             // Brief amber spark at the tile to sell "barrier disengaged".
             let spark = SKShapeNode(circleOfRadius: 4)
@@ -1257,6 +1280,8 @@ final class BattleScene: SKScene {
 
         // Mark room as entered (for future back-navigation)
         RoomManager.shared.markRoomEntered(targetRoom.id)
+        // Visit index seeds the backtrack-patrol roll below.
+        RoomManager.shared.noteRoomEntry(targetRoom.id)
 
         // Replace GameState enemies with this room's enemies only.
         // Cleared rooms stay empty on return; uncleared rooms rebuild from
@@ -1322,6 +1347,35 @@ final class BattleScene: SKScene {
                     let dueAt = GameState.shared.enemyPhaseCount + enemySpawn.delay
                     newPendingSpawns.append(GameState.PendingSpawn(enemy: enemy, delayRounds: dueAt))
                 }
+            }
+        } else {
+            // Cleared room: usually stays empty, but a patrol occasionally
+            // wanders in so backtracking carries some risk. Rolls empty most
+            // of the time, once per room per attempt — see backtrackPatrol.
+            let patrol = MissionSetupService.backtrackPatrol(
+                for: targetRoom,
+                gameState: GameState.shared,
+                entryX: spawnX,
+                entryY: spawnY
+            )
+            if !patrol.isEmpty {
+                RoomManager.shared.patrolRespawnedRoomIds.insert(targetRoom.id)
+                for spawn in patrol {
+                    let enemy = MissionSetupService.makeEnemy(
+                        gameState: GameState.shared,
+                        for: spawn.type,
+                        archetype: .interceptor
+                    )
+                    NGPlusStore.shared.scaleForTier(enemy)
+                    enemy.positionX = spawn.x
+                    enemy.positionY = spawn.y
+                    newEnemies.append(enemy)
+                }
+                // Live enemies mean the room is no longer clear — same contract
+                // ReinforcementService uses, so doors re-lock until the patrol
+                // is put down and onRoomCleared re-marks it.
+                _ = RoomManager.shared.unmarkRoomCleared(targetRoom.id)
+                GameState.shared.addLog("⚠️ Patrol contact — this room isn't as clear as you left it.")
             }
         }
         // WP4 seam: the scene CONSTRUCTS the room's authored spawn lists
@@ -3184,6 +3238,12 @@ final class BattleScene: SKScene {
         // from loadMap (initial load), not from loadRoom (transitions).
         addRoomBackgroundImage(for: newTileMap)
         addChild(mapNode)
+        // Barriers dropped on an earlier visit: the tile grid already reads as
+        // floor (applyDroppedBarriers), but the barrier is PAINTED INTO the
+        // room background art, which is reloaded pristine above. Without
+        // replaying the pixel patch the wall reappears while staying
+        // walk-through — visibly there, physically gone.
+        replayDroppedBarrierPatches(for: room)
         addObjectiveMarkers(to: mapNode, room: room)
         restampScorchScars(on: mapNode, room: room)
         // Mission-specific ambient VFX — must run on every room load,

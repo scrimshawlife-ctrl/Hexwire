@@ -1442,17 +1442,9 @@ struct TitleView: View {
                             )
                             .shadow(color: Color(hex: "FF00AA").opacity(0.35), radius: 6)
                     }
-                    // View the team's runners — levels / stats / equipment.
-                    Button(action: { HapticsManager.shared.buttonTap(); showRoster = true }) {
-                        Text("TEAM")
-                            .font(.headline)
-                            .foregroundColor(Color(hex: "00D4FF"))
-                            .frame(width: btnW, height: btnH)
-                            .background(Color.black.opacity(0.35))
-                            .overlay(RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color(hex: "00D4FF").opacity(0.8), lineWidth: 2))
-                            .shadow(color: Color(hex: "00D4FF").opacity(0.35), radius: 6)
-                    }
+                    // TEAM lives on the SELECT RUN bar instead — it's the screen
+                    // where roster state actually matters, and having it in both
+                    // places just doubled up the same `showRoster` action.
                     Button(action: { HapticsManager.shared.buttonTap(); showSettings = true }) {
                         Text("SETTINGS")
                             .font(.headline)
@@ -3807,6 +3799,13 @@ final class PhaseManager: ObservableObject {
 
     var stateStack: [GamePhase] { stateHistory }
 
+    /// Replay modes: the Endless Gauntlet floors and the procedural side
+    /// contracts. They recombine shipped rooms and carry no authored story,
+    /// so the campaign intro/outro VNs are skipped for them.
+    static func isReplayMissionId(_ id: String) -> Bool {
+        id == GauntletStore.gauntletMissionId || ContractStore.isContractId(id)
+    }
+
     /// Canonical transition matrix implementation (active authority).
     /// Keep in lockstep with `PhaseFlowAuthorityMatrix.md`.
     private func computeNext(from state: GamePhase, event: StateTransition) -> GamePhase {
@@ -3815,7 +3814,14 @@ final class PhaseManager: ObservableObject {
         case (.title, .viewPrologue):                       return .prologue
         case (.prologue, .finishPrologue):                  return .title           // loop back, don't auto-start
         case (.prologue, .returnToTitle):                   return .title           // skip mid-scene
-        case (.missionSelect, .selectMission):              return .missionIntro      // tactical missions go through cutscene first
+        case (.missionSelect, .selectMission(let id)):
+            // Replay modes (gauntlet floors, side contracts) have no story to
+            // tell — they recombine shipped rooms, and the contract board has
+            // already briefed the job. Running the campaign VN in front of them
+            // just gates the fight behind beats about a mission you aren't on.
+            // Straight to briefing (loadout still matters); campaign missions
+            // keep the cutscene.
+            return Self.isReplayMissionId(id) ? .briefing : .missionIntro
         // Standard tactical missions (M1–M6) go intro → briefing → combat.
         // M4.5 "Basement Brawl" uses the same intro VN infrastructure but
         // routes straight from the intro into its bespoke gameplay scene —
@@ -3852,7 +3858,15 @@ final class PhaseManager: ObservableObject {
         case (.coldTrace, .returnToTitle):                  return .missionSelect   // abort mid-dive
         case (.briefing, .beginMission):                    return .combat
         // Victory → mission outro VN scene before scoring; defeat → straight to debrief.
-        case (.combat, .endCombat(let won)):                return won ? .missionOutro : .debrief
+        case (.combat, .endCombat(let won)):
+            // Same reasoning as the intro skip above — a won contract/gauntlet
+            // floor goes straight to debrief rather than playing campaign
+            // closing beats for a mission the player never started.
+            guard won else { return .debrief }
+            // Unknown id falls back to the campaign path — a missing outro is a
+            // worse regression than an extra one.
+            let isReplay = selectedMissionId.map(Self.isReplayMissionId) ?? false
+            return isReplay ? .debrief : .missionOutro
         case (.combat, .returnToTitle):                     return .missionSelect  // abort from combat → menu
         case (.missionOutro, .finishMissionOutro):          return .debrief
         case (.missionOutro, .viewDebrief):                 return .debrief        // safety: caller-driven skip
