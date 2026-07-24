@@ -87,14 +87,21 @@ struct SettingsSheet: View {
                     if on { HapticsManager.shared.selectAffirm() }
                 }
 
+                // Toggles both ways: arming a replay used to be irreversible,
+                // and the disabled state also lied after reopening Settings
+                // because it tracked @State rather than the stored flags.
                 Button(action: {
-                    TutorialCoach.shared.resetAll()
-                    tipsReset = true
+                    if tipsReset {
+                        TutorialCoach.shared.markAllSeen()
+                    } else {
+                        TutorialCoach.shared.resetAll()
+                    }
+                    tipsReset.toggle()
                     HapticsManager.shared.buttonTap()
                 }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "questionmark.circle")
-                        Text(tipsReset ? "TUTORIAL TIPS WILL REPLAY" : "REPLAY TUTORIAL TIPS")
+                        Image(systemName: tipsReset ? "checkmark.circle" : "questionmark.circle")
+                        Text(tipsReset ? "TIPS WILL REPLAY — TAP TO CANCEL" : "REPLAY TUTORIAL TIPS")
                             .tracking(1)
                     }
                     .font(.system(size: 12, weight: .black, design: .monospaced))
@@ -104,7 +111,7 @@ struct SettingsSheet: View {
                     .overlay(RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.white.opacity(0.35), lineWidth: 1))
                 }
-                .disabled(tipsReset)
+                .onAppear { tipsReset = TutorialCoach.shared.anyUnseen }
 
                 Spacer()
 

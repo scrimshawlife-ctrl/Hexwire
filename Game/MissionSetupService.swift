@@ -336,9 +336,20 @@ struct MissionSetupService {
         gameState.addLog(gameState.generateCombinedPressurePreview())
         gameState.addLog(gameState.generateMissionBriefing())
 
+        // A room can declare extraction EITHER as an explicit extractionPoint
+        // OR as an extraction tile painted into its map — `roomHasExtraction`
+        // accepts both, so this must too. Honouring only extractionPoint left
+        // tile-based rooms (the procedural contract/arena rooms) rendering a
+        // labelled extraction pad whose coords were the off-map sentinel:
+        // isExtractionActive() passed, the player stood on the pad, and
+        // nothing ever fired because (-1,-1) matched no one.
         if let _ = firstRoom.extractionPoint {
             gameState.extractionX = firstRoomExtraction.x
             gameState.extractionY = firstRoomExtraction.y
+            gameState.addLog("🚁 Extraction marker active — reach it when all rooms are clear!")
+        } else if let pad = firstExtractionTile(in: firstRoom.map) {
+            gameState.extractionX = pad.x
+            gameState.extractionY = pad.y
             gameState.addLog("🚁 Extraction marker active — reach it when all rooms are clear!")
         } else {
             // CRITICAL: reset extraction coords to a SAFE OFF-MAP sentinel
@@ -380,6 +391,17 @@ struct MissionSetupService {
             RoomManager.shared.applyDroppedBarriers(to: &adjusted, room: room)
         }
         gameState.currentMissionTiles = adjusted
+    }
+
+    /// First extraction tile painted into a room's map, scanning top-left to
+    /// bottom-right so the choice is deterministic across runs.
+    private static func firstExtractionTile(in map: [[Int]]) -> (x: Int, y: Int)? {
+        for (y, row) in map.enumerated() {
+            if let x = row.firstIndex(of: TileType.extraction.rawValue) {
+                return (x: x, y: y)
+            }
+        }
+        return nil
     }
 
     private static func tilesWithoutDataTerminals(_ tiles: [[Int]]) -> [[Int]] {
@@ -759,6 +781,62 @@ struct MissionSetupService {
     /// Seeded by (missionAttemptId, room id): re-entering an uncleared room
     /// in the same attempt rebuilds the SAME squad (no reroll-scumming by
     /// door-flapping), while every new attempt rolls fresh.
+    /// Odds that re-entering an already-cleared room turns up a patrol.
+    private static let backtrackPatrolChance = 0.35
+
+    /// A small patrol that has wandered into a room the player already cleared.
+    /// Empty most of the time — backtracking is usually meant to be a quick
+    /// errand, and a guaranteed fight would make returning for a missed
+    /// objective a chore rather than a risk.
+    ///
+    /// Seeded on (attempt, room, visit index) so the roll is fixed for a given
+    /// visit: stepping out and back in cannot re-roll it. Capped at one patrol
+    /// per room per attempt by `patrolRespawnedRoomIds`, so a corridor between
+    /// two objectives can't be farmed.
+    ///
+    /// Squad is 1–2 of the CHEAPEST types authored in this mission, placed on
+    /// the room's own authored spawn tiles (known-good hexes) farthest from
+    /// where the player walked in — never on top of the party.
+    static func backtrackPatrol(for room: Room,
+                                gameState: GameState,
+                                entryX: Int,
+                                entryY: Int) -> [EnemySpawn] {
+        guard !RoomManager.shared.patrolRespawnedRoomIds.contains(room.id) else { return [] }
+        guard !room.enemies.isEmpty else { return [] }          // nothing authored to draw from
+        guard room.bossSpawn == nil else { return [] }          // never re-populate a boss arena
+
+        var roomHash: UInt64 = 5381
+        for b in room.id.utf8 { roomHash = (roomHash << 5) &+ roomHash &+ UInt64(b) }
+        let visit = UInt64(RoomManager.shared.reentryCount(room.id))
+        var rng = SquadRNG(seed: UInt64(bitPattern: Int64(gameState.missionAttemptId))
+                                &* 0x9E37_79B9_7F4A_7C15
+                                &+ roomHash
+                                &+ visit &* 0x1000_0000_0000_0193)
+
+        guard Double(rng.next() % 1000) / 1000.0 < backtrackPatrolChance else { return [] }
+
+        // Cheapest authored types keep a wandering patrol from out-punching the
+        // squad that originally held the room.
+        let pool = room.enemies
+            .map(\.type)
+            .filter { spawnCost[$0] != nil }
+            .sorted { (spawnCost[$0] ?? 0, $0) < (spawnCost[$1] ?? 0, $1) }
+        guard let cheapest = pool.first else { return [] }
+        let count = (rng.next() % 2 == 0) ? 1 : 2
+
+        // Farthest authored tiles from the door the player just came through.
+        let tiles = room.enemies
+            .map { (x: $0.x, y: $0.y) }
+            .sorted {
+                let a = CombatMechanics.hexDistance(x1: entryX, y1: entryY, x2: $0.x, y2: $0.y)
+                let b = CombatMechanics.hexDistance(x1: entryX, y1: entryY, x2: $1.x, y2: $1.y)
+                return a == b ? ($0.x, $0.y) < ($1.x, $1.y) : a > b
+            }
+            .prefix(count)
+
+        return tiles.map { EnemySpawn(type: cheapest, x: $0.x, y: $0.y, delay: 0) }
+    }
+
     static func replaySquad(for room: Room, gameState: GameState) -> [EnemySpawn] {
         let missionId = gameState.currentMissionDisplayId ?? ""
         let isReplay = MissionStatsStore.shared.record(for: missionId).attempts > 0

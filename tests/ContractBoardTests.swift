@@ -170,6 +170,92 @@ final class ContractBoardTests: XCTestCase {
 
     // MARK: - End-to-end: accept → clear → extract → paid → consumed
 
+    /// Regression: killing the last enemy in a contract must ARM extraction on
+    /// its own. `testContractPlaysThroughToPayoutEndToEnd` calls
+    /// `markCurrentRoomCleared()` by hand, so it proves everything downstream
+    /// of a cleared room while never checking that clearing the room actually
+    /// marks it — which is the half the player experiences as a dead
+    /// extraction pad.
+    func testKillingLastEnemyArmsContractExtraction() throws {
+        let offer = ContractStore.makeOffer(tier: 1, seed: 5150)
+        ContractStore.shared.setOffers([offer])
+        guard MissionLoader.shared.loadMultiRoomMission(named: offer.id) != nil,
+              RoomManager.shared.loadMission(named: offer.id) != nil else {
+            throw XCTSkip("mission JSONs not bundled")
+        }
+        _ = gs.prepareMissionForCombat(named: offer.id)
+        gs.missionComplete = false
+        gs.combatEnded = false
+        gs.pendingSpawns = []
+        XCTAssertFalse(gs.enemies.isEmpty, "contract room should spawn a squad")
+
+        // Kill through the real path — no hand-marking the room cleared.
+        for enemy in gs.enemies {
+            enemy.currentHP = 0
+            gs.handleEnemyKilledByEnvironment(enemy, cause: "test")
+        }
+
+        XCTAssertTrue(gs.livingEnemies.isEmpty, "squad is down")
+        XCTAssertTrue(RoomManager.shared.isExtractionActive(),
+                      "clearing the room must arm extraction — otherwise isExtractionTile() "
+                      + "returns false and tapping the pad silently does nothing")
+
+        // The pad the player SEES is the extraction tile painted into the live
+        // grid. The pad the tap RESOLVES against is gs.extractionX/Y. If those
+        // ever disagree, the visible pad is inert and the tap is a silent no-op.
+        var padsInGrid: [(x: Int, y: Int)] = []
+        for (y, row) in gs.currentMissionTiles.enumerated() {
+            for (x, tile) in row.enumerated() where tile == TileType.extraction.rawValue {
+                padsInGrid.append((x: x, y: y))
+            }
+        }
+        XCTAssertFalse(padsInGrid.isEmpty, "the room renders an extraction pad")
+        XCTAssertTrue(padsInGrid.contains { $0.x == gs.extractionX && $0.y == gs.extractionY },
+                      "extraction coords (\(gs.extractionX),\(gs.extractionY)) must land ON a "
+                      + "rendered pad \(padsInGrid) — otherwise the player taps a pad that "
+                      + "isExtractionTile() refuses to recognise")
+    }
+
+    /// The player's actual sequence: clear the room, then WALK the runner onto
+    /// the pad instead of tapping it. Before the step-on adjudication hook this
+    /// produced the objective pulse and nothing else — the contract could not
+    /// be completed at all.
+    func testWalkingOntoExtractionPadCompletesContract() throws {
+        let offer = ContractStore.makeOffer(tier: 1, seed: 5150)
+        ContractStore.shared.setOffers([offer])
+        guard MissionLoader.shared.loadMultiRoomMission(named: offer.id) != nil,
+              RoomManager.shared.loadMission(named: offer.id) != nil else {
+            throw XCTSkip("mission JSONs not bundled")
+        }
+        _ = gs.prepareMissionForCombat(named: offer.id)
+        gs.missionComplete = false
+        gs.combatEnded = false
+        gs.pendingSpawns = []
+
+        for enemy in gs.enemies {
+            enemy.currentHP = 0
+            gs.handleEnemyKilledByEnvironment(enemy, cause: "test")
+        }
+        if gs.missionRequiresData && !gs.dataAcquired {
+            _ = gs.requestObjectiveDataAcquired(source: "contract-test")
+        }
+        guard let runner = gs.playerTeam.first(where: { $0.isAlive }) else {
+            return XCTFail("no living runner")
+        }
+
+        // Walk on. No tap, no enemy phase — the two triggers that used to be
+        // the only ways extraction could ever resolve.
+        CombatFlowController.setCombatPhase(gameState: gs, .playerInput)
+        gs.characterHasMovedThisTurn[runner.id] = false
+        runner.hasActedThisRound = false
+        gs.moveCharacter(id: runner.id, toTileX: gs.extractionX, toTileY: gs.extractionY)
+
+        XCTAssertEqual(runner.positionX, gs.extractionX)
+        XCTAssertEqual(runner.positionY, gs.extractionY)
+        XCTAssertTrue(gs.extractionAnimationInProgress || gs.combatEnded || gs.missionComplete,
+                      "stepping onto an armed extraction pad must resolve the run")
+    }
+
     func testContractPlaysThroughToPayoutEndToEnd() throws {
         let offer = ContractStore.makeOffer(tier: 1, seed: 5150)
         ContractStore.shared.setOffers([offer])

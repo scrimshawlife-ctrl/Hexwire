@@ -50,6 +50,25 @@ final class RoomManager: ObservableObject {
     /// drop — without this set, re-entering M1 room_1 restores the wall row
     /// permanently and the mission can never be finished.
     var barrierDroppedRoomIds: Set<String> = []
+    /// How many times the player has RE-entered each room (first entry = 0).
+    /// Seeds the backtrack-patrol roll so a given visit always rolls the same
+    /// way — walking out and back in can't be used to re-roll a patrol you
+    /// didn't like, but successive visits still differ.
+    private var reentryCounts: [String: Int] = [:]
+    /// Rooms that have already coughed up a backtrack patrol this mission.
+    /// One patrol per room per attempt — without this, a corridor between two
+    /// objectives becomes an infinite XP/nuyen faucet.
+    var patrolRespawnedRoomIds: Set<String> = []
+
+    /// Bump and return the re-entry index for a room (0 on first entry).
+    @discardableResult
+    func noteRoomEntry(_ roomId: String) -> Int {
+        let next = (reentryCounts[roomId] ?? -1) + 1
+        reentryCounts[roomId] = next
+        return next
+    }
+
+    func reentryCount(_ roomId: String) -> Int { reentryCounts[roomId] ?? 0 }
 
     /// Re-apply this room's already-dropped barriers (as floor) to a tile grid
     /// rebuilt from JSON. Call from every model/visual tile-build path.
@@ -101,6 +120,8 @@ final class RoomManager: ObservableObject {
             bossDeployedRoomIds.removeAll()
             bossPendingRoomIds.removeAll()
             barrierDroppedRoomIds.removeAll()
+            reentryCounts.removeAll()
+            patrolRespawnedRoomIds.removeAll()
             return mission
         }
         return nil
@@ -120,6 +141,8 @@ final class RoomManager: ObservableObject {
         bossDeployedRoomIds.removeAll()
         bossPendingRoomIds.removeAll()
         barrierDroppedRoomIds.removeAll()
+        reentryCounts.removeAll()
+        patrolRespawnedRoomIds.removeAll()
     }
 
     /// Mark a room as having received its reinforcement wave so future
@@ -150,6 +173,18 @@ final class RoomManager: ObservableObject {
         let removed = clearedRoomIds.remove(roomId) != nil
         if removed {
             dlog("[RoomManager] unmarkCurrentRoomCleared() room=\(roomId) — door re-locks for reinforcement wave")
+        }
+        return removed
+    }
+
+    /// Same as `unmarkCurrentRoomCleared` but targeted by id — the room
+    /// transition needs this because it runs BEFORE `completeTransition`, so
+    /// `currentRoom` is still the room being left, not the one being entered.
+    @discardableResult
+    func unmarkRoomCleared(_ roomId: String) -> Bool {
+        let removed = clearedRoomIds.remove(roomId) != nil
+        if removed {
+            dlog("[RoomManager] unmarkRoomCleared() room=\(roomId) — door re-locks for backtrack patrol")
         }
         return removed
     }
@@ -233,21 +268,20 @@ final class RoomManager: ObservableObject {
             return nil
         }
 
-        // Spawn placement:
-        //  - Going FORWARD into a new room, use the connection's authored
-        //    targetSpawn (a deliberate entry point on the far side of the door).
-        //  - BACKTRACKING into a room you've already cleared, land at that
-        //    room's canonical entry (playerSpawn) — the near side where you
-        //    first walked in. The forward connection's targetSpawn drops you
-        //    beside the door toward the NEXT room (the far end), which reads as
-        //    "spawned at the wrong end of the room" on the way back.
-        if isBacktrack {
-            pendingConnectionTargetX = targetRoom.playerSpawn.x
-            pendingConnectionTargetY = targetRoom.playerSpawn.y
-        } else {
-            pendingConnectionTargetX = connection.targetSpawnX
-            pendingConnectionTargetY = connection.targetSpawnY
-        }
+        // Spawn placement: ALWAYS the connection's authored targetSpawn, for
+        // forward and backward alike. Each connection already authors the tile
+        // beside the door it leads to, so walking back through a door puts you
+        // where that door actually is — the mirror of how you left.
+        //
+        // The previous special case sent backtrackers to targetRoom.playerSpawn
+        // instead. That is the room's ORIGINAL entry point, at the far end from
+        // the door you just came through: returning M1 room_2 → room_1 landed
+        // the squad at (3,9), the top, when the connection authors (2,1) at the
+        // bottom. It also contradicted BattleScene's own transition comment
+        // (playtest 2026-05-23), which had already settled on door-driven
+        // spawns for both directions — the two disagreed and this side won.
+        pendingConnectionTargetX = connection.targetSpawnX
+        pendingConnectionTargetY = connection.targetSpawnY
 
         return targetRoom
     }

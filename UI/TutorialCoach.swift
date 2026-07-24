@@ -216,6 +216,23 @@ final class TutorialCoach: ObservableObject {
         current = nil
     }
 
+    /// Inverse of `resetAll()` — mark every tip as already seen so none replay.
+    /// Without this, arming a replay was a one-way door: the only way back was
+    /// to sit through every tip again.
+    func markAllSeen() {
+        for t in TutorialTip.allCases {
+            UserDefaults.standard.set(true, forKey: t.udKey)
+        }
+        pending.removeAll()
+        inFlight.removeAll()
+        current = nil
+    }
+
+    /// True when at least one tip is still queued to show.
+    var anyUnseen: Bool {
+        TutorialTip.allCases.contains { !UserDefaults.standard.bool(forKey: $0.udKey) }
+    }
+
     private func advance() {
         guard current == nil else { return }
         while let next = pending.first {
