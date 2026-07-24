@@ -8,7 +8,8 @@
    drives the REAL authority pipeline per mission — `prepareMissionForCombat` →
    `applyRoomEntry` walk through every room → clear → extraction intent →
    finalize → payout → disk-decode persistence check → defeat path → seeded
-   replay rerolls. Runs in the full suite (85 tests, 0 failures) locally and in CI.
+   replay rerolls. Runs in the full suite (126 tests, 0 failures as of 2026-07-24)
+   locally and in CI.
 2. **Runtime launch smoke** (simulator): Debug build launched with
    `SR_AUTOSTART_MISSION_ID` for each mission on **iPhone 17** and
    **iPad Pro 13-inch (M5)** (iOS 26.5 runtime). Process verified alive after
@@ -73,6 +74,71 @@ capped HUD — the recent iPad layout pass rendering as designed).
 | Mission004_5 (Basement brawl) | PARTIAL (L) | Same |
 | Mission005_5 (Cold Trace) | PARTIAL (L) | Same |
 
+## Replay modes — gauntlet, side contracts, arenas
+
+**Added 2026-07-24 (PR #44).** WP6 shipped before these modes existed and this
+document did not mention them; they were live with unit coverage only. A device
+pass on 2026-07-23 found side contracts **uncompletable** while the whole suite
+was green — see "Method correction" below.
+
+Evidence: `tests/ReplayModeCertificationTests.swift` (6 tests) plus the existing
+`ContractBoardTests` / `ArenaPoolTests`.
+
+| Surface | Structure | Builds | Full clear | Extraction (walk-on) | Progression |
+|---|---|---|---|---|---|
+| Arenas (all 20) | PASS (L) | PASS (L) | PASS (L) | PASS (L) | n/a |
+| Side contracts (tiers 1–3) | PASS (L) | PASS (L) | PASS (L) | PASS (L) | PASS (L) |
+| Gauntlet floors (1–8 sampled) | PASS (L) | PASS (L) | PASS (L) | PASS (L) | PASS (L) |
+
+What these certify:
+
+- **Arenas** — every one of the 20 is driven through a REAL side contract, reached
+  by sweeping seeds through `ArenaPool.arenaId(forSeed:)` rather than constructing
+  rooms by hand. A player only ever rolls a handful, so an individually broken
+  arena could otherwise sit undiscovered indefinitely. Structural gate additionally
+  asserts: party spawn in-bounds and not in a wall, exit door on-map, sealing the
+  arena yields a real extraction point whose tile is actually an extraction tile,
+  enemies on non-wall in-bounds tiles, and known spawn types only.
+- **Contracts** — all three tiers complete, not just the tier-1 offer the board
+  test happens to use.
+- **Gauntlet** — floors build and complete across the scaling band (composition
+  changes at floor 4); exactly ONE arena per floor holds the exit and it is the
+  last one (zero = unfinishable, several = skippable arenas); floor victory
+  advances the pit and returns the floor just completed, a wipe resets to floor 1
+  without erasing `bestFloor`.
+
+Every run above is finished the player's way — walking a runner onto the pad via
+`moveCharacter` — not by calling the extraction intent.
+
+## Method correction — the player-input path (2026-07-24)
+
+The logic layer described at the top of this document enters through AUTHORITY:
+`applyRoomEntry` to walk rooms, `requestExtractionResolution` to extract. A player
+calls neither. They move a runner onto a tile and the move commit decides what
+that tile means.
+
+That translation layer had **no coverage at all**, and it is where side contracts
+broke: extraction resolved correctly at the authority level, but walking onto the
+pad never reached it — extraction only adjudicated on an explicit tap or at the
+end of an enemy phase, and with the last enemy dead there is no enemy phase. The
+symptom was silence, because every messaged rejection lives inside
+`requestExtraction`, which was never called. `ContractBoardTests`' own
+"end to end" test additionally hand-called `markCurrentRoomCleared()`, so it
+passed throughout.
+
+`tests/StepOnSemanticsTests.swift` (7 tests) now enters one layer up, through
+`moveCharacter` — the call the tap handler makes — and certifies that stepping on
+a tile does what the tile promises: armed pad resolves the run; unarmed pad and
+plain floor do not; a data-gated mission stays locked until the objective is met
+and opens once it is; re-stepping does not double-resolve; the move budget still
+refuses a second move. Doors are deliberately excluded — they are tap-only by
+design (BattleScene bypasses `moveCharacter` there so a transition cannot trigger
+`endTurn` mid-fade).
+
+Both new suites are **mutation-checked**: reverting the extraction fix fails 4
+tests in `StepOnSemanticsTests` and 3 in `ReplayModeCertificationTests`. A test
+that cannot fail is not evidence.
+
 ## Honest gaps (NOT_COMPUTABLE via automation — recommended device pass)
 
 Per the project's own history, simulated tap-automation of the combat HUD is
@@ -87,6 +153,13 @@ unreliable, so these remain human checks on real hardware:
 Everything in the matrix above is machine-verified; these four are the
 remaining certification surface for the owner's iPad pass.
 
+**Caveat added 2026-07-24:** item 1 is doing more work than it looks. "Touch
+feel" was treated as a taste question, but the tap/move → intent wiring UNDER it
+is functional code that automation can reach, and leaving it uncovered is what
+let a total blocker ship. `StepOnSemanticsTests` now covers the step-on half.
+The genuinely non-computable remainder is hit-testing, gesture handling and
+camera — the parts that need a finger.
+
 ## Exit gate
 
 ```yaml
@@ -99,4 +172,14 @@ WP6:
   iphone_matrix: PASS                # launch smoke + rendered-combat screenshot evidence
   ipad_matrix: PASS                  # launch smoke + rendered-combat screenshot evidence
   touch_layer: DEVICE_PASS_RECOMMENDED  # documented gap, not silently claimed
+
+# Added 2026-07-24 (PR #44) — replay modes were live but uncertified.
+REPLAY_MODES:
+  arenas_all_20: PASS                # each driven through a real contract via seed sweep
+  arena_structure: PASS              # spawn/exit/enemy placement + extraction sealing
+  contracts_all_tiers: PASS          # tiers 1-3 complete
+  gauntlet_floors: PASS              # floors 1-8, one exit per floor, on the last arena
+  gauntlet_progression: PASS         # victory advances, wipe resets, bestFloor survives
+  player_input_path: PASS            # step-on semantics via moveCharacter, mutation-checked
+  device_pass: PENDING               # nothing in this section has been run on hardware
 ```
