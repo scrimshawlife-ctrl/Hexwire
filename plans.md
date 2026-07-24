@@ -11,11 +11,15 @@ WP10 release-candidate gate plus the owner's device pass.
 - Every PR runs `hexwire-ci`: hygiene, XcodeGen 2.46.0 drift gate + full test
   suite (pre-booted simulator), Debug/Release × iPhone/iPad builds, unsigned
   archive. `main` is only advanced through green PRs.
-- 94 tests / 0 flaky: dice determinism (seed-injectable RNG), turn/authority
+- 126 tests / 0 flaky: dice determinism (seed-injectable RNG), turn/authority
   exactly-once guards, economy math, persistence + migrations (incl. the fixed
   veteran-save decode bug), seeded replay rerolls, spawn placement, per-mission
   end-to-end certification (all 6 missions: setup → every room → clear →
   extract → payout → persist → defeat path).
+- Replay modes certified 2026-07-24 (PR #44): all 20 arenas, contract tiers 1–3,
+  gauntlet floors 1–8 — plus the player-input path (step-on semantics via
+  `moveCharacter`), which was uncovered and had been hiding a total blocker that
+  made side contracts uncompletable. See MissionCertificationMatrix.md.
 - Runtime smoke: all 6 missions autostart and render on iPhone 17 + iPad Pro
   13" (M5) sims (`SR_AUTOSTART_MISSION_ID`).
 - Evidence lives in `docs/audit/` — start with `CurrentRepositoryBaseline.md`
