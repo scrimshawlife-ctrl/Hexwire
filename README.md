@@ -2,200 +2,216 @@
 
 # HEXWIRE
 
-### Tactical cyberpunk combat on a deterministic hex grid
+### Turn-based cyberpunk strategy tactics for iPhone and iPad
 
-**Build a crew. Bend the signal. Survive the trace.**
+**Take the contract. Build the crew. Burn the signal. Get out before the city learns your name.**
 
 [![HexWire CI](https://github.com/scrimshawlife-ctrl/Hexwire/actions/workflows/hexwire-ci.yml/badge.svg?branch=main)](https://github.com/scrimshawlife-ctrl/Hexwire/actions/workflows/hexwire-ci.yml)
 [![iOS 17+](https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&logoColor=white)](project.yml)
 [![Swift 5.9](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)](project.yml)
-[![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-0D96F6?logo=swift&logoColor=white)](#technology)
-[![SpriteKit](https://img.shields.io/badge/Rendering-SpriteKit-5A67D8)](#technology)
-[![XcodeGen 2.46](https://img.shields.io/badge/XcodeGen-2.46.0-147EFB?logo=xcode&logoColor=white)](project.yml)
-[![Platform](https://img.shields.io/badge/Devices-iPhone%20%7C%20iPad-252525)](#build-and-run)
+[![SwiftUI](https://img.shields.io/badge/UI-SwiftUI-0D96F6?logo=swift&logoColor=white)](#under-the-neon)
+[![SpriteKit](https://img.shields.io/badge/Battlefield-SpriteKit-5A67D8)](#under-the-neon)
 [![Status](https://img.shields.io/badge/Status-Stabilized%20Vertical%20Slice-18A558)](plans.md)
 
-[Overview](#overview) · [Gameplay](#gameplay-loop) · [Atlas](#system-atlas) · [Build](#build-and-run) · [Validation](#validation) · [Docs](#documentation-atlas)
+[The World](#the-city-is-listening) · [The Crew](#four-runners-one-bad-plan) · [Combat](#every-turn-leaves-a-trace) · [Modes](#the-work-never-ends) · [Build](#jack-in) · [Atlas](#repository-atlas)
 
 </div>
 
 ---
 
-## Overview
+## The city is listening
 
-**HexWire** is an iPhone- and iPad-first tactical cyberpunk RPG built with **SwiftUI** and **SpriteKit**. Four specialized runners move through authored multi-room missions while signal pressure converts every tactical advantage into escalating exposure.
+The city sold its nervous system to the highest bidder.
 
-The central rhythm is deliberately unstable:
+Every camera is awake. Every transit gate keeps a memory. Every corporate district is a sealed machine built to recognize the wrong face at the wrong time. Data brokers trade reputations like ammunition. Private security responds before the law knows a crime happened. Somewhere above the rain, an executive dashboard is turning human movement into risk scores.
+
+You are not here to fix that system.
+
+You are here to rob it.
+
+**HexWire** is a turn-based cyberpunk strategy tactics game built around small-team infiltration, authored multi-room operations, persistent consequences, and a combat economy where speed creates exposure. You command a crew of specialists across a hex-grid battlefield, spend scarce actions to break hostile positions, extract before the network closes around you, and carry the consequences into the next job.
+
+The fantasy is not invincibility. It is competence under pressure.
+
+A clean mission pays. A loud mission pays faster. A reckless mission changes what the city sends after you next.
+
+---
+
+## Four runners. One bad plan.
+
+A HexWire crew is built from four complementary archetypes. None of them owns the battlefield alone; the game lives in the space between their abilities.
+
+| Runner | Function | Battlefield identity |
+|---|---|---|
+| **Street Samurai** | Frontline pressure | Closes distance, absorbs risk, and turns positional advantage into decisive force. |
+| **Mage** | Arcane control | Shapes contested space, punishes clustered threats, and bends the encounter outside ordinary rules. |
+| **Decker** | Signal warfare | Exploits the network, accelerates tactical plays, and makes the fastest path the most dangerous one. |
+| **Face** | Social and support leverage | Keeps the operation coherent, creates openings, and converts preparation into survival. |
+
+The crew moves as a single operational system. Positioning, initiative, room sequencing, damage, extraction, economy, and persistence all feed forward. A mistake in one room becomes the shape of the next.
+
+---
+
+## Every turn leaves a trace
+
+At the center of HexWire is a pressure loop built around two ways of acting:
+
+### STREET
+
+Reliable. Controlled. Slow enough to disappear inside the noise.
+
+Street actions resolve without increasing trace. They preserve operational safety but surrender tempo to the opposition.
+
+### SIGNAL
+
+Fast. Powerful. Visible.
+
+Signal actions create immediate tactical leverage while raising your trace level. Push it too far and the hostile network escalates: enemy awareness hardens, incoming damage increases, and the mission begins charging interest on every shortcut you took.
+
+### LAY LOW
+
+You can reduce trace, but there is no free reset. Laying low consumes a full turn. The crew survives by deciding when tempo matters more than safety—and when one more aggressive action will turn a winning position into a collapse.
 
 > **Signal → Power → Trace → Escalation → Lay Low → Tempo Tradeoff**
 
-The repository currently represents a **stabilized vertical slice**: deterministic simulation, persistent progression, six machine-certified missions, replay modes, a build matrix for iPhone and iPad, and an unsigned release archive produced by hosted CI.
+![HexWire pressure loop](docs/assets/hexwire-loop.svg)
 
-<table>
-<tr>
-<td width="50%" valign="top">
+Trace is not a cosmetic alert meter. It is the combat clock the player chooses to wind.
 
-### Tactical layer
+---
 
-- Hex-grid movement and encounter sequencing
-- Four-runner party composition
-- Authored multi-room missions
-- Trace, heat, and escalation pressure
-- Seeded replay variation
-- Arena, contract, gauntlet, and New Game+ paths
+## The shape of a run
 
-</td>
-<td width="50%" valign="top">
+Every operation follows a tactical rhythm:
 
-### Campaign layer
+1. **Take the contract** — enter an authored story mission, side contract, arena, or gauntlet run.
+2. **Read the room** — study walls, lanes, enemy positions, initiative, objectives, and extraction conditions.
+3. **Commit the crew** — move across the hex grid, attack, cast, hack, support, or sacrifice tempo to reduce exposure.
+4. **Clear forward** — move through connected rooms while carrying damage, pressure, and mission state with you.
+5. **Hit the objective** — acquire data, eliminate resistance, survive the encounter logic, or satisfy the mission gate.
+6. **Reach extraction** — physically move a runner onto the armed extraction tile and resolve the operation.
+7. **Live with it** — collect nuyen, preserve progression, alter faction attention, upgrade the crew, and decide what risk comes next.
 
-- Persistent nuyen economy
-- Black-market progression
-- Cyberware upgrades
-- Faction heat across missions
-- Save migrations and persistence certification
-- Interstitial narrative and scene missions
+Victory is not simply killing the final enemy. The job ends when the crew gets out.
 
-</td>
-</tr>
-</table>
+---
 
-## Gameplay loop
+## Authored campaigns, unstable replays
 
-<p align="center">
-  <img src="docs/assets/hexwire-loop.svg" alt="HexWire pressure loop" width="900" />
-</p>
+HexWire currently contains **six machine-certified multi-room story missions**, supported by scene-driven interstitial operations and repeatable combat modes.
 
-Every action creates a tactical exchange. Stronger options increase capability, but capability produces signal, signal raises trace, and trace changes the encounter state. The player is therefore optimizing **tempo under observation**, not merely damage output.
+### Story operations
 
-| Phase | Tactical question |
+Each mission is built as a connected room graph with authored enemies, boss or unique slots, objective logic, extraction conditions, payout, defeat handling, replay behavior, and save/resume persistence.
+
+The story campaign is designed to feel deliberate rather than procedurally anonymous: rooms have authored tactical intent, while seeded replay rerolls vary ordinary opposition without replacing bosses, unique encounters, or mission structure.
+
+### Interstitial operations
+
+Between major missions, the campaign shifts format through scene-driven encounters including:
+
+- **Mirrorline**
+- **The Drop**
+- **Basement Brawl**
+- **Cold Trace**
+
+These sequences widen the fiction beyond the standard combat board while still routing rewards and objectives through the same authoritative progression system.
+
+---
+
+## The work never ends
+
+The campaign is only one layer of the city.
+
+| Mode | What it does |
 |---|---|
-| **Signal** | What action reveals the crew or creates network noise? |
-| **Power** | How much immediate advantage does that exposure buy? |
-| **Trace** | How close is the opposition to identifying or containing the team? |
-| **Escalation** | What new threats, constraints, or reinforcements enter play? |
-| **Lay Low** | When is tempo sacrifice worth reducing future pressure? |
-| **Tradeoff** | Which risk preserves the mission while protecting the campaign? |
+| **Side Contracts** | Tiered operations generated from the contract board, built for repeatable risk and progression. |
+| **Arenas** | Twenty validated combat spaces selected through seeded contract generation. |
+| **Endless Gauntlet** | Escalating floors, shifting enemy composition, persistent best-floor tracking, and failure that sends the crew back to floor one. |
+| **Seeded Replay** | Rerolls standard opposition while preserving authored structure, boss identity, positions, and mission logic. |
+| **New Game+** | Carries the campaign forward into a higher-pressure progression cycle. |
 
-See [`docs/TraceSystem.md`](docs/TraceSystem.md) for the authoritative pressure-system design.
+The persistent layer includes **nuyen, black-market access, cyberware, faction heat, mission completion, replay state, and campaign scaling**. The city remembers both success and attention.
 
-## System atlas
+---
 
-```mermaid
-flowchart TB
-    Input[Player Input] --> Intent[Game Intents]
-    Intent --> Authority[GameState Authority]
+## Tactical identity
 
-    subgraph Deterministic Core
-        Authority --> Turn[Turn Resolution]
-        Authority --> Combat[Combat Rules]
-        Authority --> Trace[Trace and Heat]
-        Authority --> Economy[Economy and Rewards]
-        Authority --> Mission[Mission State]
-        Authority --> Replay[Seeded Replay]
-    end
+HexWire is built around a specific kind of strategy:
 
-    Turn --> Snapshot[Authoritative Snapshot]
-    Combat --> Snapshot
-    Trace --> Snapshot
-    Economy --> Snapshot
-    Mission --> Snapshot
-    Replay --> Snapshot
+- **Turn-based, not twitch-based** — the player has time to read the board, but every action changes the pressure state.
+- **Position-first combat** — walls, lanes, movement budgets, room topology, and extraction placement determine what is possible.
+- **Small-team synergy** — runners are designed as interlocking roles rather than isolated damage engines.
+- **Objective-driven missions** — combat is part of the operation, not always the complete operation.
+- **Persistent consequence** — rewards, faction attention, upgrades, campaign progress, and replay state survive beyond the room.
+- **Deterministic authority** — identical inputs and seeded conditions resolve consistently, making tactics testable rather than theatrical.
 
-    Snapshot --> SwiftUI[SwiftUI Interface]
-    Snapshot --> SpriteKit[SpriteKit Presentation]
-    Snapshot --> Persistence[Save and Migration Layer]
+The intended feeling is a cyberpunk heist collapsing one measured decision at a time.
 
-    Missions[(Mission JSON)] --> Mission
-    Assets[(Assets and Sprites)] --> SpriteKit
-    Persistence --> Authority
-```
+---
 
-### Authority boundary
+## Under the neon
 
-`GameState` is the single gameplay authority. Presentation code does not mutate simulation state directly:
+HexWire is an iOS-native game built with:
 
-1. SwiftUI and SpriteKit capture player input.
-2. Presentation emits intents through `Game/GameIntents.swift`.
-3. `GameState` validates and resolves the action exactly once.
-4. Rendering projects the resulting authoritative state.
-5. Persistence records campaign state through certified migrations.
+| Layer | Technology |
+|---|---|
+| Application and campaign UI | **SwiftUI** |
+| Tactical battlefield | **SpriteKit** |
+| Core language | **Swift 5.9** |
+| Project generation | **XcodeGen 2.46.0** |
+| Minimum deployment target | **iOS 17.0** |
+| Supported devices | **iPhone and iPad** |
+| Build validation | **GitHub Actions on macOS** |
 
-The mutation audit is maintained in [`docs/audit/GameStateAuthorityMutationLedger.md`](docs/audit/GameStateAuthorityMutationLedger.md).
+The gameplay architecture follows one hard rule:
 
-## Mission and mode atlas
+> **`GameState` is the single gameplay authority.**
+
+SwiftUI and SpriteKit do not independently decide outcomes. Presentation surfaces emit intents through the game-intent and combat-flow seams, then render the authoritative result. This prevents animation, touch handling, or scene timing from silently becoming a second rules engine.
 
 ```mermaid
 flowchart LR
-    Campaign[Campaign Entry] --> Missions[6 Authored Missions]
-    Campaign --> Scenes[Interstitial Scene Missions]
-    Campaign --> Replay[Replay Systems]
-
-    Replay --> Arenas[20 Arenas]
-    Replay --> Contracts[Contract Tiers 1–3]
-    Replay --> Gauntlet[Gauntlet Floors]
-    Replay --> NG[New Game+ Scaling]
-
-    Missions --> Clear[Room Clear]
-    Clear --> Extract[Extraction]
-    Extract --> Payout[Rewards and Nuyen]
-    Payout --> Persist[Persistent Save]
-    Persist --> Campaign
+    P[Player input] --> I[Game intents]
+    I --> G[GameState authority]
+    G --> C[Combat and mission systems]
+    C --> G
+    G --> S[SpriteKit battlefield]
+    G --> U[SwiftUI campaign UI]
+    G --> V[Persistence and progression]
 ```
 
-Certification coverage and remaining device-touch checks are tracked in [`docs/audit/MissionCertificationMatrix.md`](docs/audit/MissionCertificationMatrix.md).
+---
 
-## Crew
+## Current state
 
-| Archetype | Combat identity |
-|---|---|
-| **Street Samurai** | Front-line physical pressure and direct threat control |
-| **Mage** | High-impact supernatural utility with consequential exposure |
-| **Decker** | Network manipulation, systems access, and signal warfare |
-| **Face** | Social leverage, opportunistic control, and mission flexibility |
+HexWire is a **stabilized vertical slice**, not yet a finished App Store release.
 
-## Technology
+The current repository includes:
 
-| Layer | Implementation |
-|---|---|
-| Platform | iOS 17+, iPhone and iPad |
-| Language | Swift 5.9 |
-| Application UI | SwiftUI |
-| Tactical rendering | SpriteKit |
-| Project generation | XcodeGen 2.46.0 |
-| Tests | XCTest with deterministic and mission-certification coverage |
-| Continuous integration | GitHub Actions on `macos-15` and Ubuntu runners |
-| Project authority | `project.yml` with committed generated `HexWire.xcodeproj` |
+- Six certified multi-room story missions
+- Scene-driven interstitial missions
+- Deterministic combat and seeded replay behavior
+- Twenty validated arenas
+- Side-contract tiers 1–3
+- Gauntlet progression across the tested scaling band
+- Persistent economy, campaign, and upgrade state
+- iPhone and iPad layouts
+- Debug and Release simulator builds
+- Unsigned release archive generation
+- Hosted CI on every pull request and push to `main`
 
-## Repository map
+Remaining release work is concentrated around the owner’s real-device pass, ship configuration, signing, and App Store metadata. See [`plans.md`](plans.md) for the active release frontier.
 
-```text
-Hexwire/
-├── Game/                  # Gameplay authority, intents, and domain logic
-├── Missions/              # Authored mission JSON
-├── Sprites/               # Runtime sprite resources
-├── Assets.xcassets/       # Asset-catalog resources and app icon
-├── tests/                 # Unit and certification tests
-├── docs/
-│   ├── architecture/      # Extraction and architecture records
-│   ├── audit/             # Build, test, mission, persistence, and repo evidence
-│   ├── archive/           # Superseded historical material
-│   └── assets/            # README and documentation visuals
-├── scripts/               # Repository validation and engineering utilities
-├── .github/workflows/     # Hosted CI
-├── project.yml            # Canonical XcodeGen project definition
-├── HexWire.xcodeproj/     # Generated and drift-checked Xcode project
-├── AGENTS.md              # Contributor and coding-agent operating rules
-└── plans.md               # Current baseline, blockers, and next actions
-```
+---
 
-## Build and run
+## Jack in
 
 ### Requirements
 
-- macOS with Xcode and an iOS 17+ SDK
-- [XcodeGen 2.46.0](https://github.com/yonaskolb/XcodeGen/releases/tag/2.46.0)
-- An available iPhone or iPad simulator
+- macOS
+- Xcode with an iOS 17+ SDK
+- XcodeGen **2.46.0**
 
 ### Generate the project
 
@@ -203,7 +219,7 @@ Hexwire/
 xcodegen generate
 ```
 
-`project.yml` is canonical. Whenever files are added, removed, or moved, regenerate and commit `HexWire.xcodeproj`. CI fails when the generated project drifts from the specification.
+`HexWire.xcodeproj` is generated from [`project.yml`](project.yml). After adding or removing files, regenerate and commit the project. CI rejects project drift.
 
 ### Build
 
@@ -225,95 +241,97 @@ xcodebuild \
   test
 ```
 
-For repeated local test runs, boot the simulator before invoking `xcodebuild`:
+For repeated test runs, pre-boot the simulator to avoid cold-launch instability:
 
 ```bash
-xcrun simctl boot <simulator-udid> || true
-xcrun simctl bootstatus <simulator-udid> -b
+xcrun simctl boot <udid> || true
+xcrun simctl bootstatus <udid> -b
 ```
 
 ### Launch directly into a mission
 
-DEBUG builds honor `SR_AUTOSTART_MISSION_ID`:
+Debug builds honor `SR_AUTOSTART_MISSION_ID`:
 
 ```bash
-SR_AUTOSTART_MISSION_ID=Mission003 \
-  xcodebuild \
-  -project HexWire.xcodeproj \
-  -scheme HexWire \
-  -destination 'platform=iOS Simulator,name=iPhone 17' \
-  build
+SR_AUTOSTART_MISSION_ID=Mission003
 ```
 
-Set the same environment variable in the Xcode scheme when launching interactively.
+Use `Mission001` through `Mission006` to bypass campaign navigation and enter a mission directly.
 
-## Validation
+---
 
-The [`hexwire-ci`](.github/workflows/hexwire-ci.yml) workflow runs on every pull request and every push to `main`.
+## Validation is part of the design
+
+HexWire treats gameplay claims as executable obligations.
+
+The hosted `hexwire-ci` workflow checks:
 
 | Gate | Coverage |
 |---|---|
-| **Repository hygiene** | Nested repositories, generated output, user state, backup projects, mission JSON, and duplicate asset-name checks |
-| **Project drift** | Regenerates with pinned XcodeGen 2.46.0 and fails on an uncommitted diff |
-| **Deterministic tests** | XCTest suite on a pre-booted iPhone simulator |
-| **Build matrix** | Debug and Release builds across iPhone and iPad simulator classes |
-| **Resource integrity** | Missing-resource warning gate on test and build logs |
-| **Archive** | Unsigned generic-iOS Release archive |
+| Repository hygiene | Nested repositories, tracked build output, user state, backup projects, and stray workspaces |
+| Mission data | JSON validity and unique mission identifiers |
+| Asset safety | Duplicate runtime asset-name detection |
+| Project reproducibility | XcodeGen regeneration and drift rejection |
+| Deterministic tests | Combat, authority, economy, persistence, missions, replay modes, and player movement semantics |
+| Device matrix | Debug and Release builds for iPhone and iPad simulators |
+| Archive path | Unsigned generic-iOS Release archive |
+| Resource integrity | Missing-resource warning gate |
 
-> [!NOTE]
-> Historical status documents contain different test totals from different stabilization checkpoints. Treat the live CI workflow and its current run receipts as the authoritative validation surface; update snapshot counts only when the associated evidence documents are advanced together.
+The authoritative status signal is the live CI badge at the top of this README. Historical documents may contain older test-count snapshots; green CI on `main` is the current truth surface.
 
-## Current release frontier
+---
 
-**Verified state:** stabilized vertical slice.
+## Repository atlas
 
-Remaining release-candidate work is intentionally narrow:
+```text
+Hexwire/
+├── Game/                         # Intents, combat flow, authority-facing systems
+├── Missions/                     # Authored mission JSON
+├── Sprites/                      # SpriteKit runtime art
+├── Assets.xcassets/              # Asset catalog
+├── tests/                        # Deterministic and certification suites
+├── docs/
+│   ├── TraceSystem.md            # Signal, trace, escalation, and Lay Low loop
+│   ├── architecture/             # Extraction and authority architecture
+│   ├── audit/                    # Build, test, mission, persistence, and repo evidence
+│   └── archive/                  # Superseded historical material
+├── .github/workflows/            # Hosted CI
+├── project.yml                   # Canonical XcodeGen specification
+├── AGENTS.md                     # Contributor and coding-agent rules
+└── plans.md                      # Current verified baseline and next actions
+```
 
-- Complete the owner device pass for touch feel, scene interactions, ranged feedback, and audio mix.
-- Disable `devUnlockAllMissions` for the ship configuration.
-- Complete App Store signing and metadata.
-- Decide whether to adopt Git LFS before another major asset expansion.
-- Assemble the final release-candidate gate from the existing stabilization evidence.
+### Start here
 
-See [`plans.md`](plans.md) for the current operational baseline and next actions.
-
-## Documentation atlas
-
-| Surface | Purpose |
+| Document | Purpose |
 |---|---|
-| [`plans.md`](plans.md) | Current verified baseline, blockers, and execution frontier |
-| [`AGENTS.md`](AGENTS.md) | Repository workflow and coding-agent invariants |
-| [`docs/TraceSystem.md`](docs/TraceSystem.md) | Signal, trace, heat, and escalation design |
-| [`docs/audit/CurrentRepositoryBaseline.md`](docs/audit/CurrentRepositoryBaseline.md) | Canonical repository-state audit |
-| [`docs/audit/BuildBaselineReport.md`](docs/audit/BuildBaselineReport.md) | Clean-build and destination evidence |
-| [`docs/audit/TestCoverageMap.md`](docs/audit/TestCoverageMap.md) | Test inventory and coverage mapping |
-| [`docs/audit/GameStateAuthorityMutationLedger.md`](docs/audit/GameStateAuthorityMutationLedger.md) | Authority-boundary audit |
-| [`docs/audit/MissionCertificationMatrix.md`](docs/audit/MissionCertificationMatrix.md) | Mission and replay certification |
-| [`docs/audit/PersistenceCertificationReport.md`](docs/audit/PersistenceCertificationReport.md) | Save, migration, and persistence evidence |
-| [`docs/audit/RepositoryWeightAndAssetReport.md`](docs/audit/RepositoryWeightAndAssetReport.md) | Repository-weight and asset strategy |
-| [`docs/architecture/StabilizationExtractionMap.md`](docs/architecture/StabilizationExtractionMap.md) | Decomposition status and deferred extraction candidates |
-| [`docs/archive/`](docs/archive/) | Superseded historical audits and handoffs |
+| [`plans.md`](plans.md) | Current mission, verified baseline, blockers, and next actions |
+| [`AGENTS.md`](AGENTS.md) | Repository workflow and authority invariants |
+| [`docs/TraceSystem.md`](docs/TraceSystem.md) | The Street / Signal / Trace pressure system |
+| [`docs/audit/MissionCertificationMatrix.md`](docs/audit/MissionCertificationMatrix.md) | Evidence for missions, arenas, contracts, gauntlet, and extraction semantics |
+| [`docs/audit/GameStateAuthorityMutationLedger.md`](docs/audit/GameStateAuthorityMutationLedger.md) | Gameplay authority and mutation boundaries |
+| [`docs/audit/PersistenceCertificationReport.md`](docs/audit/PersistenceCertificationReport.md) | Save, migration, corruption, and resume evidence |
+| [`docs/architecture/StabilizationExtractionMap.md`](docs/architecture/StabilizationExtractionMap.md) | Current system decomposition and deferred extraction candidates |
 
-## Contribution contract
+---
 
-Before opening a pull request:
+## Operating rules
 
-1. Preserve `GameState` as the only gameplay authority.
-2. Emit presentation actions through the intent boundary.
-3. Keep deterministic behavior seed-controlled and testable.
-4. Regenerate the Xcode project after source-tree changes.
-5. Add executable evidence for every completed gameplay or persistence claim.
-6. Do not treat documents under `docs/archive/` as current instructions.
-7. Require green hosted CI before advancing `main`.
+Contributions should preserve four invariants:
 
-Contributor and automation rules are defined in [`AGENTS.md`](AGENTS.md).
+1. `GameState` remains the gameplay authority.
+2. Presentation layers emit intents and render results; they do not invent outcomes.
+3. Mission, replay, progression, and persistence behavior must remain deterministic under controlled seeds.
+4. No completed claim is accepted without a test, build receipt, runtime evidence, or an explicit `NOT_COMPUTABLE` boundary.
+
+Read [`AGENTS.md`](AGENTS.md) before changing combat flow, mission state, persistence, project structure, or generated Xcode files.
 
 ---
 
 <div align="center">
 
-**Every advantage leaves a signal. Every signal changes the fight.**
+### The signal makes you powerful. The trace makes you mortal.
 
-[Back to top](#hexwire)
+**HexWire** — turn-based cyberpunk strategy tactics for iOS.
 
 </div>
