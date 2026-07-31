@@ -1559,6 +1559,13 @@ struct TitleView: View {
 // MARK: - Mission Select View
 
 struct MissionSelectView: View {
+    #if DEBUG
+    /// Unlocks every mission for direct testing. DEBUG-only by construction —
+    /// Release compiles the whole check out, so progression is always correct
+    /// in a shipped build no matter what this is set to.
+    static let devUnlockAllMissions = true
+    #endif
+
     @ObservedObject var manager: PhaseManager
     @ObservedObject private var stats = MissionStatsStore.shared
     @ObservedObject private var contracts = ContractStore.shared
@@ -1761,10 +1768,16 @@ struct MissionSelectView: View {
                         //     (the chase mission is optional and does NOT
                         //     gate M4). Chase unlocks when M3 is completed.
                         let isLocked: Bool = {
-                            // DEV TEST TOGGLE: unlock every mission for direct testing.
-                            // Set `devUnlockAllMissions` back to false to restore progression.
-                            let devUnlockAllMissions = true
-                            if devUnlockAllMissions { return false }
+                            // DEV TEST TOGGLE: unlock every mission for direct
+                            // testing. Compiled out of Release entirely, so a
+                            // release candidate CANNOT ship with progression
+                            // disabled — this used to be a plain `let ... = true`
+                            // that a human had to remember to flip before
+                            // cutting a build (a standing WP10 ship blocker).
+                            // Debug builds stay unlocked for playtesting.
+                            #if DEBUG
+                            if Self.devUnlockAllMissions { return false }
+                            #endif
                             guard index > 0 else { return false }
                             if record.completed { return false }   // already beaten = always replayable
                             let prevTactical = missions.prefix(index).reversed().first { !$0.isChase }

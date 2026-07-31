@@ -1947,6 +1947,11 @@ final class GameState: ObservableObject {
     /// each enemy movement step. Returns the number of shots fired (0 or 1 per overwatcher).
     /// One reaction shot per Overwatch action: the entry is consumed when the shot
     /// resolves (fumble/miss/dodge included), not at round end.
+    ///
+    /// Discardable: every AI call site fires this for its side effects (the shot
+    /// resolving) and has no use for the count, which was generating 18 identical
+    /// unused-result warnings and burying the real ones.
+    @discardableResult
     func fireOverwatchShot(atEnemy enemy: Enemy, attackerId: UUID) -> Int {
         guard let ovwPool = overwatchers[attackerId] else { return 0 }
         // Only fire if enemy is in LOS with no wall blocking
