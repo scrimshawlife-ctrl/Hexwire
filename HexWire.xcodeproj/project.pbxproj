@@ -836,6 +836,7 @@
 		DC3CAB0922320789EA74C089 /* vfx_code_red_08.png in Resources */ = {isa = PBXBuildFile; fileRef = E02D82FFB9C10BEB95C2C7C7 /* vfx_code_red_08.png */; };
 		DC6140C6B0A28A86D84D2CE6 /* sable_astral_idle_1.png in Resources */ = {isa = PBXBuildFile; fileRef = 291245C691DCF73CD7C6B8F2 /* sable_astral_idle_1.png */; };
 		DCC360C1CB671E61DD614BAC /* AGIFaceoffMiniGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = F944D3DF5ABDACF70B19694E /* AGIFaceoffMiniGame.swift */; };
+		DCE5EF8AB692EB523E719D1E /* BossBehaviourTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77AA0497BBEA4B900FB91918 /* BossBehaviourTests.swift */; };
 		DCF821AA2EE8625549420C3B /* vfx_code_red_04.png in Resources */ = {isa = PBXBuildFile; fileRef = 9E2FF275BED68E0204493957 /* vfx_code_red_04.png */; };
 		DD28A59D5A7C18748E118CBD /* vfx_arc_blue_04.png in Resources */ = {isa = PBXBuildFile; fileRef = 1605807B040FE26A6D1B269E /* vfx_arc_blue_04.png */; };
 		DD47E59E974E18647885BC2F /* infiltrator_attack_0.png in Resources */ = {isa = PBXBuildFile; fileRef = B2B8244321B31112610DD178 /* infiltrator_attack_0.png */; };
@@ -1405,6 +1406,7 @@
 		77646DF9FC7DDD7AD039FF10 /* hover_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = hover_0.png; sourceTree = "<group>"; };
 		77693E861CCC1634E6C14398 /* packet_route_hop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = packet_route_hop.mp3; sourceTree = "<group>"; };
 		7797919FC3CB16851796DDAA /* corpmage_attack_1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = corpmage_attack_1.png; sourceTree = "<group>"; };
+		77AA0497BBEA4B900FB91918 /* BossBehaviourTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BossBehaviourTests.swift; sourceTree = "<group>"; };
 		7863AF55594BB79D162FE0F7 /* bossmage_idle_0.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bossmage_idle_0.png; sourceTree = "<group>"; };
 		78C8EFE4EC943DCCACB0D557 /* Mission005_room_2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Mission005_room_2.png; sourceTree = "<group>"; };
 		78E28E82AF863B8C768F6933 /* brawler_walk_3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = brawler_walk_3.png; sourceTree = "<group>"; };
@@ -3015,6 +3017,7 @@
 			isa = PBXGroup;
 			children = (
 				8321D6CBACDEB198C7AAB9E8 /* ArenaPoolTests.swift */,
+				77AA0497BBEA4B900FB91918 /* BossBehaviourTests.swift */,
 				508E01A554C4069BA47EED28 /* CombatMathTests.swift */,
 				8B03BE55F7CB99F5857FD3EA /* ContractBoardTests.swift */,
 				12665DAB8F210C780CB1C292 /* DiceDeterminismTests.swift */,
@@ -4019,6 +4022,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD2B330D3F630265422DDDB7 /* ArenaPoolTests.swift in Sources */,
+				DCE5EF8AB692EB523E719D1E /* BossBehaviourTests.swift in Sources */,
 				8240484269AAA631B737BA88 /* CombatMathTests.swift in Sources */,
 				4401F541A541DBA9B68D147C /* ContractBoardTests.swift in Sources */,
 				D6ACD7E6B7A7AEA798C91BA0 /* DiceDeterminismTests.swift in Sources */,

@@ -7,6 +7,47 @@ import XCTest
 @MainActor
 final class ReplaySpawnTests: XCTestCase {
 
+    // MARK: - Backtrack spawn placement (door-mirrored)
+
+    /// Walking BACK through a door must land the squad beside that door — the
+    /// connection's authored targetSpawn — not at the room's original
+    /// playerSpawn, which sits at the far end. Regression for the 2026-07-23
+    /// fix; re-reported against M5 on 2026-07-25.
+    func testBacktrackUsesConnectionTargetSpawnNotPlayerSpawn() throws {
+        struct Case { let mission: String; let from: String; let doorX: Int; let doorY: Int }
+        let cases = [
+            Case(mission: "Mission001", from: "room_2", doorX: 3, doorY: 1),
+            Case(mission: "Mission005", from: "room_2", doorX: 3, doorY: 1),
+        ]
+        for c in cases {
+            RoomManager.shared.unloadMission()
+            guard let mission = RoomManager.shared.loadMission(named: c.mission) else {
+                throw XCTSkip("mission JSONs not bundled")
+            }
+            guard let source = mission.rooms.first(where: { $0.id == c.from }),
+                  let conn = source.connections.first(where: {
+                      $0.triggerTileX == c.doorX && $0.triggerTileY == c.doorY
+                  }),
+                  let target = mission.rooms.first(where: { $0.id == conn.targetRoomId })
+            else { return XCTFail("\(c.mission): no connection at (\(c.doorX),\(c.doorY)) in \(c.from)") }
+
+            // Simulate having already been in the target room, then walking back.
+            RoomManager.shared.markRoomEntered(target.id)
+            RoomManager.shared.markRoomEntered(source.id)
+            GameState.shared.playerIsDead = false
+            _ = RoomManager.shared.attemptTransition(from: c.from, atTileX: c.doorX, y: c.doorY)
+
+            XCTAssertEqual(RoomManager.shared.pendingConnectionTargetX, conn.targetSpawnX,
+                           "\(c.mission) \(c.from)->\(target.id): must use the door's targetSpawn x")
+            XCTAssertEqual(RoomManager.shared.pendingConnectionTargetY, conn.targetSpawnY,
+                           "\(c.mission) \(c.from)->\(target.id): must use the door's targetSpawn y")
+            XCTAssertNotEqual(RoomManager.shared.pendingConnectionTargetY, target.playerSpawn.y,
+                              "\(c.mission): backtrack must NOT fall back to playerSpawn "
+                              + "(\(target.playerSpawn.x),\(target.playerSpawn.y)) — that is the far end")
+        }
+        RoomManager.shared.unloadMission()
+    }
+
     // MARK: - Backtrack patrols
 
     private func patrolRoom(id: String = "patrol_room") -> Room {

@@ -1579,11 +1579,13 @@ final class GameState: ObservableObject {
         // room_2 wall cluster is now just a static obstacle you walk past, so
         // no tile-conversion happens on boss deploy.)
 
+        // Cinematic reveal card FIRST, then the unit lands on the board — same
+        // ordering as the M3 Sato reveal, so the card is already rising as the
+        // sprite materialises behind it.
+        presentBossIntro(archetype: enemy.archetype, name: enemy.name)
+
         enemies.append(enemy)
         addLog("⚠️  HEAVY UNIT DEPLOYED — \(enemy.name)")
-
-        // Cinematic reveal card — slams in over the board, holds, auto-clears.
-        presentBossIntro(archetype: enemy.archetype, name: enemy.name)
 
         // Visual + audio reveal — fire each notification with userInfo so
         // the BattleScene observer can place sprite + run intro sequence.

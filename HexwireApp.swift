@@ -229,8 +229,13 @@ struct BossIntroOverlay: View {
     let intro: GameState.BossIntro
     var onDismiss: () -> Void = {}
 
+    /// How long the reveal ignores taps. Must outlast the 0.9s fade-up, or the
+    /// card can be dismissed before it is fully visible.
+    static let tapGraceSeconds: TimeInterval = 1.2
+
     @State private var appear = false
     @State private var pulse = false
+    @State private var canDismiss = false
     @State private var splash: UIImage? = nil
 
     private var accent: Color { Color(hex: intro.accentHex) }
@@ -318,7 +323,15 @@ struct BossIntroOverlay: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { onDismiss() }
+        // Tap-to-skip is DEADENED for the first beat. The reveal fires the
+        // instant the player's killing blow lands, and combat is played by
+        // tapping — an inherited tap (or the second half of an eager
+        // double-tap) dismissed the card inside a frame, so the boss simply
+        // appeared with no splash at all (playtest 2026-07-25: "boss appeared
+        // without the boss splash screen"). The card also fades up over 0.9s,
+        // so anything shorter than that was dismissing a card the player had
+        // not even seen yet.
+        .onTapGesture { if canDismiss { onDismiss() } }
         .onAppear {
             splash = loadBossSplashImage(intro.splashKey)
             // Slow ease-in (was a fast 0.45 spring that read as a hard "pop"):
@@ -326,6 +339,10 @@ struct BossIntroOverlay: View {
             // reveal builds instead of jumping onto the screen with no warning.
             withAnimation(.easeIn(duration: 0.9)) { appear = true }
             withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { pulse = true }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(Self.tapGraceSeconds * 1_000_000_000))
+                canDismiss = true
+            }
         }
     }
 
