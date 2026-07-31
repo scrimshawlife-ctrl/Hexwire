@@ -48,6 +48,37 @@ final class ReplaySpawnTests: XCTestCase {
         RoomManager.shared.unloadMission()
     }
 
+    /// A door back to a room you have already entered is walkable even while
+    /// the current room is uncleared (attemptTransition waives the requirement),
+    /// so it must not be PAINTED as locked. Playtest 2026-07-25, M5R2: "it shows
+    /// the door you just came through as locked ... can easily just walk back
+    /// through it, so it is not locked."
+    func testBacktrackDoorIsNotLockedWhileRoomUncleared() throws {
+        RoomManager.shared.unloadMission()
+        guard let mission = RoomManager.shared.loadMission(named: "Mission005") else {
+            throw XCTSkip("mission JSONs not bundled")
+        }
+        guard let room2 = mission.rooms.first(where: { $0.id == "room_2" }),
+              let back = room2.connections.first(where: { $0.targetRoomId == "room_1" }),
+              let fwd  = room2.connections.first(where: { $0.targetRoomId == "room_3" })
+        else { return XCTFail("M5 room_2 connections missing") }
+
+        // Player has been through room_1 and is now standing in an UNCLEARED room_2.
+        RoomManager.shared.markRoomEntered("room_1")
+        RoomManager.shared.markRoomEntered("room_2")
+        XCTAssertFalse(RoomManager.shared.isRoomCleared("room_2"))
+
+        XCTAssertTrue(RoomManager.shared.doorIsBacktrack(inRoom: "room_2",
+                                                         tileX: back.triggerTileX,
+                                                         y: back.triggerTileY),
+                      "the door back to room_1 must read as an open backtrack door")
+        XCTAssertFalse(RoomManager.shared.doorIsBacktrack(inRoom: "room_2",
+                                                          tileX: fwd.triggerTileX,
+                                                          y: fwd.triggerTileY),
+                       "the door onward to an UNVISITED room must still read as locked")
+        RoomManager.shared.unloadMission()
+    }
+
     // MARK: - Backtrack patrols
 
     private func patrolRoom(id: String = "patrol_room") -> Room {

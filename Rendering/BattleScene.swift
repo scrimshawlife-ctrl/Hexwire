@@ -2285,16 +2285,26 @@ final class BattleScene: SKScene {
 
         let roomCleared = RoomManager.shared.isRoomCleared(room.id)
         for connection in room.connections {
+            // Lock state is PER DOOR, not per room. A door leading back to a
+            // room you've already been in is always walkable — attemptTransition
+            // waives the cleared-room requirement for backtracking. Painting
+            // every door with the room-wide `roomCleared` flag drew the door
+            // the player had just walked through as LOCKED while they could
+            // freely walk back out of it (playtest 2026-07-25, M5R2).
+            let unlocked = roomCleared
+                || RoomManager.shared.doorIsBacktrack(inRoom: room.id,
+                                                      tileX: connection.triggerTileX,
+                                                      y: connection.triggerTileY)
             addDoorMarker(
                 to: markerLayer,
                 x: connection.triggerTileX,
                 y: connection.triggerTileY,
-                cleared: roomCleared
+                cleared: unlocked
             )
-            // The orange door hex only glows once the door is unlocked (room
-            // cleared) — hidden during the fight so the room reads clean.
+            // The orange door hex only glows once the door is unlocked — hidden
+            // during the fight so the room reads clean.
             mapNode.childNode(withName: "tile_\(connection.triggerTileX)_\(connection.triggerTileY)")?
-                .childNode(withName: "doorHexPulse")?.isHidden = !roomCleared
+                .childNode(withName: "doorHexPulse")?.isHidden = !unlocked
         }
 
         if RoomManager.shared.isExtractionActive(in: room) {
