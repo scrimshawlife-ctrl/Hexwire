@@ -48,7 +48,6 @@ final class BattleScene: SKScene {
     }
     private var characterNodes: [UUID: SKNode] = [:]
     private var selectedCharacterNode: SKNode?
-    private var currentTurnIndex: Int = 0
     private var lastRenderedTraceTier: Int = -1
 
     /// Movement range for BFS pathfinding — 4 hexes per turn (SR5 sprint range for tactical mobility)
@@ -57,8 +56,6 @@ final class BattleScene: SKScene {
     /// Current room ID — synced with RoomManager.currentRoomId during transitions.
     var currentRoomId: String = "room_0"
 
-    /// Turn order list — set externally from TurnManager
-    var turnOrder: [Character] = []
 
     /// Fade overlay for room transitions — stored so fadeOutFromTransition
     /// can use a direct reference instead of a name-based child lookup.
@@ -3026,20 +3023,14 @@ final class BattleScene: SKScene {
 
     /// Get character at a tile position.
 
-    // MARK: - Turn Indicator
-
-    /// Highlight the current actor.
-    func updateTurnIndicator() {
-        guard !turnOrder.isEmpty, currentTurnIndex < turnOrder.count else { return }
-        let current = turnOrder[currentTurnIndex]
-        selectCharacter(id: current.id)
-
-        NotificationCenter.default.post(
-            name: .turnChanged,
-            object: nil,
-            userInfo: ["characterId": current.id.uuidString]
-        )
-    }
+    // Removed 2026-07-31: `updateTurnIndicator()` plus the `turnOrder` /
+    // `currentTurnIndex` pair it read. Nothing ever called the function and
+    // nothing ever populated the array, so its own `!turnOrder.isEmpty` guard
+    // would have returned early even if something had. The live `.turnChanged`
+    // notification is posted by CombatFlowController, not from here.
+    // Vestigial scaffolding like this is what let the extraction blocker hide:
+    // `syntheticExtraction` was equally dead but had passing tests, so contracts
+    // looked covered while being uncompletable.
 
     /// Show movement range on the map.
     func showMoveRange(tiles: [(Int, Int)]) {
